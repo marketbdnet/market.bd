@@ -1,0 +1,1492 @@
+import { Product } from '../types';
+
+const now = Date.now();
+const getRecentTime = (minsAgo: number) => new Date(now - minsAgo * 60 * 1000).toISOString();
+
+export const INITIAL_PRODUCTS: Product[] = [
+  // 1. MOBILES & GADGETS
+  {
+    id: 'prod-bikroy-iphone17pm',
+    title: 'iPhone 17 Pro Max 512GB - Titanium Orange',
+    slug: 'iphone-17-pro-max-512gb-titanium-orange-dhaka',
+    category: 'mobiles',
+    subCategory: 'smartphones',
+    brand: 'Apple',
+    model: 'iPhone 17 Pro Max',
+    price: 185000,
+    originalPrice: 198000,
+    condition: 'used_like_new',
+    description: 'iPhone 17 Pro Max 512GB Titanium Orange edition. Used for 2 months only with 10 months official Apple warranty remaining. Comes with cash memo, original box, and gratis Spigen armored case.',
+    features: [
+      '512GB NVMe Storage',
+      'A19 Pro Chipset 3nm',
+      '48MP Triple Lens Camera',
+      'Titanium Body Frame',
+      '100% Battery Health',
+      'Original USB-C Cable'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1200&q=85',
+      'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Dhanmondi' },
+    seller: {
+      id: 'seller-rahim-tech',
+      name: 'Rahim Tech Gadgets',
+      email: 'rahimtech@gmail.com',
+      phone: '01711-223344',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 86,
+      badge: 'Platinum Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Dhanmondi' },
+      memberSince: '2 years ago',
+      responseRate: '100%',
+      responseTime: 'Within 5 minutes'
+    },
+    postedAt: getRecentTime(5),
+    views: 890,
+    likes: 112,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'RAM': '12GB', 'Storage': '512GB' },
+    status: 'active'
+  },
+  {
+    id: 'prod-bikroy-redmi-note15',
+    title: 'Xiaomi Redmi Note 15 Pro 5G - 12GB/256GB Curved AMOLED',
+    slug: 'xiaomi-redmi-note-15-pro-5g-12gb-256gb-curved-amoled-chittagong',
+    category: 'mobiles',
+    subCategory: 'smartphones',
+    brand: 'Xiaomi',
+    model: 'Redmi Note 15 Pro',
+    price: 36500,
+    originalPrice: 39999,
+    condition: 'brand_new',
+    description: 'Xiaomi Redmi Note 15 Pro 5G with 200MP OIS Camera, 1.5K 120Hz Curved AMOLED Display, Dimensity 7200 Ultra Processor, 5000mAh Battery with 120W HyperCharge. 1 Year Official Warranty.',
+    features: [
+      '200MP OIS Ultra Camera',
+      '1.5K Curved AMOLED 120Hz',
+      'Dimensity 7200 Ultra 5G',
+      '120W HyperCharge',
+      '1 Year Official Xiaomi Warranty'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Chattogram', district: 'Chattogram', thana: 'Agrabad' },
+    seller: {
+      id: 'seller-ctg-telecom',
+      name: 'Agrabad Mobile Gallery',
+      email: 'agrabadmobile@gmail.com',
+      phone: '01812-334455',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 88,
+      badge: 'Verified Merchant',
+      location: { division: 'Chattogram', district: 'Chattogram', thana: 'Agrabad' },
+      memberSince: '2 years ago',
+      responseRate: '97%',
+      responseTime: 'Within 5 minutes'
+    },
+    postedAt: getRecentTime(14),
+    views: 610,
+    likes: 72,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'RAM': '12GB', 'Storage': '256GB' },
+    status: 'active'
+  },
+
+  // 2. COMPUTERS & IT
+  {
+    id: 'prod-bikroy-macbook-m3',
+    title: 'MacBook Pro 14 M3 Pro 18GB / 512GB Space Black',
+    slug: 'macbook-pro-14-m3-pro-18gb-512gb-space-black-dhaka',
+    category: 'computers',
+    subCategory: 'laptops',
+    brand: 'Apple',
+    model: 'MacBook Pro 14',
+    price: 225000,
+    originalPrice: 245000,
+    condition: 'used_like_new',
+    description: 'Apple MacBook Pro 14 Inch M3 Pro Chip (11-Core CPU, 14-Core GPU), 18GB Unified Memory, 512GB SSD Storage, Space Black Color. Battery cycle count only 18. Apple Care Plus warranty valid till September 2026.',
+    features: [
+      'Liquid Retina XDR 120Hz ProMotion',
+      'M3 Pro 11 CPU / 14 GPU',
+      '18GB Unified RAM',
+      'MagSafe 3 Charging Cable',
+      'Box & Accessories Included'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=85',
+      'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Uttara' },
+    seller: {
+      id: 'seller-apple-gadget',
+      name: 'Uttara Apple Zone',
+      email: 'uttaraapple@gmail.com',
+      phone: '01912-334455',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 5.0,
+      totalReviews: 104,
+      badge: 'Gold Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Uttara' },
+      memberSince: '4 years ago',
+      responseRate: '100%',
+      responseTime: 'Instant'
+    },
+    postedAt: getRecentTime(26),
+    views: 1250,
+    likes: 145,
+    adType: 'urgent',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'RAM': '18GB', 'SSD': '512GB' },
+    status: 'active'
+  },
+
+  // 3. ELECTRONICS
+  {
+    id: 'prod-bikroy-sony-tv-55',
+    title: 'Sony Bravia 55 Inch 4K Ultra HD Smart Google OLED TV',
+    slug: 'sony-bravia-55-inch-4k-ultra-hd-smart-google-oled-tv-dhaka',
+    category: 'electronics',
+    subCategory: 'televisions',
+    brand: 'Sony',
+    model: 'Bravia XR 55A80L',
+    price: 138000,
+    originalPrice: 155000,
+    condition: 'brand_new',
+    description: 'Original Sony Bravia 55 Inch 4K HDR Smart Google OLED TV. XR Cognitive Processor, Dolby Vision Atmos, Acoustic Surface Audio+, 120Hz HDMI 2.1 Gaming for PS5. 2 Years Panel Warranty.',
+    features: [
+      'Cognitive Processor XR',
+      'OLED Pure Black & Brightness',
+      'Dolby Vision & Dolby Atmos',
+      'Google TV Built-in Voice Remote',
+      '2 Years Official Sony Warranty'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Gulshan' },
+    seller: {
+      id: 'seller-sony-world',
+      name: 'Rangs Electronics Showroom',
+      email: 'rangsonline@gmail.com',
+      phone: '01711-889900',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 210,
+      badge: 'Platinum Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Gulshan' },
+      memberSince: '5 years ago',
+      responseRate: '98%',
+      responseTime: 'Within 10 minutes'
+    },
+    postedAt: getRecentTime(39),
+    views: 940,
+    likes: 128,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Screen Size': '55 Inch', 'Display': '4K OLED 120Hz' },
+    status: 'active'
+  },
+
+  // 4. VEHICLES
+  {
+    id: 'prod-bikroy-fzs-v4',
+    title: 'Yamaha FZ-S FI V4 ABS Deluxe - Matte Titan 2025',
+    slug: 'yamaha-fzs-fi-v4-abs-deluxe-matte-titan-2025-dhaka',
+    category: 'vehicles',
+    subCategory: 'motorcycles',
+    brand: 'Yamaha',
+    model: 'FZ-S FI V4',
+    price: 268000,
+    originalPrice: 279000,
+    condition: 'used_good',
+    description: 'Yamaha FZ-S FI V4 ABS Deluxe Matte Titan Edition 2025. Driven 3400 km only. First party name transfer possible anytime. All papers updated till 2027. Showroom condition, no accidental history.',
+    features: [
+      'Single Channel ABS',
+      'Traction Control System',
+      'LED Headlight & Taillight',
+      'Bluetooth Y-Connect App Enabled',
+      '149cc Fuel Injected Engine',
+      '2 Years Smart Card Registration'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=1200&q=85',
+      'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Mirpur' },
+    seller: {
+      id: 'seller-bikroy-auto',
+      name: 'Mirpur Auto Gallery',
+      email: 'mirpurauto@gmail.com',
+      phone: '01819-887766',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 42,
+      badge: 'Verified Merchant',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Mirpur' },
+      memberSince: '3 years ago',
+      responseRate: '98%',
+      responseTime: 'Within 10 minutes'
+    },
+    postedAt: getRecentTime(55),
+    views: 640,
+    likes: 78,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: false,
+    specifications: { 'Engine': '149cc', 'Odometer': '3400 km' },
+    status: 'active'
+  },
+  {
+    id: 'prod-bikroy-axio-hybrid',
+    title: 'Toyota Axio Hybrid X Grade 2019 - Fresh Condition',
+    slug: 'toyota-axio-hybrid-x-grade-2019-fresh-condition-dhaka',
+    category: 'vehicles',
+    subCategory: 'cars',
+    brand: 'Toyota',
+    model: 'Axio Hybrid',
+    price: 2150000,
+    originalPrice: 2280000,
+    condition: 'used_good',
+    description: 'Toyota Axio Hybrid X Grade 2019 Model, Reg 2022. Pearl White Color, Octane + Hybrid driven 42000 km. DVD Player with Reverse Camera, Airbags, ABS, Chilled AC. First owner user car.',
+    features: [
+      '1500cc Hybrid Engine',
+      'Push Start & Keyless Entry',
+      '22-25 km/L Fuel Mileage',
+      'All Papers Up to Date 2027',
+      'No Accident History'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Gulshan' },
+    seller: {
+      id: 'seller-gulshan-motors',
+      name: 'Gulshan Auto Hub',
+      email: 'gulshanauto@gmail.com',
+      phone: '01715-445566',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 54,
+      badge: 'Gold Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Gulshan' },
+      memberSince: '2 years ago',
+      responseRate: '96%',
+      responseTime: 'Within 15 minutes'
+    },
+    postedAt: getRecentTime(105),
+    views: 740,
+    likes: 85,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: false,
+    specifications: { 'Model Year': '2019', 'Engine': '1500cc' },
+    status: 'active'
+  },
+
+  // 5. PROPERTY
+  {
+    id: 'prod-bikroy-apartment-uttara',
+    title: 'Luxury 2200 Sft 4 BHK Apartment Sale in Uttara Sector 11',
+    slug: 'luxury-2200-sft-4-bhk-apartment-sale-uttara-sector-11',
+    category: 'property',
+    subCategory: 'apartments_sale',
+    price: 24500000,
+    originalPrice: 26000000,
+    condition: 'brand_new',
+    description: 'Brand new luxury apartment for sale in Uttara Sector 11. 2200 Square Feet, 4 Bedrooms, 4 Bathrooms, 3 Balconies, Drawing, Dining, Servant Room with bath, 1 Dedicated Car Parking. 100% RAJUK Approved.',
+    features: [
+      '2200 Sq Ft Living Area',
+      '4 Bed / 4 Bath / 3 Balcony',
+      '2 Auto Lifts & Generator',
+      'Corner Plot South-East Facing',
+      'Reserved Car Parking Space'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=85',
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Uttara' },
+    seller: {
+      id: 'seller-properties-bd',
+      name: 'Prime Properties BD',
+      email: 'primepropertiesbd@gmail.com',
+      phone: '01700-112233',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 120,
+      badge: 'Platinum Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Uttara' },
+      memberSince: '5 years ago',
+      responseRate: '95%',
+      responseTime: 'Within 1 hour'
+    },
+    postedAt: getRecentTime(140),
+    views: 1820,
+    likes: 198,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: false,
+    specifications: { 'Size': '2200 Sqft', 'Bedrooms': '4' },
+    status: 'active'
+  },
+  {
+    id: 'prod-bikroy-land-purbachal',
+    title: '5 Katha Prime South Facing Plot in Purbachal Sector 21',
+    slug: '5-katha-prime-south-facing-plot-purbachal-sector-21',
+    category: 'property',
+    subCategory: 'land',
+    price: 18500000,
+    originalPrice: 19500000,
+    condition: 'brand_new',
+    description: '5 Katha prime residential plot in Purbachal New Town Sector 21. South facing, 30 feet wide front road. RAJUK allotted plot with clear title, instant registration and mutation done.',
+    features: [
+      '5 Katha Total Land Area',
+      'South Facing Front Plot',
+      '30 Feet Wide Front Road',
+      'RAJUK Official Allotment'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Khilkhet' },
+    seller: {
+      id: 'seller-purbachal-lands',
+      name: 'Purbachal Real Estate Solutions',
+      email: 'purbachallands@gmail.com',
+      phone: '01811-998877',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 95,
+      badge: 'Verified Merchant',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Khilkhet' },
+      memberSince: '3 years ago',
+      responseRate: '92%',
+      responseTime: 'Within 30 minutes'
+    },
+    postedAt: getRecentTime(175),
+    views: 2100,
+    likes: 230,
+    adType: 'top_ad',
+    isNegotiable: true,
+    isDeliveryAvailable: false,
+    specifications: { 'Area': '5 Katha', 'Facing': 'South' },
+    status: 'active'
+  },
+
+  // 6. HOME & FURNITURE
+  {
+    id: 'prod-bikroy-sofa-set',
+    title: 'Exclusive Genuine Teak Wood (সেগুন কাঠ) 5 Seater L-Shape Sofa Set',
+    slug: 'exclusive-genuine-teak-wood-5-seater-l-shape-sofa-set-dhaka',
+    category: 'home_furniture',
+    subCategory: 'sofas',
+    price: 48000,
+    originalPrice: 58000,
+    condition: 'used_like_new',
+    description: 'Exclusive 100% Chittagong Teak Wood (চট্টগ্রাম সেগুন কাঠ) 5 Seater L-Shape sofa set with center glass tea table. Master fabric cushion seats, highly comfortable and durable.',
+    features: [
+      'Original Chittagong Teak Wood',
+      '5 Seater (3+1+1) L-Shape',
+      'High Density Foam Cushioning',
+      'Includes Center Glass Tea Table'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1200&q=85',
+      'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Badda' },
+    seller: {
+      id: 'seller-badda-furniture',
+      name: 'Hatil Inspired Furniture Ltd',
+      email: 'baddafurniture@gmail.com',
+      phone: '01918-223344',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.7,
+      totalReviews: 78,
+      badge: 'Verified Merchant',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Badda' },
+      memberSince: '1 year ago',
+      responseRate: '90%',
+      responseTime: 'Within 20 minutes'
+    },
+    postedAt: getRecentTime(210),
+    views: 920,
+    likes: 110,
+    adType: 'regular',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Wood': 'Chittagong Teak', 'Capacity': '5 Seater' },
+    status: 'active'
+  },
+  {
+    id: 'prod-furniture-hatil-bed',
+    title: 'Hatil Premium Chittagong Teak Wood King Size Bed (হাতিলে সেগুন খাট)',
+    slug: 'hatil-premium-chittagong-teak-wood-king-size-bed-dhaka',
+    category: 'home_furniture',
+    subCategory: 'beds',
+    brand: 'Hatil (হাতিলে)',
+    model: 'Hatil Chittagong Teak King Size Bed',
+    price: 65000,
+    originalPrice: 78000,
+    condition: 'used_like_new',
+    description: 'Original Hatil solid Chittagong Teak Wood 6ft x 7ft King Size bed frame with elegant headboard carving. Smooth lacquer finish, sturdy mattress support slats.',
+    features: [
+      'Genuine Hatil Brand Craftsmanship',
+      'Solid Chittagong Teak Wood (চিটাগাং সেগুন)',
+      '6 Feet x 7 Feet King Size',
+      'High Quality Italian Lacquer Polish'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=85',
+      'https://images.unsplash.com/photo-1540518614846-7ede433c5172?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Uttara' },
+    seller: {
+      id: 'seller-uttara-living',
+      name: 'Uttara Interior & Furniture',
+      email: 'uttaraliving@gmail.com',
+      phone: '01812-334455',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 42,
+      badge: 'Verified Merchant',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Uttara' },
+      memberSince: '2 years ago',
+      responseRate: '95%',
+      responseTime: 'Within 10 minutes'
+    },
+    postedAt: getRecentTime(245),
+    views: 640,
+    likes: 82,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Brand': 'Hatil', 'Size': '6ft x 7ft King', 'Material': 'Teak Wood' },
+    status: 'active'
+  },
+  {
+    id: 'prod-furniture-otobi-dining',
+    title: 'Otobi 6-Seater Solid Wood Dining Table Set with Tempered Glass Top',
+    slug: 'otobi-6-seater-solid-wood-dining-table-set-chattogram',
+    category: 'home_furniture',
+    subCategory: 'dining_tables',
+    brand: 'Otobi (অটোবি)',
+    model: 'Otobi 6 Seater Wooden Dining Table Set',
+    price: 34500,
+    originalPrice: 42000,
+    condition: 'brand_new',
+    description: 'Brand new Otobi 6-seater dining table set with 8mm thick tempered glass top and 6 cushioned wooden chairs. Modern ergonomic backrest and anti-stain fabric covers.',
+    features: [
+      '6 Cushioned Wooden Chairs',
+      '8mm Heavy Tempered Glass Top',
+      'Termite Resistant Solid Wood Base',
+      '1 Year Otobi Official Warranty'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1617806118233-18e1de247200?auto=format&fit=crop&w=1200&q=85',
+      'https://images.unsplash.com/photo-1530018607912-eff2daa1bac4?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Chattogram', district: 'Chattogram', thana: 'Agrabad' },
+    seller: {
+      id: 'seller-ctg-otobi',
+      name: 'Otobi Showroom Outlet',
+      email: 'ctgotobi@gmail.com',
+      phone: '01711-223388',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 61,
+      badge: 'Gold Seller',
+      location: { division: 'Chattogram', district: 'Chattogram', thana: 'Agrabad' },
+      memberSince: '3 years ago',
+      responseRate: '98%',
+      responseTime: 'Within 5 minutes'
+    },
+    postedAt: getRecentTime(280),
+    views: 480,
+    likes: 56,
+    adType: 'urgent',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Brand': 'Otobi', 'Capacity': '6 Seater', 'Material': 'Solid Wood & Glass' },
+    status: 'active'
+  },
+  {
+    id: 'prod-furniture-rfl-wardrobe',
+    title: 'RFL Plastics Deluxe Double 4-Drawer Wardrobe (আসবাবপত্র ওয়ারড্রোব)',
+    slug: 'rfl-plastics-deluxe-double-4-drawer-wardrobe-sylhet',
+    category: 'home_furniture',
+    subCategory: 'wardrobes',
+    brand: 'RFL Plastics & Furniture (আরএফএল)',
+    model: 'RFL Wardrobe Double & Single Drawer',
+    price: 9200,
+    originalPrice: 11500,
+    condition: 'brand_new',
+    description: 'RFL Deluxe Double 4-Drawer Plastic Wardrobe with UV protection print, heavy-duty lock system, insect repellency, and smooth gliding wheels.',
+    features: [
+      'RFL Unbreakable Heavy Plastic',
+      '4 Large Drawers with Safety Lock',
+      'Anti-Termite & Moisture Free',
+      'Easy to Move Gliding Wheels'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Sylhet', district: 'Sylhet', thana: 'Zindabazar' },
+    seller: {
+      id: 'seller-sylhet-rfl',
+      name: 'RFL Exclusive Store Sylhet',
+      email: 'sylhetrfl@gmail.com',
+      phone: '01612-889900',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.7,
+      totalReviews: 33,
+      badge: 'Verified Merchant',
+      location: { division: 'Sylhet', district: 'Sylhet', thana: 'Zindabazar' },
+      memberSince: '1 year ago',
+      responseRate: '92%',
+      responseTime: 'Within 15 minutes'
+    },
+    postedAt: getRecentTime(315),
+    views: 310,
+    likes: 29,
+    adType: 'regular',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Brand': 'RFL', 'Drawers': '4 Drawers', 'Material': 'Virgin Plastic' },
+    status: 'active'
+  },
+  {
+    id: 'prod-furniture-navana-chair',
+    title: 'Navana Ergonomic Mesh High-Back Office Revolving Chair',
+    slug: 'navana-ergonomic-mesh-high-back-office-revolving-chair-dhaka',
+    category: 'home_furniture',
+    subCategory: 'office_furniture',
+    brand: 'Navana Furniture (নভানা)',
+    model: 'Navana Ergonomic Office Revolving Chair',
+    price: 8500,
+    originalPrice: 11000,
+    condition: 'brand_new',
+    description: 'Navana professional ergonomic mesh executive chair with adjustable lumbar support, 3D armrests, heavy gas lift hydraulic cylinder, and tilt lock mechanism.',
+    features: [
+      'Breathable High Density Mesh Back',
+      'Hydraulic Height Adjustment',
+      'Adjustable Headrest & Lumbar Support',
+      'Heavy Duty Nylon Base Wheels'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1580481072645-022f9a6d1270?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Motijheel' },
+    seller: {
+      id: 'seller-motijheel-office',
+      name: 'Commercial Office Solution BD',
+      email: 'motijheeloffice@gmail.com',
+      phone: '01912-776655',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 54,
+      badge: 'Top Rated',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Motijheel' },
+      memberSince: '2 years ago',
+      responseRate: '96%',
+      responseTime: 'Within 8 minutes'
+    },
+    postedAt: getRecentTime(350),
+    views: 520,
+    likes: 67,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Brand': 'Navana', 'Type': 'Revolving Chair', 'Material': 'Mesh & Hydraulic' },
+    status: 'active'
+  },
+
+  // 7. FASHION
+  {
+    id: 'prod-bikroy-fashion-sneakers',
+    title: 'Original Nike Air Jordan 1 Retro High OG - Size 42',
+    slug: 'original-nike-air-jordan-1-retro-high-og-size-42-dhaka',
+    category: 'fashion',
+    subCategory: 'shoes',
+    brand: 'Nike',
+    price: 14500,
+    originalPrice: 17000,
+    condition: 'brand_new',
+    description: '100% Original Nike Air Jordan 1 Retro High OG Chicago colorway. Size EU 42 (UK 8). Brand new in box with extra laces and receipt from official Nike outlet store.',
+    features: [
+      '100% Genuine Leather',
+      'Air Cushioning Insole',
+      'High-Top Ankle Support',
+      'Original Box Included'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Dhanmondi' },
+    seller: {
+      id: 'seller-sneak-head',
+      name: 'Dhaka Sneaker Station',
+      email: 'dhakasneaker@gmail.com',
+      phone: '01722-445566',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 45,
+      badge: 'Gold Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Dhanmondi' },
+      memberSince: '2 years ago',
+      responseRate: '98%',
+      responseTime: 'Within 5 minutes'
+    },
+    postedAt: getRecentTime(385),
+    views: 430,
+    likes: 64,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Brand': 'Nike', 'Size': '42' },
+    status: 'active'
+  },
+
+  // 8. HEALTH & BEAUTY
+  {
+    id: 'prod-bikroy-dior-sauvage',
+    title: 'Dior Sauvage Elixir Eau De Parfum 100ml - Original USA Edition',
+    slug: 'dior-sauvage-elixir-eau-de-parfum-100ml-original-usa-edition-dhaka',
+    category: 'health_beauty',
+    subCategory: 'perfumes',
+    brand: 'Dior',
+    price: 18500,
+    originalPrice: 21000,
+    condition: 'brand_new',
+    description: '100% Authentic Dior Sauvage Elixir 100ml EDP for Men. Long lasting intense fragrance (12+ hours projection). Directly imported from USA Sephora store.',
+    features: [
+      '100ml EDP Intense Spray',
+      '12+ Hours Long Lasting',
+      'Authentic Barcode Verified',
+      'Imported from USA'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Banani' },
+    seller: {
+      id: 'seller-perfume-gallery',
+      name: 'Banani Perfume World',
+      email: 'bananiperfume@gmail.com',
+      phone: '01811-223344',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 62,
+      badge: 'Verified Merchant',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Banani' },
+      memberSince: '3 years ago',
+      responseRate: '95%',
+      responseTime: 'Within 10 minutes'
+    },
+    postedAt: getRecentTime(420),
+    views: 510,
+    likes: 82,
+    adType: 'featured',
+    isNegotiable: false,
+    isDeliveryAvailable: true,
+    specifications: { 'Volume': '100ml', 'Type': 'Eau De Parfum' },
+    status: 'active'
+  },
+
+  // 9. BABY & KIDS
+  {
+    id: 'prod-bikroy-chicco-stroller',
+    title: 'Chicco Bravo Trio Folding Baby Stroller & Infant Car Seat',
+    slug: 'chicco-bravo-trio-folding-baby-stroller-infant-car-seat-dhaka',
+    category: 'baby_kids',
+    subCategory: 'strollers',
+    brand: 'Chicco',
+    price: 18500,
+    originalPrice: 24000,
+    condition: 'used_like_new',
+    description: 'Original Chicco Bravo Trio Baby Stroller set with keyfit infant car seat. Multi-position reclining seat, smooth suspension wheels, one-hand quick fold system.',
+    features: [
+      'Stroller + Infant Car Seat Included',
+      'One-hand Smart Fold Mechanism',
+      'UV 50+ Canopy Protection',
+      'Compact & Lightweight Aluminum Frame'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1591123720963-3d026330eb5a?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Mirpur' },
+    seller: {
+      id: 'seller-mom-baby',
+      name: 'Mirpur Baby Care Shop',
+      email: 'mirpurbabycare@gmail.com',
+      phone: '01911-334455',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.7,
+      totalReviews: 38,
+      badge: 'Verified Merchant',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Mirpur' },
+      memberSince: '1 year ago',
+      responseRate: '90%',
+      responseTime: 'Within 20 minutes'
+    },
+    postedAt: getRecentTime(455),
+    views: 380,
+    likes: 49,
+    adType: 'regular',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Brand': 'Chicco', 'Type': 'Stroller & Carseat' },
+    status: 'active'
+  },
+
+  // 10. BOOKS & SPORTS
+  {
+    id: 'prod-bikroy-ca-cricket-bat',
+    title: 'Original CA Plus 15000 Dragon English Willow Cricket Bat',
+    slug: 'original-ca-plus-15000-dragon-english-willow-cricket-bat-dhaka',
+    category: 'books_sports',
+    subCategory: 'sports_equipment',
+    brand: 'CA Sports',
+    price: 22000,
+    originalPrice: 26000,
+    condition: 'brand_new',
+    description: 'CA Plus 15000 Dragon Player Edition English Willow Cricket Bat. Grade 1+ top willow with 9 straight grains. Lightweight pick up (1180 grams) with massive sweet spot.',
+    features: [
+      'Grade 1+ English Willow',
+      '9 Straight Clean Grains',
+      'Pro Players Profile Edge',
+      'Padded Bat Cover Included'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Paltan' },
+    seller: {
+      id: 'seller-stadium-sports',
+      name: 'Paltan Stadium Sports Market',
+      email: 'paltansports@gmail.com',
+      phone: '01712-445566',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 110,
+      badge: 'Platinum Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Paltan' },
+      memberSince: '4 years ago',
+      responseRate: '99%',
+      responseTime: 'Within 5 minutes'
+    },
+    postedAt: getRecentTime(490),
+    views: 710,
+    likes: 95,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Willow': 'English Willow Grade 1', 'Weight': '1180g' },
+    status: 'active'
+  },
+
+  // 11. ANIMALS & PETS
+  {
+    id: 'prod-bikroy-persian-cat',
+    title: 'Pure Persian Triple Coat White Kitten (১ মাসের কিউট পার্সিয়ান বিড়াল)',
+    slug: 'pure-persian-triple-coat-white-kitten-dhaka',
+    category: 'animal_pets',
+    subCategory: 'cats',
+    price: 12500,
+    originalPrice: 15000,
+    condition: 'brand_new',
+    description: '1 Month old male pure doll-face Persian triple coat snow white kitten. Extremely playful, litter trained, dewormed, and active.',
+    features: [
+      'Pure Persian Doll Face Breed',
+      'Triple Coat Fluffy White Fur',
+      'Litter Box Trained',
+      'First Deworming Dose Completed'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Mohammadpur' },
+    seller: {
+      id: 'seller-pet-lovers',
+      name: 'Mohammadpur Pet Kingdom',
+      email: 'mupurpet@gmail.com',
+      phone: '01815-667788',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 54,
+      badge: 'Gold Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Mohammadpur' },
+      memberSince: '2 years ago',
+      responseRate: '96%',
+      responseTime: 'Within 10 minutes'
+    },
+    postedAt: getRecentTime(525),
+    views: 840,
+    likes: 120,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: false,
+    specifications: { 'Age': '30 Days', 'Breed': 'Persian' },
+    status: 'active'
+  },
+  {
+    id: 'prod-bikroy-cow-qurbani',
+    title: 'Pure Red Chittagong Cow (লাল ষাঁড়) for Qurbani 2026 - 450KG',
+    slug: 'pure-red-chittagong-cow-qurbani-2026-450kg-sylhet',
+    category: 'animal_pets',
+    subCategory: 'cattle',
+    price: 280000,
+    originalPrice: 310000,
+    condition: 'brand_new',
+    description: 'Healthy and organic pure Red Chittagong Cow (লাল ষাঁড়) raised on natural grass feed. Estimated meat weight 320KG - 350KG. Total body weight approximately 450KG.',
+    features: [
+      'Approx 450KG Total Weight',
+      '100% Organic Grass Fed',
+      'No Harmful Chemicals / Injections',
+      'Veterinary Certified'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1546445317-29f4545f9d52?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Sylhet', district: 'Sylhet', thana: 'Sylhet Sadar' },
+    seller: {
+      id: 'seller-agro-farm',
+      name: 'Sylhet Organic Agro Farm',
+      email: 'sylhetagro@gmail.com',
+      phone: '01718-776655',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 38,
+      badge: 'Gold Seller',
+      location: { division: 'Sylhet', district: 'Sylhet', thana: 'Sylhet Sadar' },
+      memberSince: '1 year ago',
+      responseRate: '94%',
+      responseTime: 'Within 15 minutes'
+    },
+    postedAt: getRecentTime(560),
+    views: 520,
+    likes: 88,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Weight': '450 KG', 'Breed': 'Red Chittagong' },
+    status: 'active'
+  },
+
+  // 12. AGRICULTURE
+  {
+    id: 'prod-bikroy-farm-tractor',
+    title: 'Kubota 45HP 4-Wheel Drive Mini Farm Tractor - Japanese Engine',
+    slug: 'kubota-45hp-4-wheel-drive-mini-farm-tractor-bogra',
+    category: 'agriculture',
+    subCategory: 'farm_machinery',
+    brand: 'Kubota',
+    price: 850000,
+    originalPrice: 920000,
+    condition: 'used_good',
+    description: 'Kubota 45HP 4WD Japanese heavy-duty agricultural farm tractor. Ideal for deep tillage, rotavator, and paddy field cultivation. Excellent engine compression and low fuel consumption.',
+    features: [
+      '45HP Japanese Diesel Engine',
+      '4 Wheel Drive Traction',
+      'Includes 36 Blade Rotavator',
+      'Low Fuel Consumption'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Rajshahi', district: 'Bogra', thana: 'Bogra Sadar' },
+    seller: {
+      id: 'seller-bogra-machinery',
+      name: 'Bogra Krishi Machinery Ltd',
+      email: 'bogramachinery@gmail.com',
+      phone: '01713-889900',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 76,
+      badge: 'Verified Merchant',
+      location: { division: 'Rajshahi', district: 'Bogra', thana: 'Bogra Sadar' },
+      memberSince: '3 years ago',
+      responseRate: '95%',
+      responseTime: 'Within 15 minutes'
+    },
+    postedAt: getRecentTime(595),
+    views: 620,
+    likes: 74,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Power': '45 HP', 'Drive': '4WD' },
+    status: 'active'
+  },
+
+  // 13. BUSINESS EQUIPMENT
+  {
+    id: 'prod-bikroy-espresso-machine',
+    title: 'Nuova Simonelli Appia Life 2 Group Commercial Espresso Machine',
+    slug: 'nuova-simonelli-appia-life-2-group-commercial-espresso-machine-dhaka',
+    category: 'business_equipment',
+    subCategory: 'restaurant_equipment',
+    brand: 'Nuova Simonelli',
+    price: 320000,
+    originalPrice: 360000,
+    condition: 'used_like_new',
+    description: 'Italian Nuova Simonelli Appia Life 2 Group commercial cafe coffee machine with Mazzer Super Jolly espresso grinder. Serviced and fully operational for commercial cafe setup.',
+    features: [
+      'Dual Steam Wands + Hot Water Spout',
+      '11 Liter Boiler Capacity',
+      'Includes Mazzer Commercial Grinder',
+      'Italian Made High Durability'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1517668808822-9e428824603b?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Gulshan' },
+    seller: {
+      id: 'seller-cafe-tech',
+      name: 'Dhaka Coffee & Restaurant Mart',
+      email: 'dhakacoffeemart@gmail.com',
+      phone: '01819-223344',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 52,
+      badge: 'Gold Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Gulshan' },
+      memberSince: '2 years ago',
+      responseRate: '97%',
+      responseTime: 'Within 10 minutes'
+    },
+    postedAt: getRecentTime(630),
+    views: 480,
+    likes: 58,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Boiler': '11 Liters', 'Groups': '2 Group' },
+    status: 'active'
+  },
+
+  // 14. SERVICES
+  {
+    id: 'prod-bikroy-ac-service',
+    title: 'Professional Home & Office AC Servicing, Repair & Gas Refill',
+    slug: 'professional-home-office-ac-servicing-repair-gas-refill-dhaka',
+    category: 'services',
+    subCategory: 'home_repair',
+    price: 1200,
+    originalPrice: 1500,
+    condition: 'brand_new',
+    description: 'Expert certified HVAC technician team providing instant home/office AC master Jet wash cleaning, R22/R410A/R32 gas refill, leak repair, and PCB circuit board fixing across Dhaka city.',
+    features: [
+      'Water Jet Master Cleaning',
+      'Original Gas Refill (R410a/R32/R22)',
+      '30 Days Work Guarantee',
+      'Experienced Verified Technicians'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Uttara' },
+    seller: {
+      id: 'seller-dhaka-cool',
+      name: 'Dhaka Cool & Repair Solutions',
+      email: 'dhakacoolac@gmail.com',
+      phone: '01715-112233',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 180,
+      badge: 'Platinum Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Uttara' },
+      memberSince: '4 years ago',
+      responseRate: '100%',
+      responseTime: 'Instant'
+    },
+    postedAt: getRecentTime(665),
+    views: 1120,
+    likes: 140,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Service': 'AC Master Wash & Gas', 'Warranty': '30 Days' },
+    status: 'active'
+  },
+
+  // 15. JOBS
+  {
+    id: 'prod-bikroy-job-react',
+    title: 'Senior Full-Stack React & Node.js Developer Needed',
+    slug: 'senior-full-stack-react-nodejs-developer-needed-dhaka',
+    category: 'jobs',
+    subCategory: 'it_jobs',
+    price: 85000,
+    originalPrice: 100000,
+    condition: 'brand_new',
+    description: 'Leading software agency hiring Senior Full-Stack Developer with 3+ years experience in React, TypeScript, Node.js, and PostgreSQL. Office location at Banani, Dhaka. 5 Days a week.',
+    features: [
+      'Salary ৳80,000 - ৳1,00,000',
+      '2 Festival Bonuses per Year',
+      'Health Insurance Coverage',
+      'Weekly 2 Days Off (Fri-Sat)',
+      'Office Lunch Provided'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Banani' },
+    seller: {
+      id: 'seller-tech-agency',
+      name: 'Innovate Tech Solutions Ltd',
+      email: 'hr@innovatetech.com',
+      phone: '01712-990011',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 62,
+      badge: 'Verified Employer',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Banani' },
+      memberSince: '3 years ago',
+      responseRate: '95%',
+      responseTime: 'Within 1 hour'
+    },
+    postedAt: getRecentTime(700),
+    views: 1450,
+    likes: 180,
+    adType: 'featured',
+    isNegotiable: false,
+    isDeliveryAvailable: false,
+    specifications: { 'Role': 'Senior Developer', 'Type': 'Full-time' },
+    status: 'active'
+  },
+
+  // 16. EDUCATION & COURSES
+  {
+    id: 'prod-bikroy-web-course',
+    title: 'Complete MERN Stack Web Development Live Bootcamp Course',
+    slug: 'complete-mern-stack-web-development-live-bootcamp-course-dhaka',
+    category: 'education_courses',
+    subCategory: 'online_courses',
+    price: 6500,
+    originalPrice: 12000,
+    condition: 'brand_new',
+    description: 'Learn React, Node.js, Express, MongoDB, Tailwind CSS & Next.js from scratch with real-world industry project builds. 4 Months live batch with dedicated mentor support.',
+    features: [
+      '4 Months Live Interactive Classes',
+      '10+ Real Production Projects',
+      'Job Placement Assistance',
+      'Lifetime Recorded Video Access'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Dhanmondi' },
+    seller: {
+      id: 'seller-code-academy',
+      name: 'DevSkills Academy BD',
+      email: 'devskillsbd@gmail.com',
+      phone: '01711-556677',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 140,
+      badge: 'Verified Merchant',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Dhanmondi' },
+      memberSince: '2 years ago',
+      responseRate: '98%',
+      responseTime: 'Within 5 minutes'
+    },
+    postedAt: getRecentTime(735),
+    views: 920,
+    likes: 115,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Duration': '4 Months', 'Mode': 'Live Online' },
+    status: 'active'
+  },
+
+  // 17. TRAVEL & TOURS
+  {
+    id: 'prod-bikroy-sajek-tour',
+    title: 'Sajek Valley 3 Days 2 Nights All-Inclusive Premium Tour Package',
+    slug: 'sajek-valley-3-days-2-nights-all-inclusive-premium-tour-package-dhaka',
+    category: 'travel_tours',
+    subCategory: 'domestic_tours',
+    price: 5500,
+    originalPrice: 6500,
+    condition: 'brand_new',
+    description: 'Experience clouds in Sajek Valley! 3 Days 2 Nights premium package including AC bus travel from Dhaka, 4x4 Chander Gari mountain safari, resort stay with balcony cloud view, and 6 meals.',
+    features: [
+      'Dhaka to Khagrachari AC Bus Ticket',
+      'Helipad & Konglak Para Tour',
+      'Balcony Cloud View Resort Stay',
+      '6 Traditional Meals Included'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Motijheel' },
+    seller: {
+      id: 'seller-bengal-tours',
+      name: 'Bengal Tourism & Travels',
+      email: 'bengaltours@gmail.com',
+      phone: '01811-445566',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 92,
+      badge: 'Gold Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Motijheel' },
+      memberSince: '3 years ago',
+      responseRate: '95%',
+      responseTime: 'Within 10 minutes'
+    },
+    postedAt: getRecentTime(770),
+    views: 810,
+    likes: 104,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Duration': '3 Days 2 Nights', 'Location': 'Sajek Valley' },
+    status: 'active'
+  },
+
+  // 18. FOOD & RESTAURANTS
+  {
+    id: 'prod-bikroy-sundarban-honey',
+    title: '100% Organic Pure Sundarban Wild Flower Honey (সুন্দরবনের প্রাকৃতিক মধু) 1KG',
+    slug: '100-percent-organic-pure-sundarban-wild-flower-honey-1kg-khulna',
+    category: 'food_restaurants',
+    subCategory: 'organic_food',
+    price: 1400,
+    originalPrice: 1650,
+    condition: 'brand_new',
+    description: '100% Raw and pure wild flower honey collected directly from Sundarban mangrove forest by local Mowali collectors. Lab tested pure without any added sugar or chemical processing.',
+    features: [
+      '100% Pure Sundarban Wild Honey',
+      'Lab Certified Pure Test Guarantee',
+      'Rich in Natural Antioxidants',
+      'Cash on Home Delivery Nationwide'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Khulna', district: 'Khulna', thana: 'Khulna Sadar' },
+    seller: {
+      id: 'seller-sundarban-organic',
+      name: 'Sundarban Pure Organic BD',
+      email: 'sundarbanorganic@gmail.com',
+      phone: '01714-334455',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 165,
+      badge: 'Platinum Seller',
+      location: { division: 'Khulna', district: 'Khulna', thana: 'Khulna Sadar' },
+      memberSince: '4 years ago',
+      responseRate: '98%',
+      responseTime: 'Within 5 minutes'
+    },
+    postedAt: getRecentTime(805),
+    views: 690,
+    likes: 98,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Weight': '1 KG', 'Origin': 'Sundarban' },
+    status: 'active'
+  },
+
+  // 19. EVENTS & TICKETS
+  {
+    id: 'prod-bikroy-concert-pass',
+    title: 'VIP Zone Ticket Pass - Bangladesh Rock Fest 2026 Live Concert',
+    slug: 'vip-zone-ticket-pass-bangladesh-rock-fest-2026-live-concert-dhaka',
+    category: 'events_tickets',
+    subCategory: 'concert_tickets',
+    price: 2500,
+    originalPrice: 3000,
+    condition: 'brand_new',
+    description: 'Official VIP Front Zone Entry Pass for Bangladesh Rock Fest 2026 at International Convention City Bashundhara (ICCB). Featuring Artcell, Warfaze, Shironamhin & Nemesis live on stage.',
+    features: [
+      'VIP Front Stage Standing Zone',
+      'Fast Track Security Gate Entry',
+      'Free Event T-Shirt & Poster',
+      'Venue ICCB Hall 4 Dhaka'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Bhashantek' },
+    seller: {
+      id: 'seller-event-pass',
+      name: 'Dhaka Event Ticket Hub',
+      email: 'dhakaevents@gmail.com',
+      phone: '01812-778899',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 44,
+      badge: 'Verified Merchant',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Bhashantek' },
+      memberSince: '2 years ago',
+      responseRate: '96%',
+      responseTime: 'Within 10 minutes'
+    },
+    postedAt: getRecentTime(840),
+    views: 580,
+    likes: 76,
+    adType: 'featured',
+    isNegotiable: false,
+    isDeliveryAvailable: true,
+    specifications: { 'Zone': 'VIP Front Stage', 'Venue': 'ICCB Dhaka' },
+    status: 'active'
+  },
+
+  // 20. OTHERS
+  {
+    id: 'prod-bikroy-vintage-watch',
+    title: 'Vintage British Brass Mechanical Wind Pocket Watch (১৮৯০ সালের অ্যান্টিক)',
+    slug: 'vintage-british-brass-mechanical-wind-pocket-watch-dhaka',
+    category: 'others',
+    subCategory: 'antiques',
+    price: 8500,
+    originalPrice: 11000,
+    condition: 'used_good',
+    description: 'Rare 1890s authentic British antique mechanical key-wind brass pocket watch with carved chain. Fully functional manual winding timekeeping mechanism in excellent preserved condition.',
+    features: [
+      'Authentic 1890s Mechanical Brass Watch',
+      'Manual Key Wind Mechanism',
+      'Original Heavy Brass Chain Included',
+      'Collector Edition Rare Antique'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Old Dhaka' },
+    seller: {
+      id: 'seller-antique-collector',
+      name: 'Old Dhaka Antique Museum',
+      email: 'olddhakaantiques@gmail.com',
+      phone: '01711-009988',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 5.0,
+      totalReviews: 32,
+      badge: 'Gold Seller',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Old Dhaka' },
+      memberSince: '3 years ago',
+      responseRate: '92%',
+      responseTime: 'Within 30 minutes'
+    },
+    postedAt: getRecentTime(875),
+    views: 420,
+    likes: 65,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Era': '1890s Antique', 'Material': 'Solid Brass' },
+    status: 'active'
+  },
+
+  // PENDING ADS FOR ADMIN REVIEW DEMO (3 ADS)
+  {
+    id: 'prod-pending-1',
+    title: 'Yamaha FZ-S FI V3 ABS 150cc (২০২৪ মডেল - জরুরি বিক্রি)',
+    slug: 'yamaha-fzs-fi-v3-abs-150cc-2024-dhaka',
+    category: 'vehicles',
+    subCategory: 'motorcycles',
+    brand: 'Yamaha',
+    model: 'FZ-S FI V3',
+    price: 165000,
+    originalPrice: 185000,
+    condition: 'used_like_new',
+    description: 'Yamaha FZ-S FI V3 Single Channel ABS 150cc 2024. Total run 4200 km only. First owner with 2 years digital smart card registration. Emergency cash needed.',
+    features: [
+      'Single Channel ABS System',
+      'Digital LED Speedometer Console',
+      '4200 KM Low Mileage',
+      '2 Years Smart Card Registration'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Dhaka', district: 'Dhaka', thana: 'Mirpur' },
+    seller: {
+      id: 'seller-bikroy-fzs',
+      name: 'Tanvir Hossain',
+      email: 'tanvirfzs@gmail.com',
+      phone: '01712-998877',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 5.0,
+      totalReviews: 8,
+      badge: 'Verified Merchant',
+      location: { division: 'Dhaka', district: 'Dhaka', thana: 'Mirpur' },
+      memberSince: '1 year ago',
+      responseRate: '100%',
+      responseTime: 'Within 10 minutes'
+    },
+    postedAt: getRecentTime(8),
+    views: 12,
+    likes: 3,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: false,
+    specifications: { 'Engine': '149cc FI Engine', 'Brake': 'Front Disc ABS' },
+    status: 'pending'
+  },
+  {
+    id: 'prod-pending-2',
+    title: 'Sony BRAVIA 55 Inch 4K Ultra HD Smart Google Android TV',
+    slug: 'sony-bravia-55-inch-4k-smart-tv-chattogram',
+    category: 'electronics',
+    subCategory: 'televisions',
+    brand: 'Sony',
+    model: 'KD-55X75L',
+    price: 48500,
+    originalPrice: 62000,
+    condition: 'brand_new',
+    description: 'Sony BRAVIA 55" 4K HDR Google TV with X1 Processor, Dolby Audio, Chromecast built-in, Bluetooth 5.0 & Voice Search Remote. Unopened boxed showroom condition.',
+    features: [
+      '55 Inch 4K HDR Panel',
+      'X1 4K Processor Engine',
+      'Google TV OS with Voice Remote',
+      '1 Year Panel Warranty'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Chattogram', district: 'Chattogram', thana: 'GEC Circle' },
+    seller: {
+      id: 'seller-ctg-electronics',
+      name: 'Chittagong Electronics Hub',
+      email: 'ctgelectronics@gmail.com',
+      phone: '01819-887766',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.8,
+      totalReviews: 24,
+      badge: 'Gold Seller',
+      location: { division: 'Chattogram', district: 'Chattogram', thana: 'GEC Circle' },
+      memberSince: '2 years ago',
+      responseRate: '98%',
+      responseTime: 'Within 5 minutes'
+    },
+    postedAt: getRecentTime(16),
+    views: 8,
+    likes: 2,
+    adType: 'urgent',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'Display': '55" 4K UHD 3840x2160', 'OS': 'Google TV' },
+    status: 'pending'
+  },
+  {
+    id: 'prod-pending-3',
+    title: 'Apple MacBook Air M2 16GB / 256GB Midnight (Official Warranty)',
+    slug: 'apple-macbook-air-m2-16gb-256gb-midnight-sylhet',
+    category: 'electronics',
+    subCategory: 'laptops',
+    brand: 'Apple',
+    model: 'MacBook Air M2',
+    price: 98000,
+    originalPrice: 115000,
+    condition: 'used_like_new',
+    description: 'Apple MacBook Air M2 chip 8-core CPU 10-core GPU, upgraded 16GB Unified RAM & 256GB SSD. Battery cycle count 18 only. Full boxed with 35W dual USB-C adapter.',
+    features: [
+      'M2 Chipset 8-Core CPU 10-Core GPU',
+      'Upgraded 16GB Unified Memory',
+      '13.6" Liquid Retina Display',
+      'Battery Cycle Count: 18 Only'
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=85'
+    ],
+    location: { division: 'Sylhet', district: 'Sylhet', thana: 'Zindabazar' },
+    seller: {
+      id: 'seller-sylhet-mac',
+      name: 'Sylhet Tech Lounge',
+      email: 'sylhettech@gmail.com',
+      phone: '01715-443322',
+      hidePhone: false,
+      avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=200&q=80',
+      isVerified: true,
+      rating: 4.9,
+      totalReviews: 19,
+      badge: 'Verified Merchant',
+      location: { division: 'Sylhet', district: 'Sylhet', thana: 'Zindabazar' },
+      memberSince: '1 year ago',
+      responseRate: '95%',
+      responseTime: 'Within 15 minutes'
+    },
+    postedAt: getRecentTime(22),
+    views: 22,
+    likes: 5,
+    adType: 'featured',
+    isNegotiable: true,
+    isDeliveryAvailable: true,
+    specifications: { 'RAM': '16GB Unified', 'Storage': '256GB NVMe' },
+    status: 'pending'
+  }
+];
