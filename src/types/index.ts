@@ -51,6 +51,8 @@ export interface Seller {
   badge?: 'Gold Seller' | 'Platinum Seller' | 'Verified Merchant' | 'Top Rated' | 'Verified Employer' | string;
   responseRate?: string;
   responseTime?: string;
+  isOnline?: boolean;
+  lastSeen?: string;
 }
 
 export interface Review {

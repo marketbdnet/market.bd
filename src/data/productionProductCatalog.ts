@@ -207,14 +207,27 @@ export function generateComprehensiveCatalog(existingProducts: Product[]): Produ
       const cleanTitle = p.title.replace(/\b(dummy|demo|test|sample)\b/gi, 'Official').trim();
       const cleanDesc = p.description.replace(/\b(dummy|demo|test|sample)\b/gi, 'authentic').trim();
       
+      const fallbackImg1 = getSecondLevelImageUrl(p.category, p.subCategory || '', p.secondLevelCategory || '', p.model || p.title);
+      const fallbackImg2 = getSubcategoryImageUrl(p.category, p.subCategory || '');
+      const validImages = Array.isArray(p.images) ? p.images.filter(img => typeof img === 'string' && img.trim() !== '') : [];
+      const guaranteedImages = validImages.length > 0 ? validImages : [fallbackImg1, fallbackImg2].filter(Boolean);
+
       const normalizedP: Product = {
         ...p,
         title: cleanTitle,
         description: cleanDesc,
+        images: guaranteedImages,
         status: 'active',
         isActive: true,
         isApproved: true,
-        moderationStatus: 'approved'
+        moderationStatus: 'approved',
+        showPhoneNumber: p.showPhoneNumber === true,
+        seller: {
+          ...p.seller,
+          hidePhone: p.showPhoneNumber !== true,
+          showPhoneNumber: p.showPhoneNumber === true,
+          isOnline: p.seller?.isOnline ?? true
+        }
       };
 
       existingMap.set(p.id, normalizedP);

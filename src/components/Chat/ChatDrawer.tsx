@@ -348,13 +348,24 @@ export const ChatDrawer: React.FC = () => {
                         {language === 'bn' ? 'আনলিমিটেড চ্যাট' : 'Unlimited Chat'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-xs font-black text-emerald-700 dark:text-emerald-400">
                         ৳{activeChat.productPrice.toLocaleString()}
                       </span>
                       <span className="text-[10px] text-slate-500 dark:text-slate-400">
                         • {activeChat.seller.name}
                       </span>
+                      {activeChat.seller?.isOnline === false ? (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                          {language === 'bn' ? 'অফলাইন' : 'Offline'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-md">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          {language === 'bn' ? 'অনলাইন' : 'Online'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

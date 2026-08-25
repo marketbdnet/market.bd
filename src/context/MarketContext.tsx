@@ -5,7 +5,7 @@ import { CATEGORIES } from '../data/bangladeshData';
 import marketBdLogoImg from '../assets/images/market_bd_logo_1786102322044.jpg';
 import { storage } from '../utils/storage';
 import { validateBangladeshiPhone, isPhoneVisibleToBuyers } from '../utils/phoneUtils';
-import { setGlobalCategoryImageOverrides } from '../utils/categoryImages';
+import { setGlobalCategoryImageOverrides, getSecondLevelImageUrl, getSubcategoryImageUrl, getCategoryImageUrl } from '../utils/categoryImages';
 import { checkAndExpireAds, renewExpiredAd } from '../utils/adExpiryEngine';
 import { isProductPublicActive, isProductPending, isProductRejected, isProductSold, isProductExpired, makeApprovedProduct, makePendingProduct, makeRejectedProduct } from '../utils/productStatus';
 import { sendLocalBrowserPushNotification, requestWebPushPermission } from '../services/pushNotificationService';
@@ -459,8 +459,17 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       const isLiveActive = canonicalStatus === 'active';
 
+      // Audit and ensure high-resolution valid image array
+      const fallbackImg1 = getSecondLevelImageUrl(p.category, p.subCategory || '', p.secondLevelCategory || '', p.model || p.title);
+      const fallbackImg2 = getSubcategoryImageUrl(p.category, p.subCategory || '');
+      const validImages = Array.isArray(p.images)
+        ? p.images.filter(img => typeof img === 'string' && img.trim() !== '')
+        : [];
+      const guaranteedImages = validImages.length > 0 ? validImages : [fallbackImg1, fallbackImg2].filter(Boolean);
+
       return {
         ...p,
+        images: guaranteedImages,
         postedAt: p.postedAt || new Date().toISOString(),
         createdAt: p.createdAt || p.postedAt || new Date().toISOString(),
         updatedAt: p.updatedAt || new Date().toISOString(),
@@ -475,6 +484,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           phone: cleanPhone,
           hidePhone: !isExplicitlyVisible,
           showPhoneNumber: isExplicitlyVisible,
+          isOnline: p.seller?.isOnline ?? true,
         }
       };
     });
@@ -2455,7 +2465,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  // Unlimited messaging engine with rich contextual seller replies
+  // Unlimited messaging engine with rich contextual seller replies, offline auto-reply & seller notifications
   const sendMessage = (threadId: string, text: string, offerAmount?: number, imageUrl?: string) => {
     const msgId = 'msg-' + Date.now();
     const displayMsg = text || (imageUrl ? (language === 'bn' ? '📷 [ছবি পাঠানো হয়েছে]' : '📷 [Photo Attached]') : '');
@@ -2501,72 +2511,111 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return curr;
     });
 
-    // 1. Delivered after 800ms
+    // 🔔 Seller Notification: Trigger "একজন ক্রেতা আপনাকে মেসেজ করেছেন।" notification
+    const currentThread = chatThreads.find(t => t.id === threadId) || activeChat;
+    const prodTitle = currentThread?.productTitle || 'বিজ্ঞাপন';
+    const notifId = 'notif-msg-' + Date.now();
+    const sellerNotifTitle = language === 'bn' ? 'একজন ক্রেতা আপনাকে মেসেজ করেছেন।' : 'You have a new message from a customer.';
+    const sellerNotifMsg = language === 'bn'
+      ? `"${prodTitle}" বিজ্ঞাপনে ক্রেতার নতুন বার্তা: "${displayMsg.slice(0, 50)}"`
+      : `A customer sent you a message on "${prodTitle}": "${displayMsg.slice(0, 50)}"`;
+
+    setNotifications(prev => [
+      {
+        id: notifId,
+        title: sellerNotifTitle,
+        message: sellerNotifMsg,
+        time: 'Just now',
+        isRead: false,
+        type: 'message'
+      },
+      ...prev
+    ]);
+
+    sendLocalBrowserPushNotification({
+      title: sellerNotifTitle,
+      body: sellerNotifMsg
+    });
+
+    // 1. Delivered after 600ms
     setTimeout(() => {
       updateMessageStatus(threadId, msgId, 'delivered');
-    }, 800);
+    }, 600);
 
-    // 2. Seen (Pink double tick) after 1600ms
+    // Check seller online/offline status
+    const isSellerOffline = currentThread?.seller?.isOnline === false;
+
+    // 2. Seen after 1200ms
     setTimeout(() => {
       updateMessageStatus(threadId, msgId, 'seen');
-      setIsSellerTyping(true);
-    }, 1600);
+      if (!isSellerOffline) {
+        setIsSellerTyping(true);
+      }
+    }, 1200);
 
-    // 3. Dynamic context-aware seller auto-reply after 2800ms (Unlimited replies)
+    // 3. Seller response logic: Offline Auto-Reply vs Dynamic Context-Aware Reply
     setTimeout(() => {
       setIsSellerTyping(false);
       let replyText = '';
-      const lower = (text || '').toLowerCase();
 
-      if (imageUrl && !text) {
+      if (isSellerOffline) {
+        // Exact Offline Auto-reply format as specified:
         replyText = language === 'bn'
-          ? 'ছবিটি পেয়েছি ভাইয়া, ধন্যবাদ! বিস্তারিত দেখে আপনাকে জানাচ্ছি।'
-          : 'Received your photo, thank you! Reviewing details and getting back to you.';
-      } else if (offerAmount) {
-        replyText = language === 'bn'
-          ? `ধন্যবাদ! ৳${offerAmount.toLocaleString()} টাকার অফারটি পেয়েছি। আপনি যদি আজকেই সরাসরি এসে নিতে পারেন তবে এই দামে দেওয়া সম্ভব হতে পারে।`
-          : `Thank you! Received your offer of ৳${offerAmount.toLocaleString()}. If you can pick it up today in person, we might agree on this price.`;
-      } else if (lower.includes('লোকেশন') || lower.includes('ঠিকানা') || lower.includes('কোথায়') || lower.includes('location') || lower.includes('address') || lower.includes('দেখা')) {
-        replyText = language === 'bn'
-          ? 'আমার লোকেশন: ধানমন্ডি / মিরপুর ১০ (ঢাকা)। আপনি আজ বা কাল সুবিধাজনক সময়ে এসে সরাসরি পণ্যটি যাচাই করে নিতে পারেন।'
-          : 'Location: Dhanmondi / Mirpur 10, Dhaka. You can visit anytime today or tomorrow to inspect the product.';
-      } else if (lower.includes('দাম') || lower.includes('কম') || lower.includes('discount') || lower.includes('price') || lower.includes('সম্মান') || lower.includes('কমানো')) {
-        replyText = language === 'bn'
-          ? 'ভাইয়া বিজ্ঞাপনে অলরেডি খুব ন্যায্য দাম দেওয়া আছে। তবে আপনি সামনাসামনি আসলে চা-নাস্তার খরচ বা কিছুটা সম্মান রাখার চেষ্টা করব।'
-          : 'Price is quite reasonable, but slight discount is possible when we meet in person.';
-      } else if (lower.includes('কন্ডিশন') || lower.includes('মেমো') || lower.includes('বক্স') || lower.includes('ওয়ারেন্টি') || lower.includes('condition') || lower.includes('warranty') || lower.includes('সমস্যা')) {
-        replyText = language === 'bn'
-          ? 'পণ্যটিতে কোনো প্রকার ইন্টারনাল বা এক্সটারনাল সমস্যা নেই, ১০০% ফ্রেশ। অরিজিনাল ক্যাশ মেমো, বক্স এবং চার্জার সাথে পাবেন।'
-          : '100% fresh condition with zero issues. Includes original box, cash memo, and official accessories.';
-      } else if (lower.includes('কুরিয়ার') || lower.includes('ডেলিভারি') || lower.includes('courier') || lower.includes('delivery') || lower.includes('পাঠানো')) {
-        replyText = language === 'bn'
-          ? 'জ্বী ভাইয়া, সারা বাংলাদেশে সুন্দরবন বা রেডএক্স কুরিয়ারে ক্যাশ অন ডেলিভারিতে পাঠানো যাবে (শুধু কুরিয়ার চার্জ অগ্রিম পাঠাবেন)।'
-          : 'Yes, cash on delivery courier is available via Sundarban / Steadfast across all 64 districts.';
-      } else if (lower.includes('ফোন') || lower.includes('নম্বর') || lower.includes('number') || lower.includes('phone') || lower.includes('কল') || lower.includes('contact')) {
-        replyText = language === 'bn'
-          ? 'আমার মোবাইল নম্বর বিজ্ঞাপনের ভেতরে দেওয়া আছে। আপনি চাইলে সরাসরি কল দিতে পারেন অথবা এখানে চ্যাটে কথা বলতে পারেন।'
-          : 'Phone number is in the ad details. You can call directly or continue chatting here anytime!';
-      } else if (lower.includes('কখন') || lower.includes('আসব') || lower.includes('সময়') || lower.includes('time') || lower.includes('meet') || lower.includes('আজ')) {
-        replyText = language === 'bn'
-          ? 'আমি সকাল ১০টা থেকে রাত ১০টা পর্যন্ত লোকেশনে থাকি। আসার ৩০ মিনিট আগে একবার কল বা চ্যাটে মেসেজ দিলে সুবিধা হয়।'
-          : 'Available from 10 AM to 10 PM daily. Please notify me 30 mins before coming.';
-      } else if (lower.includes('আছে') || lower.includes('available') || lower.includes('বিক্রি') || lower.includes('available?')) {
-        replyText = language === 'bn'
-          ? 'জ্বী ভাইয়া, পণ্যটি এখনো বিক্রির জন্য এভেইলএবল আছে। আপনি চাইলে আজই দেখা করতে পারেন।'
-          : 'Yes, it is still available for sale! Let me know if you would like to inspect it today.';
-      } else if (lower.includes('কিনব') || lower.includes('নিব') || lower.includes('buy') || lower.includes('agree') || lower.includes('ঠিক আছে')) {
-        replyText = language === 'bn'
-          ? 'চমৎকার! আপনি কখন আসতে চাচ্ছেন একটু জানালে আমি পণ্যটি রেডি করে রাখব এবং লোকেশন শেয়ার করব।'
-          : 'Great! Please let me know your preferred time so I can keep everything packed and ready.';
+          ? 'বিক্রেতা বর্তমানে অনলাইনে নেই। তিনি অনলাইনে এলে আপনার সাথে যোগাযোগ করবেন।'
+          : 'The seller is currently offline. They will contact you when they are online.';
       } else {
-        const unlimitedResponses = [
-          'জ্বী ভাইয়া অবশ্যই! আপনার কথা বুঝতে পেরেছি। আপনার আর কোনো কিছু জানার থাকলে নির্দ্বিধায় জিজ্ঞেস করুন।',
-          'ঠিক আছে ভাইয়া, আমি লাইনে আছি। আপনি যে কোনো সময় মেসেজ করতে পারেন বা দেখা করতে পারেন।',
-          'ধন্যবাদ মেসেজের জন্য! পণ্যটি দেখতে চাইলে আপনি ধানমন্ডি এসে দেখে নিতে পারেন।',
-          'আপনার প্রস্তাবটি ভালো লেগেছে। আপনি কি আজ আসবেন নাকি কাল সময় হবে?',
-          'জ্বী ১০০% নিশ্চিত থাকতে পারেন। আপনি সামনাসামনি দেখে পছন্দ হলে তবেই নিবেন।'
-        ];
-        replyText = unlimitedResponses[Math.floor(Math.random() * unlimitedResponses.length)];
+        const lower = (text || '').toLowerCase();
+
+        if (imageUrl && !text) {
+          replyText = language === 'bn'
+            ? 'ছবিটি পেয়েছি ভাইয়া, ধন্যবাদ! বিস্তারিত দেখে আপনাকে জানাচ্ছি।'
+            : 'Received your photo, thank you! Reviewing details and getting back to you.';
+        } else if (offerAmount) {
+          replyText = language === 'bn'
+            ? `ধন্যবাদ! ৳${offerAmount.toLocaleString()} টাকার অফারটি পেয়েছি। আপনি যদি আজকেই সরাসরি এসে নিতে পারেন তবে এই দামে দেওয়া সম্ভব হতে পারে।`
+            : `Thank you! Received your offer of ৳${offerAmount.toLocaleString()}. If you can pick it up today in person, we might agree on this price.`;
+        } else if (lower.includes('লোকেশন') || lower.includes('ঠিকানা') || lower.includes('কোথায়') || lower.includes('location') || lower.includes('address') || lower.includes('দেখা')) {
+          replyText = language === 'bn'
+            ? 'আমার লোকেশন: ধানমন্ডি / মিরপুর ১০ (ঢাকা)। আপনি আজ বা কাল সুবিধাজনক সময়ে এসে সরাসরি পণ্যটি যাচাই করে নিতে পারেন।'
+            : 'Location: Dhanmondi / Mirpur 10, Dhaka. You can visit anytime today or tomorrow to inspect the product.';
+        } else if (lower.includes('দাম') || lower.includes('কম') || lower.includes('discount') || lower.includes('price') || lower.includes('সম্মান') || lower.includes('কমানো')) {
+          replyText = language === 'bn'
+            ? 'ভাইয়া বিজ্ঞাপনে অলরেডি খুব ন্যায্য দাম দেওয়া আছে। তবে আপনি সামনাসামনি আসলে চা-নাস্তার খরচ বা কিছুটা সম্মান রাখার চেষ্টা করব।'
+            : 'Price is quite reasonable, but slight discount is possible when we meet in person.';
+        } else if (lower.includes('কন্ডিশন') || lower.includes('মেমো') || lower.includes('বক্স') || lower.includes('ওয়ারেন্টি') || lower.includes('condition') || lower.includes('warranty') || lower.includes('সমস্যা')) {
+          replyText = language === 'bn'
+            ? 'পণ্যটিতে কোনো প্রকার ইন্টারনাল বা এক্সটারনাল সমস্যা নেই, ১০০% ফ্রেশ। অরিজিনাল ক্যাশ মেমো, বক্স এবং চার্জার সাথে পাবেন।'
+            : '100% fresh condition with zero issues. Includes original box, cash memo, and official accessories.';
+        } else if (lower.includes('কুরিয়ার') || lower.includes('ডেলিভারি') || lower.includes('courier') || lower.includes('delivery') || lower.includes('পাঠানো')) {
+          replyText = language === 'bn'
+            ? 'জ্বী ভাইয়া, সারা বাংলাদেশে সুন্দরবন বা রেডএক্স কুরিয়ারে ক্যাশ অন ডেলিভারিতে পাঠানো যাবে (শুধু কুরিয়ার চার্জ অগ্রিম পাঠাবেন)।'
+            : 'Yes, cash on delivery courier is available via Sundarban / Steadfast across all 64 districts.';
+        } else if (lower.includes('ফোন') || lower.includes('নম্বর') || lower.includes('number') || lower.includes('phone') || lower.includes('কল') || lower.includes('contact')) {
+          replyText = language === 'bn'
+            ? 'আমার মোবাইল নম্বর বিজ্ঞাপনের ভেতরে দেওয়া আছে। আপনি চাইলে সরাসরি কল দিতে পারেন অথবা এখানে চ্যাটে কথা বলতে পারেন।'
+            : 'Phone number is in the ad details. You can call directly or continue chatting here anytime!';
+        } else if (lower.includes('কখন') || lower.includes('আসব') || lower.includes('সময়') || lower.includes('time') || lower.includes('meet') || lower.includes('আজ')) {
+          replyText = language === 'bn'
+            ? 'আমি সকাল ১০টা থেকে রাত ১০টা পর্যন্ত লোকেশনে থাকি। আসার ৩০ মিনিট আগে একবার কল বা চ্যাটে মেসেজ দিলে সুবিধা হয়।'
+            : 'Available from 10 AM to 10 PM daily. Please notify me 30 mins before coming.';
+        } else if (lower.includes('আছে') || lower.includes('available') || lower.includes('বিক্রি') || lower.includes('available?')) {
+          replyText = language === 'bn'
+            ? 'জ্বী ভাইয়া, পণ্যটি এখনো বিক্রির জন্য এভেইলএবল আছে। আপনি চাইলে আজই দেখা করতে পারেন।'
+            : 'Yes, it is still available for sale! Let me know if you would like to inspect it today.';
+        } else if (lower.includes('কিনব') || lower.includes('নিব') || lower.includes('buy') || lower.includes('agree') || lower.includes('ঠিক আছে')) {
+          replyText = language === 'bn'
+            ? 'চমৎকার! আপনি কখন আসতে চাচ্ছেন একটু জানালে আমি পণ্যটি রেডি করে রাখব এবং লোকেশন শেয়ার করব।'
+            : 'Great! Please let me know your preferred time so I can keep everything packed and ready.';
+        } else {
+          const unlimitedResponses = [
+            'জ্বী ভাইয়া অবশ্যই! আপনার কথা বুঝতে পেরেছি। আপনার আর কোনো কিছু জানার থাকলে নির্দ্বিধায় জিজ্ঞেস করুন।',
+            'ঠিক আছে ভাইয়া, আমি লাইনে আছি। আপনি যে কোনো সময় মেসেজ করতে পারেন বা দেখা করতে পারেন।',
+            'ধন্যবাদ মেসেজের জন্য! পণ্যটি দেখতে চাইলে আপনি ধানমন্ডি এসে দেখে নিতে পারেন।',
+            'আপনার প্রস্তাবটি ভালো লেগেছে। আপনি কি আজ আসবেন নাকি কাল সময় হবে?',
+            'জ্বী ১০০% নিশ্চিত থাকতে পারেন। আপনি সামনাসামনি দেখে পছন্দ হলে তবেই নিবেন।'
+          ];
+          replyText = unlimitedResponses[Math.floor(Math.random() * unlimitedResponses.length)];
+        }
       }
 
       const replyMsg: ChatMessage = {
@@ -2606,7 +2655,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         return curr;
       });
-    }, 2800);
+    }, isSellerOffline ? 1600 : 2600);
   };
 
   const openChatForProduct = (product: Product): string => {
@@ -2619,6 +2668,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const initMsgId = 'msg-init-' + Date.now();
     const threadId = 'thread-' + Date.now();
+    const initialText = 'আসসালামু আলাইকুম, এটি কি এখনো এভেইলএবল আছে?';
     const newThread: ChatThread = {
       id: threadId,
       productId: product.id,
@@ -2628,7 +2678,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       seller: product.seller,
       buyerId: 'user-me',
       buyerName: 'CurrentUser',
-      lastMessage: 'আসসালামু আলাইকুম, এটি কি এখনো এভেইলএবল আছে?',
+      lastMessage: initialText,
       lastMessageTime: 'Just now',
       unreadCount: 0,
       messages: [
@@ -2637,7 +2687,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           senderId: 'user-me',
           receiverId: product.seller.id,
           productId: product.id,
-          text: 'আসসালামু আলাইকুম, এটি কি এখনো এভেইলএবল আছে?',
+          text: initialText,
           timestamp: 'Just now',
           status: 'sent'
         }
@@ -2653,22 +2703,58 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setActiveChat(newThread);
     setActiveTab('chat');
 
+    // 🔔 Seller Notification: Trigger "একজন ক্রেতা আপনাকে মেসেজ করেছেন।" notification
+    const notifId = 'notif-msg-' + Date.now();
+    const sellerNotifTitle = language === 'bn' ? 'একজন ক্রেতা আপনাকে মেসেজ করেছেন।' : 'You have a new message from a customer.';
+    const sellerNotifMsg = language === 'bn'
+      ? `"${product.title}" বিজ্ঞাপনে ক্রেতার নতুন বার্তা: "${initialText}"`
+      : `A customer messaged you on "${product.title}": "${initialText}"`;
+
+    setNotifications(prev => [
+      {
+        id: notifId,
+        title: sellerNotifTitle,
+        message: sellerNotifMsg,
+        time: 'Just now',
+        isRead: false,
+        type: 'message'
+      },
+      ...prev
+    ]);
+
+    sendLocalBrowserPushNotification({
+      title: sellerNotifTitle,
+      body: sellerNotifMsg
+    });
+
     // Trigger delivery and seen status
-    setTimeout(() => updateMessageStatus(threadId, initMsgId, 'delivered'), 1000);
+    setTimeout(() => updateMessageStatus(threadId, initMsgId, 'delivered'), 800);
+    const isSellerOffline = product.seller.isOnline === false;
+
     setTimeout(() => {
       updateMessageStatus(threadId, initMsgId, 'seen');
-      setIsSellerTyping(true);
-    }, 2000);
+      if (!isSellerOffline) {
+        setIsSellerTyping(true);
+      }
+    }, 1500);
 
     // Initial seller reply
     setTimeout(() => {
       setIsSellerTyping(false);
+      const replyText = isSellerOffline
+        ? (language === 'bn'
+            ? 'বিক্রেতা বর্তমানে অনলাইনে নেই। তিনি অনলাইনে এলে আপনার সাথে যোগাযোগ করবেন।'
+            : 'The seller is currently offline. They will contact you when they are online.')
+        : (language === 'bn'
+            ? 'ওয়ালাইকুম আসসালাম! জ্বী ভাইয়া, পণ্যটি এখনো এভেইলএবল আছে। আপনি কি সরাসরি এসে দেখতে চান না কুরিয়ারে নিতে আগ্রহী?'
+            : 'Wa Alaikum Assalam! Yes, it is still available. Would you like to inspect it in person or prefer courier delivery?');
+
       const replyMsg: ChatMessage = {
         id: 'msg-init-reply-' + Date.now(),
         senderId: product.seller.id || 'seller',
         receiverId: 'user-me',
         productId: product.id,
-        text: 'ওয়ালাইকুম আসসালাম! জ্বী ভাইয়া, পণ্যটি এখনো এভেইলএবল আছে। আপনি কি সরাসরি এসে দেখতে চান না কুরিয়ারে নিতে আগ্রহী?',
+        text: replyText,
         timestamp: 'Just now',
         status: 'delivered'
       };
@@ -2700,7 +2786,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         return curr;
       });
-    }, 3200);
+    }, isSellerOffline ? 2000 : 2800);
 
     return threadId;
   };
