@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "admin@marketbd.net" ||
+        request.auth.token.email == "official.marketbd@gmail.com" ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // Products / Classified Ads - Realtime sync across Android & Web
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Chat System & Direct Messages
+    match /chats/{chatId} {
+      allow read, write: if true;
+
+      match /messages/{messageId} {
+        allow read, write: if true;
+      }
+    }
+
+    // Customer Care & System Activity Logs
+    match /activities/{activityId} {
+      allow read, write: if true;
+    }
+
+    // System Settings & Site Configuration (System Notice, Helpline, Payment Accounts, Clock, Logo, etc.)
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+  }
+}
