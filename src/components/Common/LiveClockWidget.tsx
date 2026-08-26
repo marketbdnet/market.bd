@@ -4,13 +4,64 @@ import { Clock } from 'lucide-react';
 
 export const LiveClockWidget: React.FC = () => {
   const { language, clockSettings } = useMarket();
-  const [now, setNow] = useState(new Date());
+
+  // Helper to get real Bangladesh (Asia/Dhaka) Time
+  const getDhakaNow = (): Date => {
+    const now = new Date();
+    // Dhaka is UTC+6 without DST
+    const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
+    return new Date(utcTime + 6 * 3600000);
+  };
+
+  const [now, setNow] = useState<Date>(getDhakaNow);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
+    // Precise timer synchronized to seconds boundary to prevent drift
+    let timerId: NodeJS.Timeout | null = null;
+    let isMounted = true;
+
+    const tick = () => {
+      if (!isMounted) return;
+      setNow(getDhakaNow());
+    };
+
+    // Initial tick
+    tick();
+
+    // Calculate delay until the next exact second boundary
+    const startPreciseTimer = () => {
+      if (timerId) clearInterval(timerId);
+      const currentMs = new Date().getMilliseconds();
+      const delayUntilNextSecond = 1000 - currentMs;
+
+      const timeoutId = setTimeout(() => {
+        if (!isMounted) return;
+        tick();
+        timerId = setInterval(tick, 1000);
+      }, delayUntilNextSecond);
+
+      return () => {
+        clearTimeout(timeoutId);
+        if (timerId) clearInterval(timerId);
+      };
+    };
+
+    const cleanupTimer = startPreciseTimer();
+
+    // Visibility API optimization: sync immediately when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isMounted) {
+        tick();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      cleanupTimer();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   if (clockSettings && clockSettings.isWidgetEnabled === false) {
@@ -48,7 +99,11 @@ export const LiveClockWidget: React.FC = () => {
 
       return {
         dateStr: `${dayNameBn}, ${dayDateBn} ${monthNameBn} ${yearBn}`,
-        timeStr: showSec ? `${hoursBn}:${minBn}:${secBn} ${ampm}` : `${hoursBn}:${minBn} ${ampm}`
+        hoursStr: hoursBn,
+        minStr: minBn,
+        secStr: secBn,
+        ampmStr: ampm,
+        showSec
       };
     } else {
       const daysEn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -63,12 +118,16 @@ export const LiveClockWidget: React.FC = () => {
 
       return {
         dateStr: `${dayNameEn}, ${dateNum} ${monthNameEn} ${yearNum}`,
-        timeStr: showSec ? `${hoursStr}:${minStr}:${secStr} ${ampm}` : `${hoursStr}:${minStr} ${ampm}`
+        hoursStr,
+        minStr,
+        secStr,
+        ampmStr: ampm,
+        showSec
       };
     }
   };
 
-  const { dateStr, timeStr } = getDateTimeComponents();
+  const { dateStr, hoursStr, minStr, secStr, ampmStr, showSec } = getDateTimeComponents();
 
   // Font family calculation
   const getFontFamilyCss = () => {
@@ -163,44 +222,56 @@ export const LiveClockWidget: React.FC = () => {
   };
 
   const fontFamilyCss = getFontFamilyCss();
-  const textColor = clockSettings?.textColor || '#34d399';
-  const dateTextColor = clockSettings?.dateTextColor || '#6ee7b7';
+  // Ensure white text color by default (#FFFFFF / text-white)
+  const textColor = clockSettings?.textColor || '#FFFFFF';
+  const dateTextColor = clockSettings?.dateTextColor || '#FFFFFF';
   const bgColor = clockSettings?.bgColor || '#0f172a';
   const borderColor = clockSettings?.borderColor || '#334155';
   const showPulse = clockSettings?.showPulseIcon !== false;
 
   return (
     <div
+      id="live-navbar-clock-widget"
       style={{
         backgroundColor: bgColor,
         fontFamily: fontFamilyCss,
+        borderColor: borderColor,
       }}
-      className="border border-white/90 hover:opacity-95 px-2 sm:px-2.5 h-7.5 sm:h-8 rounded-lg shadow-sm flex items-center gap-1.5 shrink-0 select-none my-auto transition-all"
+      className="w-full h-full min-h-[30px] sm:min-h-[34px] px-2.5 sm:px-3 py-1 rounded-lg border shadow-sm flex items-center justify-between gap-1.5 shrink-0 select-none text-white transition-all overflow-hidden"
     >
       {showPulse && (
         <Clock
-          className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-pulse shrink-0"
+          className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-pulse shrink-0 text-white"
           style={{ color: textColor }}
         />
       )}
-      <div className="flex flex-col text-left leading-none justify-center gap-0.5">
-        {/* Line 1: Date */}
+      <div className="flex flex-col text-left leading-none justify-center gap-0.5 min-w-0 flex-1">
+        {/* Line 1: Date in White Text */}
         <span
           style={{ color: dateTextColor }}
-          className={`${getDateFontSizeClass()} font-semibold tracking-tight whitespace-nowrap opacity-90 text-[8px] sm:text-[9px]`}
+          className={`${getDateFontSizeClass()} font-semibold tracking-tight whitespace-nowrap opacity-95 text-white text-[8px] sm:text-[9px]`}
         >
           {dateStr}
         </span>
-        {/* Line 2: Time */}
-        <span
+        {/* Line 2: Real Bangladesh Time with stationary hours:minutes and running seconds */}
+        <div
           style={{
             color: textColor,
             ...getTimeFontSizeStyle(),
           }}
-          className={`${getTimeFontSizeClass()} ${getFontWeightClass()} tracking-wider whitespace-nowrap text-[10px] sm:text-xs`}
+          className={`${getTimeFontSizeClass()} ${getFontWeightClass()} tracking-wider whitespace-nowrap text-white text-[10px] sm:text-xs flex items-center font-mono`}
         >
-          {timeStr}
-        </span>
+          <span>{hoursStr}</span>
+          <span className="mx-px">:</span>
+          <span>{minStr}</span>
+          {showSec && (
+            <>
+              <span className="mx-px">:</span>
+              <span className="inline-block w-[1.3em] text-center font-bold">{secStr}</span>
+            </>
+          )}
+          <span className="ml-1 text-[9px] sm:text-[10px] opacity-90">{ampmStr}</span>
+        </div>
       </div>
     </div>
   );

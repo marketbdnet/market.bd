@@ -60,8 +60,8 @@ export const DEFAULT_CLOCK_SETTINGS: ClockSettings = {
   customFontSizePx: 14,
   fontFamily: 'vt323',
   customFontFamily: '',
-  textColor: '#34d399',
-  dateTextColor: '#6ee7b7',
+  textColor: '#FFFFFF',
+  dateTextColor: '#FFFFFF',
   bgColor: '#0f172a',
   borderColor: '#334155',
   showPulseIcon: true,
@@ -818,58 +818,56 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }, (err) => console.log('App release listener notice:', err));
       unsubs.push(unsubApp);
 
-      const unsubProducts = onSnapshot(doc(db, 'settings', 'marketplace_products'), (snapshot) => {
-        if (snapshot.exists()) {
-          const val = snapshot.data()?.value;
-          if (Array.isArray(val) && val.length > 0) {
-            setProducts(prev => {
-              const map = new Map<string, Product>();
-              prev.forEach(p => { if (p && p.id) map.set(p.id, p); });
-              val.forEach((p: Product) => {
-                if (p && p.id && p.title) {
-                  const existing = map.get(p.id);
-                  map.set(p.id, existing ? { ...existing, ...p } : p);
-                }
-              });
-              const rawMerged = Array.from(map.values()).sort((a, b) => 
-                new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
-              );
-              const merged = normalizeProductsList(rawMerged);
-              if (JSON.stringify(prev) === JSON.stringify(merged)) return prev;
-              storage.setItem('marketbd_products_v4', JSON.stringify(merged));
-              return merged;
+      // One-time non-destructive legacy migration from settings/marketplace_products to products/{id}
+      getDoc(doc(db, 'settings', 'marketplace_products')).then(snap => {
+        if (snap.exists()) {
+          const legacyArr = snap.data()?.value;
+          if (Array.isArray(legacyArr) && legacyArr.length > 0) {
+            legacyArr.forEach((legacyItem: Product) => {
+              if (legacyItem && legacyItem.id && legacyItem.title) {
+                // Upsert to products collection safely if not present
+                safeFirestoreSetDoc(doc(db, 'products', legacyItem.id), legacyItem, { merge: true }).catch(() => {});
+              }
             });
           }
         }
-      }, (err) => console.log('Products listener notice:', err));
-      unsubs.push(unsubProducts);
+      }).catch(() => {});
 
-      // Realtime listener for individual documents in 'products' Firestore collection (Direct Android SDK sync)
+      // Authoritative Realtime listener for individual documents in 'products' Firestore collection (Direct Android & Web sync)
       const unsubProductsCol = onSnapshot(collection(db, 'products'), (snapshot) => {
         const cloudAds: Product[] = [];
         snapshot.forEach(docSnap => {
           const data = docSnap.data() as Product;
-          cloudAds.push({ ...data, id: docSnap.id });
+          if (data && docSnap.id) {
+            cloudAds.push({ ...data, id: docSnap.id });
+          }
         });
-        if (cloudAds.length > 0) {
-          setProducts(prev => {
-            const map = new Map<string, Product>();
-            prev.forEach(p => { if (p && p.id) map.set(p.id, p); });
-            cloudAds.forEach(ca => {
-              if (ca && ca.id) {
-                const existing = map.get(ca.id);
-                map.set(ca.id, existing ? { ...existing, ...ca } : ca);
-              }
-            });
-            const rawMerged = Array.from(map.values()).sort((a, b) => 
-              new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
-            );
-            const merged = normalizeProductsList(rawMerged);
-            if (JSON.stringify(prev) === JSON.stringify(merged)) return prev;
-            storage.setItem('marketbd_products_v4', JSON.stringify(merged));
-            return merged;
+        const docChanges = snapshot.docChanges();
+
+        setProducts(prev => {
+          const map = new Map<string, Product>();
+          prev.forEach(p => { if (p && p.id) map.set(p.id, p); });
+          cloudAds.forEach(ca => {
+            if (ca && ca.id) {
+              const existing = map.get(ca.id);
+              map.set(ca.id, existing ? { ...existing, ...ca } : ca);
+            }
           });
-        }
+          // Handle deletions
+          docChanges.forEach(change => {
+            if (change.type === 'removed') {
+              map.delete(change.doc.id);
+            }
+          });
+
+          const rawMerged = Array.from(map.values()).sort((a, b) => 
+            new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
+          );
+          const merged = normalizeProductsList(rawMerged);
+          if (JSON.stringify(prev) === JSON.stringify(merged)) return prev;
+          storage.setItem('marketbd_products_v4', JSON.stringify(merged));
+          return merged;
+        });
       }, (err) => console.log('Products collection listener notice:', err));
       unsubs.push(unsubProductsCol);
 
@@ -1844,9 +1842,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Delete directly from Firestore products collection & REST endpoint for Android sync
     try {
       safeFirestoreDeleteDoc(doc(db, 'products', productId)).catch(() => {});
-      safeFirestoreSetDoc(doc(db, 'settings', 'marketplace_products'), { value: remainingList, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
       fetch('/api/products/' + productId, { method: 'DELETE' }).catch(() => {});
-      syncToCloud('marketplace_products', remainingList);
     } catch (e) {}
 
     const titleText = language === 'bn' ? 'বিজ্ঞাপন রিমুভ / মুছে ফেলা হয়েছে 🗑️' : 'Ad Removed 🗑️';
@@ -2870,14 +2866,11 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       safeFirestoreSetDoc(doc(db, 'products', newProduct.id), newProduct, { merge: true })
         .catch(() => {});
-      safeFirestoreSetDoc(doc(db, 'settings', 'marketplace_products'), { value: [newProduct, ...products], updatedAt: new Date().toISOString() }, { merge: true })
-        .catch(() => {});
       fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newProduct)
       }).catch(() => {});
-      syncToCloud('marketplace_products', [newProduct, ...products]);
     } catch (e) {}
 
     // Trigger Search Notifications for users who previously searched or set alert for matching query
@@ -2982,13 +2975,11 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       if (updatedTargetProduct) {
         safeFirestoreSetDoc(doc(db, 'products', id), updatedTargetProduct, { merge: true }).catch(() => {});
-        safeFirestoreSetDoc(doc(db, 'settings', 'marketplace_products'), { value: fullUpdatedList, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
         fetch('/api/products/' + id, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedTargetProduct)
         }).catch(() => {});
-        syncToCloud('marketplace_products', fullUpdatedList);
       }
     } catch (e) {}
 
@@ -3150,13 +3141,11 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       if (mergedTargetAd) {
         safeFirestoreSetDoc(doc(db, 'products', id), mergedTargetAd, { merge: true }).catch(() => {});
-        safeFirestoreSetDoc(doc(db, 'settings', 'marketplace_products'), { value: mergedList, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
         fetch('/api/products/' + id, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(mergedTargetAd)
         }).catch(() => {});
-        syncToCloud('marketplace_products', mergedList);
       }
     } catch (e) {}
   };

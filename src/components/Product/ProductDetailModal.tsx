@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
 import { formatPostedAt } from '../../utils/dateUtils';
+import { getSecondLevelImageUrl, getSubcategoryImageUrl, getCategoryImageUrl } from '../../utils/categoryImages';
 import { ShareModal } from './ShareModal';
 import { WatermarkedImage } from './WatermarkedImage';
 import { getMarketBdTenure } from '../../utils/tenure';
@@ -97,9 +98,23 @@ export const ProductDetailModal: React.FC = () => {
 
   if (!selectedProduct) return null;
 
-  const productImages = (Array.isArray(selectedProduct.images) && selectedProduct.images.length > 0)
-    ? selectedProduct.images
-    : [((selectedProduct as any).image || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80')];
+  const dynamicFallback1 =
+    getSecondLevelImageUrl(selectedProduct.category, selectedProduct.subCategory || '', selectedProduct.secondLevelCategory || '', selectedProduct.model || selectedProduct.title) ||
+    getSubcategoryImageUrl(selectedProduct.category, selectedProduct.subCategory || '') ||
+    getCategoryImageUrl(selectedProduct.category);
+  const dynamicFallback2 = getSubcategoryImageUrl(selectedProduct.category, selectedProduct.subCategory || '') || dynamicFallback1;
+
+  const validImgs = Array.isArray(selectedProduct.images)
+    ? selectedProduct.images.filter(img => typeof img === 'string' && img.trim() !== '')
+    : [];
+
+  const productImages = validImgs.length > 0
+    ? validImgs
+    : [dynamicFallback1, dynamicFallback2].filter(Boolean) as string[];
+
+  if (productImages.length === 0) {
+    productImages.push('https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80');
+  }
 
   const currentImage = productImages[activeImageIdx] || productImages[0];
 

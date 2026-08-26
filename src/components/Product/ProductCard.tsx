@@ -3,6 +3,7 @@ import { Product } from '../../types';
 import { useMarket } from '../../context/MarketContext';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
 import { formatPostedAt } from '../../utils/dateUtils';
+import { getSecondLevelImageUrl, getSubcategoryImageUrl, getCategoryImageUrl } from '../../utils/categoryImages';
 import { ShareModal } from './ShareModal';
 import { WatermarkedImage } from './WatermarkedImage';
 import {
@@ -45,9 +46,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, layout, layou
   const isWishlisted = wishlist?.includes(product.id) || false;
   const isCompared = compareList?.some(p => p.id === product.id) || false;
 
-  const primaryImage = (Array.isArray(product.images) && product.images.length > 0 && product.images[0])
+  const dynamicFallbackImage =
+    getSecondLevelImageUrl(product.category, product.subCategory || '', product.secondLevelCategory || '', product.model || product.title) ||
+    getSubcategoryImageUrl(product.category, product.subCategory || '') ||
+    getCategoryImageUrl(product.category) ||
+    'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=600&q=80';
+
+  const primaryImage = (Array.isArray(product.images) && product.images.length > 0 && product.images[0] && typeof product.images[0] === 'string' && product.images[0].trim() !== '')
     ? product.images[0]
-    : ((product as any).image || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=600&q=80');
+    : ((product as any).image || dynamicFallbackImage);
 
   const displayPrice = typeof product.price === 'number'
     ? product.price.toLocaleString()
