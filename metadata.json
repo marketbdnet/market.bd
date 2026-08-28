@@ -1,0 +1,6 @@
+{
+  "name": "MarketBD.Net",
+  "description": "Enterprise Multi-vendor classifieds & e-commerce marketplace with BD division/district location search, AI smart search, category forms, live seller chat, comparison, wishlist, and admin management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

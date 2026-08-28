@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.MarketBD" parent="Theme.AppCompat.Light.DarkActionBar">
+        <item name="colorPrimary">#059669</item>
+        <item name="colorPrimaryDark">#047857</item>
+        <item name="colorAccent">#10B981</item>
+    </style>
+
+    <style name="Theme.MarketBD.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:statusBarColor">#059669</item>
+    </style>
+</resources>
