@@ -1,0 +1,40 @@
+{
+	"appId": "com.marketbd.app",
+	"appName": "MarketBD.Net",
+	"webDir": "dist",
+	"bundledWebRuntime": false,
+	"server": {
+		"url": "https://marketbd.net",
+		"cleartext": false
+	},
+	"android": {
+		"allowMixedContent": false,
+		"captureInput": true,
+		"webContentsDebuggingEnabled": true
+	},
+	"plugins": {
+		"Camera": {
+			"permissions": [
+				"camera",
+				"photos"
+			]
+		},
+		"Geolocation": {
+			"permissions": [
+				"location"
+			]
+		},
+		"PushNotifications": {
+			"presentationOptions": [
+				"badge",
+				"sound",
+				"alert"
+			]
+		},
+		"Microphone": {
+			"permissions": [
+				"microphone"
+			]
+		}
+	}
+}
