@@ -147,3 +147,10 @@ body.ptr-reset .ptr-content {
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+
+/* MARKETBD_ANDROID_SCROLL_FIX */
+html, body, #root { width: 100%; min-height: 100%; }
+html { overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+body { margin: 0; overflow-x: hidden; overflow-y: auto; touch-action: pan-y; overscroll-behavior-y: auto; }
+#root { overflow: visible; }
+
