@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import ReactPullToRefresh from 'react-pull-to-refresh';
 import { useMarket } from '../context/MarketContext';
 import { isProductPublicActive } from '../utils/productStatus';
@@ -114,13 +114,13 @@ export const HomePage: React.FC = () => {
       icon={
         <div className="flex items-center gap-1.5 text-xs font-bold text-pink-600 dark:text-pink-400 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-pink-200 dark:border-pink-900/50">
           <RefreshCw className="w-4 h-4 text-pink-600 dark:text-pink-400 genericon" />
-          <span>{language === 'bn' ? 'টেনে রিফ্রেশ করুন' : 'Pull down to refresh'}</span>
+          <span>{language === 'bn' ? 'à¦Ÿà§‡à¦¨à§‡ à¦°à¦¿à¦«à§à¦°à§‡à¦¶ à¦•à¦°à§à¦¨' : 'Pull down to refresh'}</span>
         </div>
       }
       loading={
         <div className="flex items-center gap-2 text-xs font-bold text-pink-600 dark:text-pink-400 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-md border border-pink-300 dark:border-pink-800 animate-pulse">
           <RefreshCw className="w-4 h-4 text-pink-600 dark:text-pink-400 animate-spin" />
-          <span>{language === 'bn' ? 'বিজ্ঞাপন আপডেট হচ্ছে...' : 'Updating listings...'}</span>
+          <span>{language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦†à¦ªà¦¡à§‡à¦Ÿ à¦¹à¦šà§à¦›à§‡...' : 'Updating listings...'}</span>
         </div>
       }
     >
@@ -152,10 +152,10 @@ export const HomePage: React.FC = () => {
               <div>
                 <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
                   <Zap className="w-5 h-5 text-red-600 fill-red-600 animate-pulse shrink-0" />
-                  <span>{language === 'bn' ? 'ফিচার্ড ও জরুরি বিজ্ঞাপন' : 'Featured & Urgent Ads'}</span>
+                  <span>{language === 'bn' ? 'à¦«à¦¿à¦šà¦¾à¦°à§à¦¡ à¦“ à¦œà¦°à§à¦°à¦¿ à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨' : 'Featured & Urgent Ads'}</span>
                 </h2>
                 <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
-                  {language === 'bn' ? 'বিশেষ বুস্টেড জরুরি বিজ্ঞাপন' : 'Top boosted listings with priority visibility'}
+                  {language === 'bn' ? 'à¦¬à¦¿à¦¶à§‡à¦· à¦¬à§à¦¸à§à¦Ÿà§‡à¦¡ à¦œà¦°à§à¦°à¦¿ à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨' : 'Top boosted listings with priority visibility'}
                 </p>
               </div>
 
@@ -172,7 +172,7 @@ export const HomePage: React.FC = () => {
                     title="Grid View"
                   >
                     <LayoutGrid className="w-3.5 h-3.5" />
-                    <span>{language === 'bn' ? 'গ্রিড' : 'Grid'}</span>
+                    <span>{language === 'bn' ? 'à¦—à§à¦°à¦¿à¦¡' : 'Grid'}</span>
                   </button>
                   <button
                     onClick={() => setAdViewMode('list')}
@@ -184,7 +184,7 @@ export const HomePage: React.FC = () => {
                     title="Up-Down / List View"
                   >
                     <Rows className="w-3.5 h-3.5" />
-                    <span>{language === 'bn' ? 'উপরে-নিচে' : 'List'}</span>
+                    <span>{language === 'bn' ? 'à¦‰à¦ªà¦°à§‡-à¦¨à¦¿à¦šà§‡' : 'List'}</span>
                   </button>
                 </div>
 
@@ -195,7 +195,7 @@ export const HomePage: React.FC = () => {
                   }}
                   className="text-xs font-black text-pink-600 dark:text-pink-400 hover:underline cursor-pointer shrink-0"
                 >
-                  {language === 'bn' ? 'সবগুলো →' : 'See all →'}
+                  {language === 'bn' ? 'à¦¸à¦¬à¦—à§à¦²à§‹ â†’' : 'See all â†’'}
                 </button>
               </div>
             </div>
@@ -215,12 +215,12 @@ export const HomePage: React.FC = () => {
               </div>
             ) : (
               <p className="text-xs text-slate-500 text-center py-4 font-bold">
-                {language === 'bn' ? 'বর্তমানে কোন ফিচার্ড বিজ্ঞাপন নেই' : 'No featured ads currently available.'}
+                {language === 'bn' ? 'à¦¬à¦°à§à¦¤à¦®à¦¾à¦¨à§‡ à¦•à§‹à¦¨ à¦«à¦¿à¦šà¦¾à¦°à§à¦¡ à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦¨à§‡à¦‡' : 'No featured ads currently available.'}
               </p>
             )}
           </section>
 
-          {/* 3. Smart Recent Posts Section (চিত্তাকর্ষক ও আধুনিক সাম্প্রতিক বিজ্ঞাপন হাব) */}
+          {/* 3. Smart Recent Posts Section (à¦šà¦¿à¦¤à§à¦¤à¦¾à¦•à¦°à§à¦·à¦• à¦“ à¦†à¦§à§à¦¨à¦¿à¦• à¦¸à¦¾à¦®à§à¦ªà§à¦°à¦¤à¦¿à¦• à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦¹à¦¾à¦¬) */}
           <section className="bg-gradient-to-b from-sky-50/50 via-white to-white dark:from-slate-900/95 dark:via-slate-900 dark:to-slate-900 rounded-2xl border-2 border-indigo-500/70 dark:border-indigo-500/60 shadow-xl p-3.5 sm:p-5 space-y-4 relative overflow-hidden">
             {/* Top Multi-Gradient Accent Stripe */}
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500" />
@@ -234,16 +234,16 @@ export const HomePage: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5">
-                      <span>{language === 'bn' ? 'সাম্প্রতিক বিজ্ঞাপন' : 'Recent Listings'}</span>
+                      <span>{language === 'bn' ? 'à¦¸à¦¾à¦®à§à¦ªà§à¦°à¦¤à¦¿à¦• à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨' : 'Recent Listings'}</span>
                     </h2>
                     <span className="inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-xs">
                       <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                      <span>{filteredRecent.length} {language === 'bn' ? 'টি তাজা বিজ্ঞাপন' : 'Live Fresh Ads'}</span>
+                      <span>{filteredRecent.length} {language === 'bn' ? 'à¦Ÿà¦¿ à¦¤à¦¾à¦œà¦¾ à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨' : 'Live Fresh Ads'}</span>
                     </span>
                   </div>
                   <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mt-0.5">
                     {language === 'bn'
-                      ? 'সারাদেশ থেকে বিক্রেতাদের সর্বশেষ আপলোডকৃত ও ভেরিফাইড পোস্টসমূহ'
+                      ? 'à¦¸à¦¾à¦°à¦¾à¦¦à§‡à¦¶ à¦¥à§‡à¦•à§‡ à¦¬à¦¿à¦•à§à¦°à§‡à¦¤à¦¾à¦¦à§‡à¦° à¦¸à¦°à§à¦¬à¦¶à§‡à¦· à¦†à¦ªà¦²à§‹à¦¡à¦•à§ƒà¦¤ à¦“ à¦­à§‡à¦°à¦¿à¦«à¦¾à¦‡à¦¡ à¦ªà§‹à¦¸à§à¦Ÿà¦¸à¦®à§‚à¦¹'
                       : 'Latest verified items posted by sellers across all 64 districts'}
                   </p>
                 </div>
@@ -259,9 +259,9 @@ export const HomePage: React.FC = () => {
                     onChange={e => setRecentSort(e.target.value as any)}
                     className="bg-transparent font-bold text-xs focus:outline-none cursor-pointer pr-1"
                   >
-                    <option value="newest">{language === 'bn' ? '✨ নতুনতম আগে' : '✨ Newest First'}</option>
-                    <option value="price-asc">{language === 'bn' ? '📉 কম দাম আগে' : '📉 Price: Low to High'}</option>
-                    <option value="price-desc">{language === 'bn' ? '📈 বেশি দাম আগে' : '📈 Price: High to Low'}</option>
+                    <option value="newest">{language === 'bn' ? 'âœ¨ à¦¨à¦¤à§à¦¨à¦¤à¦® à¦†à¦—à§‡' : 'âœ¨ Newest First'}</option>
+                    <option value="price-asc">{language === 'bn' ? 'ðŸ“‰ à¦•à¦® à¦¦à¦¾à¦® à¦†à¦—à§‡' : 'ðŸ“‰ Price: Low to High'}</option>
+                    <option value="price-desc">{language === 'bn' ? 'ðŸ“ˆ à¦¬à§‡à¦¶à¦¿ à¦¦à¦¾à¦® à¦†à¦—à§‡' : 'ðŸ“ˆ Price: High to Low'}</option>
                   </select>
                 </div>
 
@@ -306,7 +306,7 @@ export const HomePage: React.FC = () => {
                     : 'bg-white hover:bg-indigo-50 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
                 }`}
               >
-                {language === 'bn' ? `সব ক্যাটাগরি (${activeProducts.length})` : `All (${activeProducts.length})`}
+                {language === 'bn' ? `à¦¸à¦¬ à¦•à§à¦¯à¦¾à¦Ÿà¦¾à¦—à¦°à¦¿ (${activeProducts.length})` : `All (${activeProducts.length})`}
               </button>
 
               {categories.slice(0, 8).map(cat => {
@@ -355,13 +355,13 @@ export const HomePage: React.FC = () => {
             ) : (
               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-8 text-center border border-dashed border-indigo-200 dark:border-slate-700 space-y-2">
                 <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
-                  {language === 'bn' ? 'এই ক্যাটাগরিতে বর্তমানে কোনো সক্রিয় বিজ্ঞাপন নেই' : 'No active listings found in this category'}
+                  {language === 'bn' ? 'à¦à¦‡ à¦•à§à¦¯à¦¾à¦Ÿà¦¾à¦—à¦°à¦¿à¦¤à§‡ à¦¬à¦°à§à¦¤à¦®à¦¾à¦¨à§‡ à¦•à§‹à¦¨à§‹ à¦¸à¦•à§à¦°à¦¿à§Ÿ à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦¨à§‡à¦‡' : 'No active listings found in this category'}
                 </p>
                 <button
                   onClick={() => setRecentCategory('all')}
                   className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
                 >
-                  {language === 'bn' ? 'সকল বিজ্ঞাপন দেখুন →' : 'View all ads →'}
+                  {language === 'bn' ? 'à¦¸à¦•à¦² à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦¦à§‡à¦–à§à¦¨ â†’' : 'View all ads â†’'}
                 </button>
               </div>
             )}
@@ -370,7 +370,7 @@ export const HomePage: React.FC = () => {
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-indigo-100 dark:border-slate-800">
               <div className="text-xs text-slate-600 dark:text-slate-400 font-bold">
                 {language === 'bn'
-                  ? `মোট ${filteredRecent.length} টির মধ্যে ${displayedRecent.length} টি দেখানো হচ্ছে`
+                  ? `à¦®à§‹à¦Ÿ ${filteredRecent.length} à¦Ÿà¦¿à¦° à¦®à¦§à§à¦¯à§‡ ${displayedRecent.length} à¦Ÿà¦¿ à¦¦à§‡à¦–à¦¾à¦¨à§‹ à¦¹à¦šà§à¦›à§‡`
                   : `Showing ${displayedRecent.length} of ${filteredRecent.length} listings`}
               </div>
 
@@ -383,7 +383,7 @@ export const HomePage: React.FC = () => {
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>
                       {language === 'bn'
-                        ? `আরও ${Math.min(6, filteredRecent.length - visibleRecentCount)} টি দেখুন`
+                        ? `à¦†à¦°à¦“ ${Math.min(6, filteredRecent.length - visibleRecentCount)} à¦Ÿà¦¿ à¦¦à§‡à¦–à§à¦¨`
                         : `Load ${Math.min(6, filteredRecent.length - visibleRecentCount)} More`}
                     </span>
                   </button>
@@ -400,7 +400,7 @@ export const HomePage: React.FC = () => {
                   }}
                   className="inline-flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white text-xs font-black px-4.5 py-2 rounded-xl transition shadow-md cursor-pointer"
                 >
-                  <span>{language === 'bn' ? 'সকল বিজ্ঞাপন পেজে যান' : 'Explore All Ads'}</span>
+                  <span>{language === 'bn' ? 'à¦¸à¦•à¦² à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦ªà§‡à¦œà§‡ à¦¯à¦¾à¦¨' : 'Explore All Ads'}</span>
                   <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
                 </button>
               </div>
@@ -415,11 +415,11 @@ export const HomePage: React.FC = () => {
               </div>
               <div>
                 <h3 className="font-black text-sm sm:text-base text-white">
-                  {language === 'bn' ? 'ভেরিফাইড ও ১০০% নিরাপদ কেনাবেচা' : '100% Safe & Verified Deals'}
+                  {language === 'bn' ? 'à¦­à§‡à¦°à¦¿à¦«à¦¾à¦‡à¦¡ à¦“ à§§à§¦à§¦% à¦¨à¦¿à¦°à¦¾à¦ªà¦¦ à¦•à§‡à¦¨à¦¾à¦¬à§‡à¦šà¦¾' : '100% Safe & Verified Deals'}
                 </h3>
                 <p className="text-xs text-slate-300 font-medium">
                   {language === 'bn'
-                    ? 'সরাসরি চ্যাটে দামাদামি করুন এবং পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন।'
+                    ? 'à¦¸à¦°à¦¾à¦¸à¦°à¦¿ à¦šà§à¦¯à¦¾à¦Ÿà§‡ à¦¦à¦¾à¦®à¦¾à¦¦à¦¾à¦®à¦¿ à¦•à¦°à§à¦¨ à¦à¦¬à¦‚ à¦ªà¦£à§à¦¯ à¦¹à¦¾à¦¤à§‡ à¦ªà§‡à§Ÿà§‡ à¦®à§‚à¦²à§à¦¯ à¦ªà¦°à¦¿à¦¶à§‹à¦§ à¦•à¦°à§à¦¨à¥¤'
                     : 'Chat live with sellers, inspect products before payment, and shop securely.'}
                 </p>
               </div>
@@ -429,7 +429,7 @@ export const HomePage: React.FC = () => {
               onClick={() => setActiveTab('post-ad')}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs transition shrink-0 cursor-pointer shadow-md"
             >
-              {language === 'bn' ? 'বিজ্ঞাপন দিন' : 'Post Free Ad'}
+              {language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦¦à¦¿à¦¨' : 'Post Free Ad'}
             </button>
           </div>
 
@@ -439,4 +439,5 @@ export const HomePage: React.FC = () => {
     </ReactPullToRefresh>
   );
 };
+
 

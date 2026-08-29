@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import ReactPullToRefresh from 'react-pull-to-refresh';
 import { useMarket } from '../context/MarketContext';
 import { CATEGORIES, BANGLADESH_DIVISIONS, CONDITION_OPTIONS } from '../data/bangladeshData';
@@ -26,26 +26,26 @@ import {
 
 // Comprehensive synonym mapping for Bangla & English search terms
 const QUERY_CATEGORY_SYNONYMS: Record<string, string[]> = {
-  mobiles: ['mobile', 'mobiles', 'phone', 'phones', 'smartphone', 'smartphones', 'মোবাইল', 'ফোন', 'স্মার্টফোন', 'গ্যাজেট', 'আইফোন', 'iphone', 'samsung', 'vivo', 'xiaomi', 'realme', 'oppo', 'বাটন ফোন', 'ট্যাবলেট', 'ট্যাব', 'স্যামসাং', 'ভিভো', 'শাওমি', 'রেডমি'],
-  computers: ['computer', 'computers', 'laptop', 'laptops', 'pc', 'desktop', 'কম্পিউটার', 'ল্যাপটপ', 'পিসি', 'মনিটর', 'প্রসেসর', 'আইটি', 'ম্যাকবুক', 'macbook', 'ডেস্কটপ'],
-  electronics: ['electronics', 'tv', 'fridge', 'ac', 'refrigerator', 'washing machine', 'ইলেকট্রনিক্স', 'টিভি', 'ফ্রিজ', 'এসি', 'রেফ্রিজারেটর'],
-  vehicles: ['vehicle', 'vehicles', 'car', 'cars', 'bike', 'bikes', 'motorcycle', 'scooter', 'গাড়ি', 'গাড়ি', 'বাইক', 'মোটরসাইকেল', 'স্কুটার', 'যানবাহন', 'রয়্যাল এনাফিল্ড', 'বাইসাইকেল', 'সাইকেল', 'প্রাইভেট কার', 'প্রাইভেটকার', 'টয়োটা', 'toyota', 'corolla'],
-  property: ['property', 'properties', 'flat', 'flats', 'apartment', 'house', 'land', 'plot', 'ফ্ল্যাট', 'বাড়ি', 'বাসা', 'জমি', 'প্লট', 'প্রপার্টি', 'এপার্টমেন্ট'],
-  home_furniture: ['living', 'furniture', 'sofa', 'bed', 'table', 'chair', 'আসবাবপত্র', 'সোফা', 'খাট', 'টেবিল', 'চেয়ার', 'ফার্নিচার', 'ঘর ও আসবাব', 'home_furniture'],
-  fashion: ['fashion', 'clothes', 'dress', 'shoes', 'sneakers', 'watch', 'জুতা', 'ঘড়ি', 'পোশাক', 'শাড়ি', 'পাঞ্জাবি', 'ফ্যাশন', 'ব্যাগ'],
-  health_beauty: ['health', 'beauty', 'perfume', 'কোসমেটিকস', 'পারফিউম', 'হেলথ', 'স্বাস্থ্য ও সৌন্দর্য', 'health_beauty'],
-  baby_kids: ['baby', 'kids', 'child', 'children', 'stroller', 'toy', 'toys', 'শিশু সামগ্রী', 'খেলনা', 'baby_kids'],
-  books_sports: ['book', 'books', 'sports', 'cricket', 'bat', 'stationery', 'বই', 'বইপত্র', 'স্টেশনারি', 'খেলাধুলা', 'বই ও খেলাধুলা', 'books_sports'],
-  animal_pets: ['pet', 'pets', 'cat', 'dog', 'bird', 'cow', 'qurbani', 'পশু', 'পাখি', 'বিড়াল', 'কুকুর', 'পোষা প্রাণী', 'পশুপাখি', 'animal_pets'],
-  agriculture: ['agriculture', 'agri', 'farm', 'tractor', 'krishi', 'কৃষি', 'খামার', 'ট্রাক্টর', 'বীজ'],
-  business_equipment: ['business', 'equipment', 'machinery', 'espresso', 'coffee', 'ব্যবসার সরঞ্জাম', 'মেশিনারি'],
-  services: ['service', 'services', 'repair', 'servicing', 'সার্ভিস', 'সেবা', 'মেরামত'],
-  jobs: ['job', 'jobs', 'developer', 'hiring', 'salary', 'চাকরি', 'নিয়োগ'],
-  education_courses: ['education', 'course', 'courses', 'coaching', 'training', 'IELTS', 'MERN', 'শিক্ষা ও কোর্স', 'কোর্স'],
-  travel_tours: ['travel', 'tour', 'tours', 'tourism', 'sajek', 'resort', 'ভ্রমণ ও ট্যুর', 'ট্যুর', 'ভ্রমণ'],
-  food_restaurants: ['food', 'restaurant', 'honey', 'organic', 'biryani', 'খাবার ও রেস্টুরেন্ট', 'খাবার', 'মধু'],
-  events_tickets: ['event', 'events', 'ticket', 'tickets', 'concert', 'pass', 'ইভেন্ট ও টিকেট', 'টিকিট', 'কনসার্ট'],
-  others: ['others', 'antique', 'antiques', 'vintage', 'অন্যান্য', 'অ্যান্টিক']
+  mobiles: ['mobile', 'mobiles', 'phone', 'phones', 'smartphone', 'smartphones', 'à¦®à§‹à¦¬à¦¾à¦‡à¦²', 'à¦«à§‹à¦¨', 'à¦¸à§à¦®à¦¾à¦°à§à¦Ÿà¦«à§‹à¦¨', 'à¦—à§à¦¯à¦¾à¦œà§‡à¦Ÿ', 'à¦†à¦‡à¦«à§‹à¦¨', 'iphone', 'samsung', 'vivo', 'xiaomi', 'realme', 'oppo', 'à¦¬à¦¾à¦Ÿà¦¨ à¦«à§‹à¦¨', 'à¦Ÿà§à¦¯à¦¾à¦¬à¦²à§‡à¦Ÿ', 'à¦Ÿà§à¦¯à¦¾à¦¬', 'à¦¸à§à¦¯à¦¾à¦®à¦¸à¦¾à¦‚', 'à¦­à¦¿à¦­à§‹', 'à¦¶à¦¾à¦“à¦®à¦¿', 'à¦°à§‡à¦¡à¦®à¦¿'],
+  computers: ['computer', 'computers', 'laptop', 'laptops', 'pc', 'desktop', 'à¦•à¦®à§à¦ªà¦¿à¦‰à¦Ÿà¦¾à¦°', 'à¦²à§à¦¯à¦¾à¦ªà¦Ÿà¦ª', 'à¦ªà¦¿à¦¸à¦¿', 'à¦®à¦¨à¦¿à¦Ÿà¦°', 'à¦ªà§à¦°à¦¸à§‡à¦¸à¦°', 'à¦†à¦‡à¦Ÿà¦¿', 'à¦®à§à¦¯à¦¾à¦•à¦¬à§à¦•', 'macbook', 'à¦¡à§‡à¦¸à§à¦•à¦Ÿà¦ª'],
+  electronics: ['electronics', 'tv', 'fridge', 'ac', 'refrigerator', 'washing machine', 'à¦‡à¦²à§‡à¦•à¦Ÿà§à¦°à¦¨à¦¿à¦•à§à¦¸', 'à¦Ÿà¦¿à¦­à¦¿', 'à¦«à§à¦°à¦¿à¦œ', 'à¦à¦¸à¦¿', 'à¦°à§‡à¦«à§à¦°à¦¿à¦œà¦¾à¦°à§‡à¦Ÿà¦°'],
+  vehicles: ['vehicle', 'vehicles', 'car', 'cars', 'bike', 'bikes', 'motorcycle', 'scooter', 'à¦—à¦¾à§œà¦¿', 'à¦—à¦¾à¦¡à¦¼à¦¿', 'à¦¬à¦¾à¦‡à¦•', 'à¦®à§‹à¦Ÿà¦°à¦¸à¦¾à¦‡à¦•à§‡à¦²', 'à¦¸à§à¦•à§à¦Ÿà¦¾à¦°', 'à¦¯à¦¾à¦¨à¦¬à¦¾à¦¹à¦¨', 'à¦°à§Ÿà§à¦¯à¦¾à¦² à¦à¦¨à¦¾à¦«à¦¿à¦²à§à¦¡', 'à¦¬à¦¾à¦‡à¦¸à¦¾à¦‡à¦•à§‡à¦²', 'à¦¸à¦¾à¦‡à¦•à§‡à¦²', 'à¦ªà§à¦°à¦¾à¦‡à¦­à§‡à¦Ÿ à¦•à¦¾à¦°', 'à¦ªà§à¦°à¦¾à¦‡à¦­à§‡à¦Ÿà¦•à¦¾à¦°', 'à¦Ÿà¦¯à¦¼à§‹à¦Ÿà¦¾', 'toyota', 'corolla'],
+  property: ['property', 'properties', 'flat', 'flats', 'apartment', 'house', 'land', 'plot', 'à¦«à§à¦²à§à¦¯à¦¾à¦Ÿ', 'à¦¬à¦¾à§œà¦¿', 'à¦¬à¦¾à¦¸à¦¾', 'à¦œà¦®à¦¿', 'à¦ªà§à¦²à¦Ÿ', 'à¦ªà§à¦°à¦ªà¦¾à¦°à§à¦Ÿà¦¿', 'à¦à¦ªà¦¾à¦°à§à¦Ÿà¦®à§‡à¦¨à§à¦Ÿ'],
+  home_furniture: ['living', 'furniture', 'sofa', 'bed', 'table', 'chair', 'à¦†à¦¸à¦¬à¦¾à¦¬à¦ªà¦¤à§à¦°', 'à¦¸à§‹à¦«à¦¾', 'à¦–à¦¾à¦Ÿ', 'à¦Ÿà§‡à¦¬à¦¿à¦²', 'à¦šà§‡à¦¯à¦¼à¦¾à¦°', 'à¦«à¦¾à¦°à§à¦¨à¦¿à¦šà¦¾à¦°', 'à¦˜à¦° à¦“ à¦†à¦¸à¦¬à¦¾à¦¬', 'home_furniture'],
+  fashion: ['fashion', 'clothes', 'dress', 'shoes', 'sneakers', 'watch', 'à¦œà§à¦¤à¦¾', 'à¦˜à§œà¦¿', 'à¦ªà§‹à¦¶à¦¾à¦•', 'à¦¶à¦¾à§œà¦¿', 'à¦ªà¦¾à¦žà§à¦œà¦¾à¦¬à¦¿', 'à¦«à§à¦¯à¦¾à¦¶à¦¨', 'à¦¬à§à¦¯à¦¾à¦—'],
+  health_beauty: ['health', 'beauty', 'perfume', 'à¦•à§‹à¦¸à¦®à§‡à¦Ÿà¦¿à¦•à¦¸', 'à¦ªà¦¾à¦°à¦«à¦¿à¦‰à¦®', 'à¦¹à§‡à¦²à¦¥', 'à¦¸à§à¦¬à¦¾à¦¸à§à¦¥à§à¦¯ à¦“ à¦¸à§Œà¦¨à§à¦¦à¦°à§à¦¯', 'health_beauty'],
+  baby_kids: ['baby', 'kids', 'child', 'children', 'stroller', 'toy', 'toys', 'à¦¶à¦¿à¦¶à§ à¦¸à¦¾à¦®à¦—à§à¦°à§€', 'à¦–à§‡à¦²à¦¨à¦¾', 'baby_kids'],
+  books_sports: ['book', 'books', 'sports', 'cricket', 'bat', 'stationery', 'à¦¬à¦‡', 'à¦¬à¦‡à¦ªà¦¤à§à¦°', 'à¦¸à§à¦Ÿà§‡à¦¶à¦¨à¦¾à¦°à¦¿', 'à¦–à§‡à¦²à¦¾à¦§à§à¦²à¦¾', 'à¦¬à¦‡ à¦“ à¦–à§‡à¦²à¦¾à¦§à§à¦²à¦¾', 'books_sports'],
+  animal_pets: ['pet', 'pets', 'cat', 'dog', 'bird', 'cow', 'qurbani', 'à¦ªà¦¶à§', 'à¦ªà¦¾à¦–à¦¿', 'à¦¬à¦¿à§œà¦¾à¦²', 'à¦•à§à¦•à§à¦°', 'à¦ªà§‹à¦·à¦¾ à¦ªà§à¦°à¦¾à¦£à§€', 'à¦ªà¦¶à§à¦ªà¦¾à¦–à¦¿', 'animal_pets'],
+  agriculture: ['agriculture', 'agri', 'farm', 'tractor', 'krishi', 'à¦•à§ƒà¦·à¦¿', 'à¦–à¦¾à¦®à¦¾à¦°', 'à¦Ÿà§à¦°à¦¾à¦•à§à¦Ÿà¦°', 'à¦¬à§€à¦œ'],
+  business_equipment: ['business', 'equipment', 'machinery', 'espresso', 'coffee', 'à¦¬à§à¦¯à¦¬à¦¸à¦¾à¦° à¦¸à¦°à¦žà§à¦œà¦¾à¦®', 'à¦®à§‡à¦¶à¦¿à¦¨à¦¾à¦°à¦¿'],
+  services: ['service', 'services', 'repair', 'servicing', 'à¦¸à¦¾à¦°à§à¦­à¦¿à¦¸', 'à¦¸à§‡à¦¬à¦¾', 'à¦®à§‡à¦°à¦¾à¦®à¦¤'],
+  jobs: ['job', 'jobs', 'developer', 'hiring', 'salary', 'à¦šà¦¾à¦•à¦°à¦¿', 'à¦¨à¦¿à¦¯à¦¼à§‹à¦—'],
+  education_courses: ['education', 'course', 'courses', 'coaching', 'training', 'IELTS', 'MERN', 'à¦¶à¦¿à¦•à§à¦·à¦¾ à¦“ à¦•à§‹à¦°à§à¦¸', 'à¦•à§‹à¦°à§à¦¸'],
+  travel_tours: ['travel', 'tour', 'tours', 'tourism', 'sajek', 'resort', 'à¦­à§à¦°à¦®à¦£ à¦“ à¦Ÿà§à¦¯à§à¦°', 'à¦Ÿà§à¦¯à§à¦°', 'à¦­à§à¦°à¦®à¦£'],
+  food_restaurants: ['food', 'restaurant', 'honey', 'organic', 'biryani', 'à¦–à¦¾à¦¬à¦¾à¦° à¦“ à¦°à§‡à¦¸à§à¦Ÿà§à¦°à§‡à¦¨à§à¦Ÿ', 'à¦–à¦¾à¦¬à¦¾à¦°', 'à¦®à¦§à§'],
+  events_tickets: ['event', 'events', 'ticket', 'tickets', 'concert', 'pass', 'à¦‡à¦­à§‡à¦¨à§à¦Ÿ à¦“ à¦Ÿà¦¿à¦•à§‡à¦Ÿ', 'à¦Ÿà¦¿à¦•à¦¿à¦Ÿ', 'à¦•à¦¨à¦¸à¦¾à¦°à§à¦Ÿ'],
+  others: ['others', 'antique', 'antiques', 'vintage', 'à¦…à¦¨à§à¦¯à¦¾à¦¨à§à¦¯', 'à¦…à§à¦¯à¦¾à¦¨à§à¦Ÿà¦¿à¦•']
 };
 
 // Flexible category match helper
@@ -283,7 +283,7 @@ export const SearchPage: React.FC = () => {
       const q = qRaw;
       score = 0;
 
-      // Tokenize search query for multi-word queries e.g. "iPhone Mirpur" or "মোবাইল চট্টগ্রাম"
+      // Tokenize search query for multi-word queries e.g. "iPhone Mirpur" or "à¦®à§‹à¦¬à¦¾à¦‡à¦² à¦šà¦Ÿà§à¦Ÿà¦—à§à¦°à¦¾à¦®"
       const tokens = q.split(/\s+/).filter(t => t.length > 0);
 
       tokens.forEach(token => {
@@ -388,7 +388,7 @@ export const SearchPage: React.FC = () => {
       <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
         <h3 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2">
           <Filter className="w-4 h-4 text-pink-600 dark:text-pink-400" />
-          <span>{language === 'bn' ? 'ফিল্টার সমূহ' : 'Filter Products'}</span>
+          <span>{language === 'bn' ? 'à¦«à¦¿à¦²à§à¦Ÿà¦¾à¦° à¦¸à¦®à§‚à¦¹' : 'Filter Products'}</span>
         </h3>
 
         <button
@@ -396,14 +396,14 @@ export const SearchPage: React.FC = () => {
           className="text-[11px] text-pink-600 dark:text-pink-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
         >
           <RotateCcw className="w-3 h-3" />
-          {language === 'bn' ? 'রিসেট' : 'Reset'}
+          {language === 'bn' ? 'à¦°à¦¿à¦¸à§‡à¦Ÿ' : 'Reset'}
         </button>
       </div>
 
       {/* Search Query Filter Input */}
       <div>
         <label className="block text-xs font-bold text-gray-700 dark:text-slate-200 mb-1.5">
-          {language === 'bn' ? 'কীওয়ার্ড বা পন্যের নাম' : 'Search Keyword / Product'}
+          {language === 'bn' ? 'à¦•à§€à¦“à§Ÿà¦¾à¦°à§à¦¡ à¦¬à¦¾ à¦ªà¦¨à§à¦¯à§‡à¦° à¦¨à¦¾à¦®' : 'Search Keyword / Product'}
         </label>
         <div className="relative flex items-center">
           <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3" />
@@ -411,7 +411,7 @@ export const SearchPage: React.FC = () => {
             type="text"
             value={filters.searchQuery}
             onChange={e => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
-            placeholder={language === 'bn' ? 'যেমন: মোবাইল, বাইক, মিরপুর...' : 'e.g. mobile, bike, Mirpur...'}
+            placeholder={language === 'bn' ? 'à¦¯à§‡à¦®à¦¨: à¦®à§‹à¦¬à¦¾à¦‡à¦², à¦¬à¦¾à¦‡à¦•, à¦®à¦¿à¦°à¦ªà§à¦°...' : 'e.g. mobile, bike, Mirpur...'}
             className="w-full pl-8 pr-7 py-2 border border-gray-300 dark:border-slate-700 rounded-xl text-xs bg-gray-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:border-pink-600"
           />
           {filters.searchQuery && (
@@ -430,14 +430,14 @@ export const SearchPage: React.FC = () => {
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-bold text-gray-700 dark:text-slate-200 mb-1.5">
-            {language === 'bn' ? 'ক্যাটাগরি' : 'Category'}
+            {language === 'bn' ? 'à¦•à§à¦¯à¦¾à¦Ÿà¦¾à¦—à¦°à¦¿' : 'Category'}
           </label>
           <select
             value={filters.category}
             onChange={e => setFilters(prev => ({ ...prev, category: e.target.value, subCategory: '', secondLevelCategory: '' }))}
             className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-xl text-xs bg-gray-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:border-pink-600 cursor-pointer"
           >
-            <option value="">{language === 'bn' ? 'সব ক্যাটাগরি' : 'All Categories'}</option>
+            <option value="">{language === 'bn' ? 'à¦¸à¦¬ à¦•à§à¦¯à¦¾à¦Ÿà¦¾à¦—à¦°à¦¿' : 'All Categories'}</option>
             {CATEGORIES.map(c => (
               <option key={c.id} value={c.id}>
                 {language === 'bn' ? c.nameBn : c.nameEn}
@@ -450,14 +450,14 @@ export const SearchPage: React.FC = () => {
         {activeCategoryObj && activeCategoryObj.subcategories && activeCategoryObj.subcategories.length > 0 && (
           <div>
             <label className="block text-xs font-bold text-gray-700 dark:text-slate-200 mb-1.5">
-              {language === 'bn' ? 'সাব-ক্যাটাগরি' : 'Sub-Category'}
+              {language === 'bn' ? 'à¦¸à¦¾à¦¬-à¦•à§à¦¯à¦¾à¦Ÿà¦¾à¦—à¦°à¦¿' : 'Sub-Category'}
             </label>
             <select
               value={filters.subCategory}
               onChange={e => setFilters(prev => ({ ...prev, subCategory: e.target.value, secondLevelCategory: '' }))}
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-xl text-xs bg-gray-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:border-pink-600 cursor-pointer"
             >
-              <option value="">{language === 'bn' ? 'সব সাব-ক্যাটাগরি' : 'All Sub-Categories'}</option>
+              <option value="">{language === 'bn' ? 'à¦¸à¦¬ à¦¸à¦¾à¦¬-à¦•à§à¦¯à¦¾à¦Ÿà¦¾à¦—à¦°à¦¿' : 'All Sub-Categories'}</option>
               {activeCategoryObj.subcategories.map(sc => (
                 <option key={sc.id} value={sc.id}>
                   {language === 'bn' ? sc.nameBn : sc.nameEn}
@@ -474,14 +474,14 @@ export const SearchPage: React.FC = () => {
             return (
               <div>
                 <label className="block text-xs font-bold text-gray-700 dark:text-slate-200 mb-1.5">
-                  {language === 'bn' ? 'ব্র্যান্ড / ধরণ (২য় স্তর)' : 'Brand / Type (2nd Level)'}
+                  {language === 'bn' ? 'à¦¬à§à¦°à§à¦¯à¦¾à¦¨à§à¦¡ / à¦§à¦°à¦£ (à§¨à¦¯à¦¼ à¦¸à§à¦¤à¦°)' : 'Brand / Type (2nd Level)'}
                 </label>
                 <select
                   value={filters.secondLevelCategory || ''}
                   onChange={e => setFilters(prev => ({ ...prev, secondLevelCategory: e.target.value }))}
                   className="w-full px-3 py-2 border border-pink-400 dark:border-pink-600 rounded-xl text-xs bg-pink-50/40 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:border-pink-600 cursor-pointer"
                 >
-                  <option value="">{language === 'bn' ? 'সব ব্র্যান্ড ও ধরণ' : 'All Brands & Types'}</option>
+                  <option value="">{language === 'bn' ? 'à¦¸à¦¬ à¦¬à§à¦°à§à¦¯à¦¾à¦¨à§à¦¡ à¦“ à¦§à¦°à¦£' : 'All Brands & Types'}</option>
                   {activeSub.secondLevelCategories.map(sl => (
                     <option key={sl.id} value={sl.id}>
                       {language === 'bn' ? sl.nameBn : sl.nameEn}
@@ -499,7 +499,7 @@ export const SearchPage: React.FC = () => {
       <div className="space-y-3 pt-3 border-t border-gray-100 dark:border-slate-800">
         <label className="block text-xs font-bold text-gray-700 dark:text-slate-200 flex items-center gap-1.5">
           <MapPin className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400" />
-          <span>{language === 'bn' ? 'অবস্থান / এলাকা নির্বাচন' : 'Location Filter'}</span>
+          <span>{language === 'bn' ? 'à¦…à¦¬à¦¸à§à¦¥à¦¾à¦¨ / à¦à¦²à¦¾à¦•à¦¾ à¦¨à¦¿à¦°à§à¦¬à¦¾à¦šà¦¨' : 'Location Filter'}</span>
         </label>
 
         {/* Division */}
@@ -508,7 +508,7 @@ export const SearchPage: React.FC = () => {
           onChange={e => setFilters(prev => ({ ...prev, division: e.target.value, district: '', thana: '' }))}
           className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-xl text-xs bg-gray-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:border-pink-600 cursor-pointer"
         >
-          <option value="">{language === 'bn' ? 'সব বিভাগ (All Bangladesh)' : 'All Divisions'}</option>
+          <option value="">{language === 'bn' ? 'à¦¸à¦¬ à¦¬à¦¿à¦­à¦¾à¦— (All Bangladesh)' : 'All Divisions'}</option>
           {BANGLADESH_DIVISIONS.map(div => (
             <option key={div.id} value={div.nameEn}>
               {language === 'bn' ? div.nameBn : div.nameEn}
@@ -523,7 +523,7 @@ export const SearchPage: React.FC = () => {
             onChange={e => setFilters(prev => ({ ...prev, district: e.target.value, thana: '' }))}
             className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-xl text-xs bg-gray-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:border-pink-600 cursor-pointer"
           >
-            <option value="">{language === 'bn' ? 'সব জেলা' : 'All Districts'}</option>
+            <option value="">{language === 'bn' ? 'à¦¸à¦¬ à¦œà§‡à¦²à¦¾' : 'All Districts'}</option>
             {selectedDivisionObj.districts.map(dist => (
               <option key={dist.id} value={dist.nameEn}>
                 {language === 'bn' ? dist.nameBn : dist.nameEn}
@@ -539,7 +539,7 @@ export const SearchPage: React.FC = () => {
             onChange={e => setFilters(prev => ({ ...prev, thana: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-xl text-xs bg-gray-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:border-pink-600 cursor-pointer"
           >
-            <option value="">{language === 'bn' ? 'সব থানা / এলাকা' : 'All Thanas / Areas'}</option>
+            <option value="">{language === 'bn' ? 'à¦¸à¦¬ à¦¥à¦¾à¦¨à¦¾ / à¦à¦²à¦¾à¦•à¦¾' : 'All Thanas / Areas'}</option>
             {selectedDistrictObj.thanas.map(th => (
               <option key={th.id} value={th.nameEn}>
                 {language === 'bn' ? th.nameBn : th.nameEn}
@@ -552,19 +552,19 @@ export const SearchPage: React.FC = () => {
       {/* Price Range */}
       <div className="pt-3 border-t border-gray-100 dark:border-slate-800">
         <label className="block text-xs font-bold text-gray-700 dark:text-slate-200 mb-1.5">
-          {language === 'bn' ? 'প্রাইস রেঞ্জ (টাকা ৳)' : 'Price Range (BDT)'}
+          {language === 'bn' ? 'à¦ªà§à¦°à¦¾à¦‡à¦¸ à¦°à§‡à¦žà§à¦œ (à¦Ÿà¦¾à¦•à¦¾ à§³)' : 'Price Range (BDT)'}
         </label>
         <div className="grid grid-cols-2 gap-2">
           <input
             type="number"
-            placeholder={language === 'bn' ? 'সর্বনিম্ন' : 'Min'}
+            placeholder={language === 'bn' ? 'à¦¸à¦°à§à¦¬à¦¨à¦¿à¦®à§à¦¨' : 'Min'}
             value={filters.minPrice}
             onChange={e => setFilters(prev => ({ ...prev, minPrice: e.target.value ? Number(e.target.value) : '' }))}
             className="px-3 py-1.5 border border-gray-300 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-pink-600"
           />
           <input
             type="number"
-            placeholder={language === 'bn' ? 'সর্বোচ্চ' : 'Max'}
+            placeholder={language === 'bn' ? 'à¦¸à¦°à§à¦¬à§‹à¦šà§à¦š' : 'Max'}
             value={filters.maxPrice}
             onChange={e => setFilters(prev => ({ ...prev, maxPrice: e.target.value ? Number(e.target.value) : '' }))}
             className="px-3 py-1.5 border border-gray-300 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-pink-600"
@@ -575,7 +575,7 @@ export const SearchPage: React.FC = () => {
       {/* Condition Checkboxes */}
       <div className="pt-3 border-t border-gray-100 dark:border-slate-800">
         <label className="block text-xs font-bold text-gray-700 dark:text-slate-200 mb-1.5">
-          {language === 'bn' ? 'কন্ডিশন' : 'Condition'}
+          {language === 'bn' ? 'à¦•à¦¨à§à¦¡à¦¿à¦¶à¦¨' : 'Condition'}
         </label>
         <div className="space-y-1.5 text-xs text-gray-700 dark:text-slate-300">
           {CONDITION_OPTIONS.map(opt => {
@@ -606,7 +606,7 @@ export const SearchPage: React.FC = () => {
       {/* Toggles */}
       <div className="space-y-2 pt-3 border-t border-gray-100 dark:border-slate-800 text-xs font-medium text-gray-700 dark:text-slate-300">
         <label className="flex items-center justify-between cursor-pointer">
-          <span>{language === 'bn' ? 'ভেরিফাইড বিক্রেতা' : 'Verified Sellers Only'}</span>
+          <span>{language === 'bn' ? 'à¦­à§‡à¦°à¦¿à¦«à¦¾à¦‡à¦¡ à¦¬à¦¿à¦•à§à¦°à§‡à¦¤à¦¾' : 'Verified Sellers Only'}</span>
           <input
             type="checkbox"
             checked={filters.isVerifiedOnly}
@@ -616,7 +616,7 @@ export const SearchPage: React.FC = () => {
         </label>
 
         <label className="flex items-center justify-between cursor-pointer">
-          <span>{language === 'bn' ? 'দাম আলোচনা সাপেক্ষ' : 'Negotiable Only'}</span>
+          <span>{language === 'bn' ? 'à¦¦à¦¾à¦® à¦†à¦²à§‹à¦šà¦¨à¦¾ à¦¸à¦¾à¦ªà§‡à¦•à§à¦·' : 'Negotiable Only'}</span>
           <input
             type="checkbox"
             checked={filters.isNegotiableOnly}
@@ -626,7 +626,7 @@ export const SearchPage: React.FC = () => {
         </label>
 
         <label className="flex items-center justify-between cursor-pointer">
-          <span>{language === 'bn' ? 'ডেলিভারি সুবিধা' : 'Delivery Available'}</span>
+          <span>{language === 'bn' ? 'à¦¡à§‡à¦²à¦¿à¦­à¦¾à¦°à¦¿ à¦¸à§à¦¬à¦¿à¦§à¦¾' : 'Delivery Available'}</span>
           <input
             type="checkbox"
             checked={filters.isDeliveryOnly}
@@ -645,13 +645,13 @@ export const SearchPage: React.FC = () => {
       icon={
         <div className="flex items-center gap-1.5 text-xs font-bold text-pink-600 dark:text-pink-400 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-pink-200 dark:border-pink-900/50">
           <RefreshCw className="w-4 h-4 text-pink-600 dark:text-pink-400 genericon" />
-          <span>{language === 'bn' ? 'টেনে রিফ্রেশ করুন' : 'Pull down to refresh'}</span>
+          <span>{language === 'bn' ? 'à¦Ÿà§‡à¦¨à§‡ à¦°à¦¿à¦«à§à¦°à§‡à¦¶ à¦•à¦°à§à¦¨' : 'Pull down to refresh'}</span>
         </div>
       }
       loading={
         <div className="flex items-center gap-2 text-xs font-bold text-pink-600 dark:text-pink-400 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-md border border-pink-300 dark:border-pink-800 animate-pulse">
           <RefreshCw className="w-4 h-4 text-pink-600 dark:text-pink-400 animate-spin" />
-          <span>{language === 'bn' ? 'বিজ্ঞাপন আপডেট হচ্ছে...' : 'Updating listings...'}</span>
+          <span>{language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦†à¦ªà¦¡à§‡à¦Ÿ à¦¹à¦šà§à¦›à§‡...' : 'Updating listings...'}</span>
         </div>
       }
     >
@@ -668,16 +668,16 @@ export const SearchPage: React.FC = () => {
               <span>
                 {activeCategoryObj
                   ? (language === 'bn' ? activeCategoryObj.nameBn : activeCategoryObj.nameEn)
-                  : (language === 'bn' ? 'সব বিজ্ঞাপন' : 'All Listings')}
+                  : (language === 'bn' ? 'à¦¸à¦¬ à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨' : 'All Listings')}
               </span>
               <span className="text-xs bg-pink-100 dark:bg-pink-950/80 text-pink-800 dark:text-pink-300 font-bold px-2.5 py-0.5 rounded-full border border-pink-300 dark:border-pink-800">
-                {sortedProducts.length} {language === 'bn' ? 'টি আইটেম' : 'items'}
+                {sortedProducts.length} {language === 'bn' ? 'à¦Ÿà¦¿ à¦†à¦‡à¦Ÿà§‡à¦®' : 'items'}
               </span>
             </h1>
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-pink-600" />
               <span>
-                {activeThana || activeDistrict || activeDivision || (selectedLocation.division !== 'All Bangladesh' ? selectedLocation.division : (language === 'bn' ? 'সমগ্র বাংলাদেশ' : 'All Bangladesh'))}
+                {activeThana || activeDistrict || activeDivision || (selectedLocation.division !== 'All Bangladesh' ? selectedLocation.division : (language === 'bn' ? 'à¦¸à¦®à¦—à§à¦° à¦¬à¦¾à¦‚à¦²à¦¾à¦¦à§‡à¦¶' : 'All Bangladesh'))}
               </span>
             </p>
           </div>
@@ -690,13 +690,13 @@ export const SearchPage: React.FC = () => {
               className={`flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-pink-300 dark:border-pink-800 transition cursor-pointer active:scale-95 ${
                 isRefreshing ? 'opacity-70 cursor-not-allowed' : ''
               }`}
-              title={language === 'bn' ? 'বিজ্ঞাপন রিফ্রেশ করুন' : 'Refresh Listings'}
+              title={language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦°à¦¿à¦«à§à¦°à§‡à¦¶ à¦•à¦°à§à¦¨' : 'Refresh Listings'}
             >
               <RefreshCw className={`w-3.5 h-3.5 text-pink-600 dark:text-pink-400 ${isRefreshing ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">
                 {isRefreshing 
-                  ? (language === 'bn' ? 'আপডেট হচ্ছে...' : 'Updating...') 
-                  : (language === 'bn' ? 'রিফ্রেশ' : 'Refresh')}
+                  ? (language === 'bn' ? 'à¦†à¦ªà¦¡à§‡à¦Ÿ à¦¹à¦šà§à¦›à§‡...' : 'Updating...') 
+                  : (language === 'bn' ? 'à¦°à¦¿à¦«à§à¦°à§‡à¦¶' : 'Refresh')}
               </span>
             </button>
 
@@ -706,21 +706,21 @@ export const SearchPage: React.FC = () => {
               className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 bg-pink-600 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
             >
               <SlidersHorizontal className="w-4 h-4" />
-              <span>{language === 'bn' ? 'ফিল্টার' : 'Filter'}</span>
+              <span>{language === 'bn' ? 'à¦«à¦¿à¦²à§à¦Ÿà¦¾à¦°' : 'Filter'}</span>
             </button>
 
             {/* Sorting */}
             <div className="flex items-center gap-1 text-xs">
-              <span className="text-gray-500 dark:text-slate-400 font-medium">{language === 'bn' ? 'সাজান:' : 'Sort:'}</span>
+              <span className="text-gray-500 dark:text-slate-400 font-medium">{language === 'bn' ? 'à¦¸à¦¾à¦œà¦¾à¦¨:' : 'Sort:'}</span>
               <select
                 value={filters.sortBy}
                 onChange={e => setFilters(prev => ({ ...prev, sortBy: e.target.value as any }))}
                 className="bg-gray-50 dark:bg-slate-800 border-2 border-pink-500 text-gray-800 dark:text-slate-100 font-bold text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-pink-600 cursor-pointer"
               >
-                <option value="latest">{language === 'bn' ? 'সর্বশেষ প্রকাশিত' : 'Latest'}</option>
-                <option value="price_low">{language === 'bn' ? 'কম দাম থেকে বেশি' : 'Price: Low to High'}</option>
-                <option value="price_high">{language === 'bn' ? 'বেশি দাম থেকে কম' : 'Price: High to Low'}</option>
-                <option value="popular">{language === 'bn' ? 'সবচেয়ে জনপ্রিয়' : 'Most Popular'}</option>
+                <option value="latest">{language === 'bn' ? 'à¦¸à¦°à§à¦¬à¦¶à§‡à¦· à¦ªà§à¦°à¦•à¦¾à¦¶à¦¿à¦¤' : 'Latest'}</option>
+                <option value="price_low">{language === 'bn' ? 'à¦•à¦® à¦¦à¦¾à¦® à¦¥à§‡à¦•à§‡ à¦¬à§‡à¦¶à¦¿' : 'Price: Low to High'}</option>
+                <option value="price_high">{language === 'bn' ? 'à¦¬à§‡à¦¶à¦¿ à¦¦à¦¾à¦® à¦¥à§‡à¦•à§‡ à¦•à¦®' : 'Price: High to Low'}</option>
+                <option value="popular">{language === 'bn' ? 'à¦¸à¦¬à¦šà§‡à¦¯à¦¼à§‡ à¦œà¦¨à¦ªà§à¦°à¦¿à§Ÿ' : 'Most Popular'}</option>
               </select>
             </div>
 
@@ -734,7 +734,7 @@ export const SearchPage: React.FC = () => {
                 title="Grid View"
               >
                 <Grid className="w-4 h-4" />
-                <span className="hidden sm:inline">{language === 'bn' ? 'গ্রিড ভিউ' : 'Grid View'}</span>
+                <span className="hidden sm:inline">{language === 'bn' ? 'à¦—à§à¦°à¦¿à¦¡ à¦­à¦¿à¦‰' : 'Grid View'}</span>
               </button>
               <button
                 onClick={() => setLayoutView('list')}
@@ -744,7 +744,7 @@ export const SearchPage: React.FC = () => {
                 title="Up-Down / List View"
               >
                 <List className="w-4 h-4" />
-                <span className="hidden sm:inline">{language === 'bn' ? 'উপরে-নিচে ভিউ' : 'List View'}</span>
+                <span className="hidden sm:inline">{language === 'bn' ? 'à¦‰à¦ªà¦°à§‡-à¦¨à¦¿à¦šà§‡ à¦­à¦¿à¦‰' : 'List View'}</span>
               </button>
             </div>
           </div>
@@ -755,7 +755,7 @@ export const SearchPage: React.FC = () => {
         <div className="lg:hidden bg-slate-50 dark:bg-slate-950 p-4 rounded-3xl border-2 border-pink-500 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-gray-900 dark:text-white text-sm">
-              {language === 'bn' ? 'ফিল্টার পরিবর্তন করুন' : 'Adjust Search Filters'}
+              {language === 'bn' ? 'à¦«à¦¿à¦²à§à¦Ÿà¦¾à¦° à¦ªà¦°à¦¿à¦¬à¦°à§à¦¤à¦¨ à¦•à¦°à§à¦¨' : 'Adjust Search Filters'}
             </h3>
             <button
               onClick={() => setShowMobileFilter(false)}
@@ -769,7 +769,7 @@ export const SearchPage: React.FC = () => {
             onClick={() => setShowMobileFilter(false)}
             className="w-full py-2.5 bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
           >
-            {language === 'bn' ? 'প্রয়োগ করুন' : 'Apply Filters'}
+            {language === 'bn' ? 'à¦ªà§à¦°à§Ÿà§‹à¦— à¦•à¦°à§à¦¨' : 'Apply Filters'}
           </button>
         </div>
       )}
@@ -787,16 +787,16 @@ export const SearchPage: React.FC = () => {
             <div className="bg-white dark:bg-slate-900 rounded-3xl p-12 text-center border-2 border-pink-500 space-y-3">
               <Search className="w-12 h-12 mx-auto text-gray-300 dark:text-slate-600" />
               <h3 className="font-bold text-gray-800 dark:text-white text-base">
-                {language === 'bn' ? 'কোনো বিজ্ঞাপন পাওয়া যায়নি' : 'No listings found'}
+                {language === 'bn' ? 'à¦•à§‹à¦¨à§‹ à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦ªà¦¾à¦“à§Ÿà¦¾ à¦¯à¦¾à§Ÿà¦¨à¦¿' : 'No listings found'}
               </h3>
               <p className="text-xs text-gray-400 dark:text-slate-500 max-w-sm mx-auto">
-                {language === 'bn' ? 'আপনার সার্চ কিওয়ার্ড বা ফিল্টার পরিবর্তন করে পুনরায় চেষ্টা করুন।' : 'Try adjusting your search filters or keywords.'}
+                {language === 'bn' ? 'à¦†à¦ªà¦¨à¦¾à¦° à¦¸à¦¾à¦°à§à¦š à¦•à¦¿à¦“à¦¯à¦¼à¦¾à¦°à§à¦¡ à¦¬à¦¾ à¦«à¦¿à¦²à§à¦Ÿà¦¾à¦° à¦ªà¦°à¦¿à¦¬à¦°à§à¦¤à¦¨ à¦•à¦°à§‡ à¦ªà§à¦¨à¦°à¦¾à§Ÿ à¦šà§‡à¦·à§à¦Ÿà¦¾ à¦•à¦°à§à¦¨à¥¤' : 'Try adjusting your search filters or keywords.'}
               </p>
               <button
                 onClick={resetFilters}
                 className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-xs"
               >
-                {language === 'bn' ? 'ফিল্টার রিসেট করুন' : 'Reset Filters'}
+                {language === 'bn' ? 'à¦«à¦¿à¦²à§à¦Ÿà¦¾à¦° à¦°à¦¿à¦¸à§‡à¦Ÿ à¦•à¦°à§à¦¨' : 'Reset Filters'}
               </button>
             </div>
           ) : (
@@ -818,3 +818,4 @@ export const SearchPage: React.FC = () => {
     </ReactPullToRefresh>
   );
 };
+
