@@ -1,4 +1,4 @@
-package com.marketbd.app;
+﻿package com.marketbd.app;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -106,37 +106,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // 1. Setup Pull-To-Refresh Layout
-        swipeRefreshLayout = new SwipeRefreshLayout(this);
-        swipeRefreshLayout.setLayoutParams(new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-
-        // 2. Setup High-Performance WebView
-        webView = new WebView(this);
-        webView.setLayoutParams(new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-
-        swipeRefreshLayout.addView(webView);
-        setContentView(swipeRefreshLayout);
-
-        // Pull-to-refresh listener: forcefully revalidates latest page version from server
-        swipeRefreshLayout.setOnRefreshListener(() -> {
-            String currentUrl = (webView != null && webView.getUrl() != null) ? webView.getUrl() : TARGET_URL;
-            loadFreshPage(currentUrl);
-        });
-
-        // Prevent pull-to-refresh conflict while scrolling inner page content
-        webView.getViewTreeObserver().addOnScrollChangedListener(() -> {
-            if (webView != null) {
-                swipeRefreshLayout.setEnabled(webView.getScrollY() == 0);
-            }
-        });
-
-        // 3. Configure Secure & Optimized WebSettings with NO_CACHE for live updates
+        // 1. Setup WebView directly - native SwipeRefreshLayout removed to prevent touch/scroll interception`n        webView = new WebView(this);`n        webView.setLayoutParams(new ViewGroup.LayoutParams(`n                ViewGroup.LayoutParams.MATCH_PARENT,`n                ViewGroup.LayoutParams.MATCH_PARENT`n        ));`n        setContentView(webView);`n        // 3. Configure Secure & Optimized WebSettings with NO_CACHE for live updates
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);    // Preserves localStorage & React states for logged-in users
@@ -202,9 +172,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                if (swipeRefreshLayout != null && swipeRefreshLayout.isRefreshing()) {
-                    swipeRefreshLayout.setRefreshing(false);
-                }
                 // Persist session cookies to disk so login survives app restarts
                 CookieManager.getInstance().flush();
             }
@@ -461,3 +428,4 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 }
+
