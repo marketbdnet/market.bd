@@ -1,5 +1,4 @@
 ﻿import React, { useState, useEffect } from 'react';
-import ReactPullToRefresh from 'react-pull-to-refresh';
 import { useMarket } from '../context/MarketContext';
 import { isProductPublicActive } from '../utils/productStatus';
 import { CategoryGrid, MobileCategoryGrid } from '../components/Home/CategoryGrid';
@@ -28,25 +27,13 @@ export const HomePage: React.FC = () => {
   const {
     language,
     products,
-    refreshProducts,
     categories,
     setActiveTab,
     setFilters,
   } = useMarket();
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [adViewMode, setAdViewMode] = useState<'grid' | 'list'>('grid');
   const [featuredOffset, setFeaturedOffset] = useState(0);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await refreshProducts();
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   // Smart Recent Posts interactive filter & pagination state
   const [recentCategory, setRecentCategory] = useState<string>('all');
@@ -108,22 +95,7 @@ export const HomePage: React.FC = () => {
   const hasMoreRecent = filteredRecent.length > visibleRecentCount;
 
   return (
-    <ReactPullToRefresh
-      onRefresh={handleRefresh}
-      className="ptr-wrapper w-full"
-      icon={
-        <div className="flex items-center gap-1.5 text-xs font-bold text-pink-600 dark:text-pink-400 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-pink-200 dark:border-pink-900/50">
-          <RefreshCw className="w-4 h-4 text-pink-600 dark:text-pink-400 genericon" />
-          <span>{language === 'bn' ? 'à¦Ÿà§‡à¦¨à§‡ à¦°à¦¿à¦«à§à¦°à§‡à¦¶ à¦•à¦°à§à¦¨' : 'Pull down to refresh'}</span>
-        </div>
-      }
-      loading={
-        <div className="flex items-center gap-2 text-xs font-bold text-pink-600 dark:text-pink-400 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-md border border-pink-300 dark:border-pink-800 animate-pulse">
-          <RefreshCw className="w-4 h-4 text-pink-600 dark:text-pink-400 animate-spin" />
-          <span>{language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦†à¦ªà¦¡à§‡à¦Ÿ à¦¹à¦šà§à¦›à§‡...' : 'Updating listings...'}</span>
-        </div>
-      }
-    >
+    <>
       <div className="space-y-4 sm:space-y-6 pb-12">
         <SEOHelmet />
 
@@ -436,7 +408,7 @@ export const HomePage: React.FC = () => {
         </main>
       </div>
     </div>
-    </ReactPullToRefresh>
+    </>
   );
 };
 

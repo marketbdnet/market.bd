@@ -1,5 +1,4 @@
 ﻿import React, { useState, useEffect } from 'react';
-import ReactPullToRefresh from 'react-pull-to-refresh';
 import { useMarket } from '../context/MarketContext';
 import { CATEGORIES, BANGLADESH_DIVISIONS, CONDITION_OPTIONS } from '../data/bangladeshData';
 import { ProductCard } from '../components/Product/ProductCard';
@@ -12,7 +11,6 @@ import {
   Grid,
   List,
   RotateCcw,
-  RefreshCw,
   Search,
   CheckCircle2,
   Zap,
@@ -146,7 +144,6 @@ export const SearchPage: React.FC = () => {
   const {
     language,
     products,
-    refreshProducts,
     filters,
     setFilters,
     resetFilters,
@@ -155,19 +152,8 @@ export const SearchPage: React.FC = () => {
     categories
   } = useMarket();
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [layoutView, setLayoutView] = useState<'grid' | 'list'>('grid');
   const [showMobileFilter, setShowMobileFilter] = useState(false);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await refreshProducts();
-      await new Promise(r => setTimeout(r, 500));
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   // Filter products & calculate search match score
   const qRaw = (filters.searchQuery || '').trim().toLowerCase();
@@ -639,22 +625,7 @@ export const SearchPage: React.FC = () => {
   );
 
   return (
-    <ReactPullToRefresh
-      onRefresh={handleRefresh}
-      className="ptr-wrapper w-full"
-      icon={
-        <div className="flex items-center gap-1.5 text-xs font-bold text-pink-600 dark:text-pink-400 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-pink-200 dark:border-pink-900/50">
-          <RefreshCw className="w-4 h-4 text-pink-600 dark:text-pink-400 genericon" />
-          <span>{language === 'bn' ? 'à¦Ÿà§‡à¦¨à§‡ à¦°à¦¿à¦«à§à¦°à§‡à¦¶ à¦•à¦°à§à¦¨' : 'Pull down to refresh'}</span>
-        </div>
-      }
-      loading={
-        <div className="flex items-center gap-2 text-xs font-bold text-pink-600 dark:text-pink-400 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-md border border-pink-300 dark:border-pink-800 animate-pulse">
-          <RefreshCw className="w-4 h-4 text-pink-600 dark:text-pink-400 animate-spin" />
-          <span>{language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦†à¦ªà¦¡à§‡à¦Ÿ à¦¹à¦šà§à¦›à§‡...' : 'Updating listings...'}</span>
-        </div>
-      }
-    >
+    <>
       <div className="py-6 space-y-5">
         <SEOHelmet category={filters.category} />
 
@@ -683,22 +654,6 @@ export const SearchPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Manual Refresh / Force Sync Button */}
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className={`flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-pink-300 dark:border-pink-800 transition cursor-pointer active:scale-95 ${
-                isRefreshing ? 'opacity-70 cursor-not-allowed' : ''
-              }`}
-              title={language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦°à¦¿à¦«à§à¦°à§‡à¦¶ à¦•à¦°à§à¦¨' : 'Refresh Listings'}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-pink-600 dark:text-pink-400 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">
-                {isRefreshing 
-                  ? (language === 'bn' ? 'à¦†à¦ªà¦¡à§‡à¦Ÿ à¦¹à¦šà§à¦›à§‡...' : 'Updating...') 
-                  : (language === 'bn' ? 'à¦°à¦¿à¦«à§à¦°à§‡à¦¶' : 'Refresh')}
-              </span>
-            </button>
 
             {/* Mobile Filter Toggle Button */}
             <button
@@ -815,7 +770,7 @@ export const SearchPage: React.FC = () => {
         </div>
       </div>
     </div>
-    </ReactPullToRefresh>
+    </>
   );
 };
 
