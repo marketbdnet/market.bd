@@ -1,4 +1,4 @@
-package com.marketbd.app;
+﻿package com.marketbd.app;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -13,8 +13,6 @@ import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
-import com.google.firebase.messaging.FirebaseMessaging;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.view.ViewGroup;
@@ -107,26 +105,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // MarketBD FCM token
-        FirebaseMessaging.getInstance().getToken()
-            .addOnCompleteListener(task -> {
-                if (!task.isSuccessful()) {
-                    Log.e("MarketBD_FCM", "FCM token retrieval failed", task.getException());
-                    return;
-                }
 
-                String token = task.getResult();
-                Log.d("MarketBD_FCM", "FCM TOKEN: " + token);
-            });
-
-        // 1. Setup WebView directly - native SwipeRefreshLayout removed to prevent touch/scroll interception
-        webView = new WebView(this);
-        webView.setLayoutParams(new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-        setContentView(webView);
-        // 3. Configure Secure & Optimized WebSettings with NO_CACHE for live updates
+        // 1. Setup WebView directly - native SwipeRefreshLayout removed to prevent touch/scroll interception`n        webView = new WebView(this);`n        webView.setLayoutParams(new ViewGroup.LayoutParams(`n                ViewGroup.LayoutParams.MATCH_PARENT,`n                ViewGroup.LayoutParams.MATCH_PARENT`n        ));`n        setContentView(webView);`n        // 3. Configure Secure & Optimized WebSettings with NO_CACHE for live updates
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);    // Preserves localStorage & React states for logged-in users
@@ -448,5 +428,4 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 }
-
 

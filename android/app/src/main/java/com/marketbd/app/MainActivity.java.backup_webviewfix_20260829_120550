@@ -119,14 +119,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("MarketBD_FCM", "FCM TOKEN: " + token);
             });
 
-        // 1. Setup WebView directly - native SwipeRefreshLayout removed to prevent touch/scroll interception
-        webView = new WebView(this);
-        webView.setLayoutParams(new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-        setContentView(webView);
-        // 3. Configure Secure & Optimized WebSettings with NO_CACHE for live updates
+        // 1. Setup WebView directly - native SwipeRefreshLayout removed to prevent touch/scroll interception`n        webView = new WebView(this);`n        webView.setLayoutParams(new ViewGroup.LayoutParams(`n                ViewGroup.LayoutParams.MATCH_PARENT,`n                ViewGroup.LayoutParams.MATCH_PARENT`n        ));`n        setContentView(webView);`n        // 3. Configure Secure & Optimized WebSettings with NO_CACHE for live updates
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);    // Preserves localStorage & React states for logged-in users

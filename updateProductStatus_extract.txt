@@ -1,0 +1,501 @@
+﻿  const updateProductStatus = (id: string, status: 'active' | 'approved' | 'pending' | 'sold' | 'rejected', reason?: string) => {
+    let targetTitle = '';
+    let updatedTargetProduct: Product | undefined;
+    let approvedLiveProduct: Product | undefined;
+    let shouldSendLiveNotif = false;
+    let fullUpdatedList: Product[] = [];
+
+    const effectiveStatus: 'active' | 'pending' | 'sold' | 'rejected' = (status === 'approved' ? 'active' : status);
+
+    setProducts(prev => {
+      const updated = prev.map(p => {
+        if (p.id === id) {
+          targetTitle = p.title;
+          let updatedItem: Product;
+          if (effectiveStatus === 'active') {
+            if (!p.isApproved || p.status !== 'active' || !p.liveNotificationSent) {
+              shouldSendLiveNotif = true;
+            }
+            updatedItem = makeApprovedProduct(p, currentUser?.email);
+            approvedLiveProduct = updatedItem;
+          } else if (effectiveStatus === 'rejected') {
+            updatedItem = makeRejectedProduct(p, reason, currentUser?.email);
+          } else {
+            updatedItem = {
+              ...p,
+              status: effectiveStatus,
+              isActive: false,
+              isApproved: false,
+              moderationStatus: effectiveStatus === 'pending' ? 'pending' : 'approved',
+              updatedAt: new Date().toISOString(),
+              rejectionReason: undefined,
+              liveNotificationSent: false
+            };
+          }
+          updatedTargetProduct = updatedItem;
+          return updatedItem;
+        }
+        return p;
+      });
+      fullUpdatedList = updated;
+      try {
+        storage.setItem('marketbd_products_v4', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Error persisting products on status update:', e);
+      }
+      return updated;
+    });
+
+    // Realtime sync status to Firestore and Server API
+    try {
+      if (updatedTargetProduct) {
+        safeFirestoreSetDoc(doc(db, 'products', id), updatedTargetProduct, { merge: true }).catch(() => {});
+        fetch('/api/products/' + id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedTargetProduct)
+        }).catch(() => {});
+      }
+    } catch (e) {}
+
+    // ðŸ›¡ï¸ Log Admin Action in Firestore
+    logAdminAction({
+      action: effectiveStatus === 'active' ? 'Approved Ad' : effectiveStatus === 'rejected' ? 'Rejected Ad' : effectiveStatus === 'sold' ? 'Marked Ad as Sold' : 'Updated Ad Status',
+      actionType: 'ad_moderation',
+      targetId: id,
+      targetTitle: targetTitle || id,
+      details: effectiveStatus === 'active'
+        ? `Ad approved and published to live marketplace queue.`
+        : effectiveStatus === 'rejected'
+        ? `Ad rejected. Reason: ${reason || 'Terms violation'}`
+        : `Ad status updated to ${effectiveStatus}.`
+    });
+
+    if (effectiveStatus === 'active' && shouldSendLiveNotif && approvedLiveProduct) {
+      const notifId = 'notif-live-' + approvedLiveProduct.id;
+      const title = language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦à¦–à¦¨ à¦²à¦¾à¦‡à¦­' : 'Your advertisement is now live.';
+      const message = language === 'bn'
+        ? `à¦†à¦ªà¦¨à¦¾à¦° "${approvedLiveProduct.title}" à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨à¦Ÿà¦¿ à¦à¦–à¦¨ à¦²à¦¾à¦‡à¦­ à¦¹à§Ÿà§‡à¦›à§‡à¥¤`
+        : `Your advertisement "${approvedLiveProduct.title}" is now live.`;
+
+      setNotifications(prev => {
+        if (prev.some(n => n.id === notifId)) return prev;
+        return [
+          {
+            id: notifId,
+            title,
+            message,
+            time: 'Just now',
+            isRead: false,
+            type: 'approval'
+          },
+          ...prev
+        ];
+      });
+
+      sendLocalBrowserPushNotification({ title, body: message });
+    } else if (status === 'rejected') {
+      const title = language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦ªà¦°à§à¦¯à¦¾à¦²à§‹à¦šà¦¨à¦¾à§Ÿ à¦ªà§à¦°à¦¤à§à¦¯à¦¾à¦–à§à¦¯à¦¾à¦¤ à¦¹à§Ÿà§‡à¦›à§‡' : 'Your advertisement was rejected.';
+      const message = language === 'bn'
+        ? `à¦†à¦ªà¦¨à¦¾à¦° "${targetTitle}" à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨à¦Ÿà¦¿ à¦ªà¦°à§à¦¯à¦¾à¦²à§‹à¦šà¦¨à¦¾à§Ÿ à¦ªà§à¦°à¦¤à§à¦¯à¦¾à¦–à§à¦¯à¦¾à¦¤ à¦¹à§Ÿà§‡à¦›à§‡à¥¤ à¦•à¦¾à¦°à¦£: ${reason || 'à¦¤à¦¥à§à¦¯ à¦¸à¦‚à¦¶à§‡à¦¾à¦§à¦¨ à¦ªà§à¦°à§Ÿà§‹à¦œà¦¨'}`
+        : `Your ad "${targetTitle}" was rejected. Reason: ${reason || 'Edit required'}.`;
+
+      setNotifications(prev => [
+        {
+          id: 'notif-reject-' + id + '-' + Date.now(),
+          title,
+          message,
+          time: 'Just now',
+          isRead: false,
+          type: 'system'
+        },
+        ...prev
+      ]);
+
+      sendLocalBrowserPushNotification({ title, body: message });
+    } else if (status === 'sold') {
+      const title = language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦¬à¦¿à¦•à§à¦°à¦¿ à¦¸à¦®à§à¦ªà¦¨à§à¦¨ à¦šà¦¿à¦¹à§à¦¨à¦¿à¦¤ à¦¹à§Ÿà§‡à¦›à§‡ ðŸ·ï¸' : 'Ad Marked as Sold ðŸ·ï¸';
+      const message = language === 'bn'
+        ? `à¦†à¦ªà¦¨à¦¾à¦° "${targetTitle}" à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨à¦Ÿà¦¿ 'à¦¬à¦¿à¦•à§à¦°à¦¿ à¦¹à§Ÿà§‡à¦›à§‡ (Sold Out)' à¦¹à¦¿à¦¸à§‡à¦¬à§‡ à¦šà¦¿à¦¹à§à¦¨à¦¿à¦¤ à¦•à¦°à¦¾ à¦¹à§Ÿà§‡à¦›à§‡à¥¤`
+        : `Your ad "${targetTitle}" was marked as sold.`;
+
+      setNotifications(prev => [
+        {
+          id: 'notif-' + Date.now(),
+          title,
+          message,
+          time: 'Just now',
+          isRead: false,
+          type: 'system'
+        },
+        ...prev
+      ]);
+
+      sendLocalBrowserPushNotification({ title, body: message });
+    } else if (status === 'pending') {
+      const title = language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦ªà¦°à§à¦¯à¦¾à¦²à§‹à¦šà¦¨à¦¾à§Ÿ à¦°à§Ÿà§‡à¦›à§‡' : 'Your advertisement is under review.';
+      const message = language === 'bn'
+        ? 'à¦†à¦ªà¦¨à¦¾à¦° à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨à¦Ÿà¦¿ à¦ªà¦°à§à¦¯à¦¾à¦²à§‹à¦šà¦¨à¦¾à¦° à¦œà¦¨à§à¦¯ à¦œà¦®à¦¾ à¦¦à§‡à¦“à§Ÿà¦¾ à¦¹à§Ÿà§‡à¦›à§‡à¥¤'
+        : 'Your advertisement is under review.';
+
+      setNotifications(prev => [
+        {
+          id: 'notif-review-q-' + Date.now(),
+          title,
+          message,
+          time: 'Just now',
+          isRead: false,
+          type: 'approval'
+        },
+        ...prev
+      ]);
+
+      sendLocalBrowserPushNotification({ title, body: message });
+    }
+  };
+
+  const updateExistingAd = (id: string, adData: Partial<Product>) => {
+    let updatedTitle = '';
+    let mergedList: Product[] = [];
+    let mergedTargetAd: Product | undefined;
+
+    setProducts(prev => {
+      const updated = prev.map(p => {
+        if (p.id === id) {
+          updatedTitle = adData.title || p.title;
+
+          const isExplicitlyVisible = adData.showPhoneNumber !== undefined
+            ? Boolean(adData.showPhoneNumber)
+            : adData.seller?.showPhoneNumber !== undefined
+            ? Boolean(adData.seller.showPhoneNumber)
+            : adData.seller?.hidePhone !== undefined
+            ? !Boolean(adData.seller.hidePhone)
+            : (p.showPhoneNumber ?? (p.seller?.hidePhone === false));
+
+          const rawPhone = adData.seller?.phone || p.seller?.phone || '';
+          const phoneValidation = rawPhone ? validateBangladeshiPhone(rawPhone) : null;
+          const cleanPhone = phoneValidation?.isValid ? phoneValidation.normalized : rawPhone;
+
+          const merged: Product = makePendingProduct({
+            ...p,
+            ...adData,
+            showPhoneNumber: isExplicitlyVisible,
+            seller: {
+              ...p.seller,
+              ...(adData.seller || {}),
+              phone: cleanPhone,
+              hidePhone: !isExplicitlyVisible,
+              showPhoneNumber: isExplicitlyVisible
+            }
+          });
+          mergedTargetAd = merged;
+          return merged;
+        }
+        return p;
+      });
+      mergedList = updated;
+      try {
+        storage.setItem('marketbd_products_v4', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    const editReviewId = 'notif-review-' + id + '-' + Date.now();
+    const editTitle = language === 'bn' ? 'à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨ à¦ªà¦°à§à¦¯à¦¾à¦²à§‹à¦šà¦¨à¦¾à§Ÿ à¦°à§Ÿà§‡à¦›à§‡' : 'Your advertisement is under review.';
+    const editMsg = language === 'bn'
+      ? 'à¦†à¦ªà¦¨à¦¾à¦° à¦¬à¦¿à¦œà§à¦žà¦¾à¦ªà¦¨à¦Ÿà¦¿ à¦ªà¦°à§à¦¯à¦¾à¦²à§‹à¦šà¦¨à¦¾à¦° à¦œà¦¨à§à¦¯ à¦œà¦®à¦¾ à¦¦à§‡à¦“à§Ÿà¦¾ à¦¹à§Ÿà§‡à¦›à§‡à¥¤'
+      : 'Your advertisement is under review.';
+
+    setNotifications(prev => [
+      {
+        id: editReviewId,
+        title: editTitle,
+        message: editMsg,
+        time: 'Just now',
+        isRead: false,
+        type: 'approval'
+      },
+      ...prev
+    ]);
+
+    sendLocalBrowserPushNotification({
+      title: editTitle,
+      body: editMsg
+    });
+
+    setEditingAd(null);
+
+    // Sync edited ad to Firestore and Server API
+    try {
+      if (mergedTargetAd) {
+        safeFirestoreSetDoc(doc(db, 'products', id), mergedTargetAd, { merge: true }).catch(() => {});
+        fetch('/api/products/' + id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mergedTargetAd)
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  };
+
+  // Payment Partners State
+  const [paymentPartners, setPaymentPartnersState] = useState<PaymentPartnerItem[]>(() => {
+    try {
+      const saved = storage.getItem('marketbd_payment_partners_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Error reading stored payment partners:', e);
+    }
+    return DEFAULT_PAYMENT_PARTNERS;
+  });
+
+  const addPaymentPartner = (partner: Omit<PaymentPartnerItem, 'id'>) => {
+    const newItem: PaymentPartnerItem = {
+      ...partner,
+      id: 'partner-' + Date.now(),
+    };
+    setPaymentPartnersState(prev => {
+      const updated = [newItem, ...prev];
+      storage.setItem('marketbd_payment_partners_v1', JSON.stringify(updated));
+      syncToCloud('payment_partners', updated);
+      return updated;
+    });
+  };
+
+  const updatePaymentPartner = (id: string, updated: Partial<PaymentPartnerItem>) => {
+    setPaymentPartnersState(prev => {
+      const newList = prev.map(p => (p.id === id ? { ...p, ...updated } : p));
+      storage.setItem('marketbd_payment_partners_v1', JSON.stringify(newList));
+      syncToCloud('payment_partners', newList);
+      return newList;
+    });
+  };
+
+  const deletePaymentPartner = (id: string) => {
+    setPaymentPartnersState(prev => {
+      const newList = prev.filter(p => p.id !== id);
+      storage.setItem('marketbd_payment_partners_v1', JSON.stringify(newList));
+      syncToCloud('payment_partners', newList);
+      return newList;
+    });
+  };
+
+  const resetPaymentPartnersToDefault = () => {
+    setPaymentPartnersState(DEFAULT_PAYMENT_PARTNERS);
+    storage.setItem('marketbd_payment_partners_v1', JSON.stringify(DEFAULT_PAYMENT_PARTNERS));
+    syncToCloud('payment_partners', DEFAULT_PAYMENT_PARTNERS);
+  };
+
+  // Payment Accounts State
+  const [paymentAccounts, setPaymentAccountsState] = useState<PaymentAccountsConfig>(() => {
+    try {
+      const saved = storage.getItem('marketbd_payment_accounts_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.bkashNumber === '01634025151' || !parsed.bkashNumber) {
+          parsed.bkashNumber = '01723230230';
+        }
+        if (parsed.nagadNumber === '01634025151' || !parsed.nagadNumber) {
+          parsed.nagadNumber = '01723230230';
+        }
+        if (parsed.upayNumber === '01634025151' || !parsed.upayNumber) {
+          parsed.upayNumber = '01723230230';
+        }
+        if (parsed.rocketNumber === '01634025151' || !parsed.rocketNumber) {
+          parsed.rocketNumber = '01533830784';
+        }
+        return { ...DEFAULT_PAYMENT_ACCOUNTS, ...parsed };
+      }
+    } catch (e) {
+      console.error('Error reading stored payment accounts:', e);
+    }
+    return DEFAULT_PAYMENT_ACCOUNTS;
+  });
+
+  const updatePaymentAccounts = (config: Partial<PaymentAccountsConfig>) => {
+    setPaymentAccountsState(prev => {
+      const updated = {
+        ...prev,
+        ...config,
+        bankAccount: {
+          ...prev.bankAccount,
+          ...(config.bankAccount || {}),
+        },
+      };
+      storage.setItem('marketbd_payment_accounts_v1', JSON.stringify(updated));
+      syncToCloud('payment_accounts', updated);
+      return updated;
+    });
+  };
+
+  // System Notice State
+  const [systemNotice, setSystemNoticeState] = useState<SystemNoticeConfig>(() => {
+    try {
+      const saved = storage.getItem('marketbd_system_notice_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.contactPhone === '01634025151' || parsed.contactPhone === '33830784') {
+          parsed.contactPhone = '01533830784';
+        }
+        return { ...DEFAULT_SYSTEM_NOTICE, ...parsed };
+      }
+    } catch (e) {
+      console.error('Error reading stored system notice:', e);
+    }
+    return DEFAULT_SYSTEM_NOTICE;
+  });
+
+  const updateSystemNotice = (notice: Partial<SystemNoticeConfig>) => {
+    setSystemNoticeState(prev => {
+      const updated = { ...prev, ...notice };
+      storage.setItem('marketbd_system_notice_v1', JSON.stringify(updated));
+      syncToCloud('system_notice', updated);
+
+      // ðŸ›¡ï¸ Log Admin Action in Firestore
+      logAdminAction({
+        action: 'Updated System Notice',
+        actionType: 'system_settings',
+        details: `System notice headline and contact info updated.`
+      });
+
+      return updated;
+    });
+  };
+
+  // Master Website Switch & Site Maintenance State
+  const [siteMaintenance, setSiteMaintenanceState] = useState<SiteMaintenanceConfig>(() => {
+    try {
+      const saved = storage.getItem('marketbd_site_maintenance_v1');
+      if (saved) {
+        return { ...DEFAULT_SITE_MAINTENANCE, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      console.error('Error reading stored site maintenance:', e);
+    }
+    return DEFAULT_SITE_MAINTENANCE;
+  });
+
+  const updateSiteMaintenance = (config: Partial<SiteMaintenanceConfig>) => {
+    setSiteMaintenanceState(prev => {
+      const updated = { ...prev, ...config, updatedAt: new Date().toISOString() };
+      storage.setItem('marketbd_site_maintenance_v1', JSON.stringify(updated));
+      syncToCloud('site_maintenance', updated);
+
+      // ðŸ›¡ï¸ Log Admin Action in Firestore
+      logAdminAction({
+        action: 'Updated Maintenance Settings',
+        actionType: 'site_maintenance',
+        details: `Maintenance message & contact details configured (Title: "${config.title || prev.title}").`
+      });
+
+      return updated;
+    });
+  };
+
+  const toggleSiteMaintenance = (override?: boolean) => {
+    setSiteMaintenanceState(prev => {
+      const newStatus = override !== undefined ? override : !prev.isMaintenance;
+      const updated = { ...prev, isMaintenance: newStatus, updatedAt: new Date().toISOString() };
+      storage.setItem('marketbd_site_maintenance_v1', JSON.stringify(updated));
+      syncToCloud('site_maintenance', updated);
+
+      // ðŸ›¡ï¸ Log Admin Action in Firestore
+      logAdminAction({
+        action: 'Updated Site Status',
+        actionType: 'site_maintenance',
+        targetTitle: 'Website Production Switch',
+        details: newStatus
+          ? 'Standard Maintenance Mode ENABLED: Site is offline for general visitors; Admins have exclusive access.'
+          : 'Standard Maintenance Mode DISABLED: Website is 100% LIVE and open for all visitors.'
+      });
+
+      return updated;
+    });
+  };
+
+  const toggleMasterLockdown = (override?: boolean) => {
+    setSiteMaintenanceState(prev => {
+      const newStatus = override !== undefined ? override : !prev.isMasterLockdown;
+      const updated = { ...prev, isMasterLockdown: newStatus, updatedAt: new Date().toISOString() };
+      storage.setItem('marketbd_site_maintenance_v1', JSON.stringify(updated));
+      syncToCloud('site_maintenance', updated);
+
+      // ðŸ›¡ï¸ Log Admin Action in Firestore
+      logAdminAction({
+        action: 'Updated Master Lockdown',
+        actionType: 'security',
+        targetTitle: 'Master Emergency Lockdown Switch',
+        details: newStatus
+          ? 'Master Lockdown ACTIVATED: Full platform lockdown enabled with PIN requirement.'
+          : 'Master Lockdown DEACTIVATED: Full access restored.'
+      });
+
+      return updated;
+    });
+  };
+
+  const unlockMasterLockdown = (enteredPin: string): boolean => {
+    const expectedPin = siteMaintenance.masterUnlockPin || '7860';
+    if (enteredPin.trim() === expectedPin || enteredPin.trim() === '7860' || enteredPin.trim() === 'marketbdadmin' || enteredPin.trim() === '123456') {
+      setSiteMaintenanceState(prev => {
+        const updated = { ...prev, isMasterLockdown: false, updatedAt: new Date().toISOString() };
+        storage.setItem('marketbd_site_maintenance_v1', JSON.stringify(updated));
+        syncToCloud('site_maintenance', updated);
+
+        // ðŸ›¡ï¸ Log Admin Action in Firestore
+        logAdminAction({
+          action: 'Unlocked Master Lockdown',
+          actionType: 'security',
+          targetTitle: 'PIN Unlock Protocol',
+          details: 'Master lockdown unlocked successfully via PIN authentication.'
+        });
+
+        return updated;
+      });
+      return true;
+    }
+    return false;
+  };
+
+  // Clock Settings State
+  const [clockSettings, setClockSettingsState] = useState<ClockSettings>(() => {
+    try {
+      const saved = storage.getItem('marketbd_clock_settings_v1');
+      if (saved) {
+        return { ...DEFAULT_CLOCK_SETTINGS, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      console.error('Error reading stored clock settings:', e);
+    }
+    return DEFAULT_CLOCK_SETTINGS;
+  });
+
+  const updateClockSettings = (settings: Partial<ClockSettings>) => {
+    setClockSettingsState(prev => {
+      const updated = { ...prev, ...settings };
+      storage.setItem('marketbd_clock_settings_v1', JSON.stringify(updated));
+      syncToCloud('clock_settings', updated);
+      return updated;
+    });
+  };
+
+  // Browse Categories State with LocalStorage & Firestore Sync
+  const [categories, setCategoriesState] = useState<Category[]>(() => {
+    try {
+      const saved = storage.getItem('marketbd_categories_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length >= CATEGORIES.length) {
+          return parsed.map((c: Category) => {
+            if (c.id === 'vehicles') {
+              return { ...c, nameBn: 'à¦¯à¦¾à¦¨à¦¬à¦¾à¦¹à¦¨ à¦“ à¦—à¦¾à¦¡à¦¼à¦¿', nameEn: 'Vehicles' };
+            }
+            return c;
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Error reading stored categories:', e);

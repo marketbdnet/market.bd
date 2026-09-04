@@ -1,6 +1,4 @@
-﻿import type { Product } from '../types';
-
-export const CANONICAL_400_PRODUCTS: Product[] = [
+[
   {
     "id": "prod-live-iphone17pm",
     "title": "iPhone 17 Pro Max 512GB - Titanium Orange",
@@ -30263,5 +30261,4 @@ export const CANONICAL_400_PRODUCTS: Product[] = [
     "isActive": true,
     "moderationStatus": "approved"
   }
-];
-
+]

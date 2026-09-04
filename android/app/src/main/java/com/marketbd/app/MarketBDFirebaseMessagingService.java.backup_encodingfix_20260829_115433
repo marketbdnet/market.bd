@@ -1,0 +1,39 @@
+﻿package com.marketbd.app;
+
+import android.util.Log;
+
+import androidx.annotation.NonNull;
+
+import com.google.firebase.messaging.FirebaseMessagingService;
+import com.google.firebase.messaging.RemoteMessage;
+
+public class MarketBDFirebaseMessagingService extends FirebaseMessagingService {
+
+    private static final String TAG = "MarketBD_FCM";
+
+    @Override
+    public void onNewToken(@NonNull String token) {
+        super.onNewToken(token);
+
+        Log.d(TAG, "FCM TOKEN: " + token);
+    }
+
+    @Override
+    public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
+        super.onMessageReceived(remoteMessage);
+
+        Log.d(TAG, "FCM MESSAGE RECEIVED");
+
+        if (remoteMessage.getNotification() != null) {
+            Log.d(
+                TAG,
+                "Notification: " +
+                remoteMessage.getNotification().getTitle()
+            );
+        }
+
+        if (!remoteMessage.getData().isEmpty()) {
+            Log.d(TAG, "FCM DATA: " + remoteMessage.getData().toString());
+        }
+    }
+}

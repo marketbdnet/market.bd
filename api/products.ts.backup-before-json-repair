@@ -1,20 +1,19 @@
 ﻿import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const products = require('./canonicalProducts.json');
+import { CANONICAL_400_PRODUCTS } from '../src/data/canonicalCatalog400';
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const catalog = Array.isArray(products) ? products : [];
+    const products = Array.isArray(CANONICAL_400_PRODUCTS)
+      ? CANONICAL_400_PRODUCTS
+      : [];
 
     if (req.method === 'GET') {
       return res.status(200).json({
         success: true,
-        data: catalog,
-        count: catalog.length,
-        total: catalog.length,
-        source: 'canonicalProducts.json',
+        data: products,
+        count: products.length,
+        total: products.length,
+        source: 'canonicalCatalog400',
         updatedAt: new Date().toISOString()
       });
     }
@@ -23,10 +22,10 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({
         success: true,
         message: 'Canonical product sync endpoint',
-        data: catalog,
-        count: catalog.length,
-        total: catalog.length,
-        source: 'canonicalProducts.json',
+        data: products,
+        count: products.length,
+        total: products.length,
+        source: 'canonicalCatalog400',
         updatedAt: new Date().toISOString()
       });
     }
@@ -37,7 +36,6 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e: any) {
     console.error('PRODUCT_API_ERROR:', e);
-
     return res.status(500).json({
       success: false,
       error: e?.message || 'Server error'

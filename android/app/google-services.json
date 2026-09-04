@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "172996746577",
+    "project_id": "marketbd-d665c",
+    "storage_bucket": "marketbd-d665c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:172996746577:android:5c49ad6b5157cb162e8770",
+        "android_client_info": {
+          "package_name": "com.marketbd.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "172996746577-doufqpuhhoeqt8tifg1v79qohuljskg4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRH97SrOYwM9Cf39vpuRFaAaFslnHHSMQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "172996746577-doufqpuhhoeqt8tifg1v79qohuljskg4.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
