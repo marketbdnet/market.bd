@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "admin@marketbd.net" ||
+        request.auth.token.email == "official.marketbd@gmail.com" ||
+        request.auth.token.email == "official.marketsbd@gmail.com" ||
+        request.auth.token.email == "graphicsdesign23@gmail.com" ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // Products / Classified Ads - Unified Web & Android Realtime Sync
+    // NOTE: the app currently posts ads without a Firebase Auth session (no
+    // signInAnonymously / uid-based ownership), so create/update cannot yet be
+    // locked to isOwner() without breaking guest posting. This is flagged in
+    // the audit as a required follow-up (move writes through the existing
+    // Express server with server-side validation, or add Firebase Anonymous
+    // Auth so products can carry a real ownerId). Until then we at least stop
+    // arbitrary public deletion of listings.
+    match /products/{productId} {
+      allow read, create, update: if true;
+      allow delete: if isAdmin();
+    }
+
+    // User Profiles - Owner or Admin management
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isSignedIn() || request.resource.data.phone != null;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Chat System & Direct Messages
+    match /chats/{chatId} {
+      allow read: if true;
+      allow write: if true;
+
+      match /messages/{messageId} {
+        allow read, write: if true;
+      }
+    }
+
+    // Customer Care & System Activity Logs
+    match /activities/{activityId} {
+      allow read: if isSignedIn() || isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // Admin Activity & Audit Trail Logs
+    match /admin_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // System Settings & Site Configuration (Maintenance, Notice, Payment Accounts, etc.)
+    // FIX: previous rule was "isAdmin() || true", which made the admin check a
+    // no-op and let anyone flip maintenance mode / payment numbers / branding.
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Manual Payment Verification System
+    // FIX: previous rule was "isAdmin() || true" on update/delete, letting
+    // anyone mark a payment verified/deleted without admin review.
+    match /payments/{paymentId} {
+      allow read: if true;
+      allow create: if request.resource.data.status == 'pending_verification';
+      allow update, delete: if isAdmin();
+    }
+  }
+}
+

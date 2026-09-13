@@ -1,0 +1,23 @@
+{
+  "short_name": "MarketBD",
+  "name": "MarketBD.Net - Bangladesh #1 Marketplace",
+  "icons": [
+    {
+      "src": "/favicon.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "background_color": "#090f1e",
+  "theme_color": "#090f1e",
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["shopping", "classifieds", "business"]
+}

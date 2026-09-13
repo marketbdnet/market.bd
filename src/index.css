@@ -1,0 +1,272 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  html, body {
+    background-color: #f8fafc;
+    color: #0f172a;
+    min-height: 100vh;
+    max-width: 100vw;
+    overflow-x: hidden;
+    padding-top: env(safe-area-inset-top, 0px);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: auto;
+    touch-action: pan-y pinch-zoom;
+  }
+  
+  html.dark, html.dark body {
+    background-color: #020617;
+    color: #f8fafc;
+  }
+
+  /* Fixed mobile top header padding to prevent device status bar overlapping time, battery, network icons */
+  header.sticky {
+    padding-top: max(8px, env(safe-area-inset-top, 0px));
+  }
+
+  /* Fix dark mode text visibility inside input, select, textarea, option fields for Android & web */
+  input,
+  select,
+  textarea {
+    color: #0f172a;
+  }
+
+  option {
+    background-color: #ffffff;
+    color: #0f172a;
+  }
+
+  .dark input,
+  .dark select,
+  .dark textarea {
+    color: #f8fafc !important;
+  }
+
+  .dark select option,
+  .dark option {
+    background-color: #1e293b !important;
+    color: #f8fafc !important;
+  }
+
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: #94a3b8 !important;
+  }
+
+  /* Responsive container mobile wrap */
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Image protection and no-copy rules */
+  img {
+    -webkit-user-drag: none;
+    -khtml-user-drag: none;
+    -moz-user-drag: none;
+    -o-user-drag: none;
+    user-drag: none;
+    -webkit-touch-callout: none;
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 85s linear infinite;
+}
+
+.animate-marquee-slow {
+  animation: marquee 130s linear infinite;
+}
+
+.animate-marquee-fast {
+  animation: marquee 55s linear infinite;
+}
+
+.animate-spin-slow {
+  animation: spin 8s linear infinite;
+}
+
+/* ========================================================
+   LIQUID BUTTON STYLES (iOS 3D Frosted Liquid Glass)
+   ======================================================== */
+.liquid-btn {
+  position: relative;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.92) 50%, rgba(226, 232, 240, 0.85) 100%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 2px solid rgba(148, 163, 184, 0.7);
+  color: #0f172a;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.9),
+    inset 0 1.5px 2px rgba(255, 255, 255, 1),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.07),
+    0 4px 12px -2px rgba(15, 23, 42, 0.12),
+    0 2px 5px -1px rgba(15, 23, 42, 0.06);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.liquid-btn:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 55%, #e2e8f0 100%);
+  border-color: rgba(100, 116, 139, 0.85);
+  color: #0f172a;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 1),
+    inset 0 2px 2.5px rgba(255, 255, 255, 1),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.08),
+    0 6px 16px -2px rgba(15, 23, 42, 0.16),
+    0 3px 6px -1px rgba(15, 23, 42, 0.08);
+  transform: translateY(-0.5px);
+}
+
+.liquid-btn:active {
+  transform: scale(0.96) translateY(0);
+  background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
+  box-shadow: 
+    inset 0 1.5px 2px rgba(0, 0, 0, 0.15),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.liquid-btn-active {
+  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 50%, #a7f3d0 100%) !important;
+  border: 2px solid #059669 !important;
+  color: #065f46 !important;
+  box-shadow: 
+    0 0 0 1px rgba(52, 211, 153, 0.8),
+    inset 0 1.5px 2px rgba(255, 255, 255, 1),
+    inset 0 -1px 2px rgba(4, 120, 87, 0.2),
+    0 5px 14px -2px rgba(16, 185, 129, 0.35) !important;
+}
+
+.liquid-btn-active-sky {
+  background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 50%, #bae6fd 100%) !important;
+  border: 2px solid #0284c7 !important;
+  color: #0369a1 !important;
+  box-shadow: 
+    0 0 0 1px rgba(56, 189, 248, 0.8),
+    inset 0 1.5px 2px rgba(255, 255, 255, 1),
+    inset 0 -1px 2px rgba(3, 105, 161, 0.2),
+    0 5px 14px -2px rgba(14, 165, 233, 0.35) !important;
+}
+
+.liquid-btn-active-pink {
+  background: linear-gradient(180deg, #fdf2f8 0%, #fce7f3 50%, #fbcfe8 100%) !important;
+  border: 2px solid #db2777 !important;
+  color: #9d174d !important;
+  box-shadow: 
+    0 0 0 1px rgba(244, 114, 182, 0.8),
+    inset 0 1.5px 2px rgba(255, 255, 255, 1),
+    inset 0 -1px 2px rgba(190, 24, 93, 0.2),
+    0 5px 14px -2px rgba(236, 72, 153, 0.35) !important;
+}
+
+.liquid-btn-red {
+  background: linear-gradient(180deg, #fb7185 0%, #f43f5e 45%, #e11d48 100%) !important;
+  border: 2px solid rgba(255, 255, 255, 0.95) !important;
+  color: #ffffff !important;
+  box-shadow: 
+    0 0 0 1.5px rgba(225, 29, 72, 0.6),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.85),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.2),
+    0 5px 15px -2px rgba(225, 29, 72, 0.45) !important;
+}
+
+@keyframes liveBeaconPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.8), 0 4px 14px rgba(225, 29, 72, 0.4) !important;
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(225, 29, 72, 0), 0 4px 14px rgba(225, 29, 72, 0.4) !important;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(225, 29, 72, 0), 0 4px 14px rgba(225, 29, 72, 0.4) !important;
+  }
+}
+
+.live-beacon-pulse {
+  animation: liveBeaconPulse 2s infinite cubic-bezier(0.45, 0, 0.55, 1) !important;
+}
+
+.liquid-btn-red:hover {
+  background: linear-gradient(180deg, #fda4af 0%, #fb7185 45%, #f43f5e 100%) !important;
+  border-color: #ffffff !important;
+  box-shadow: 
+    0 0 0 1.5px rgba(225, 29, 72, 0.8),
+    inset 0 2px 2.5px rgba(255, 255, 255, 0.95),
+    0 7px 18px -2px rgba(225, 29, 72, 0.55) !important;
+}
+
+.liquid-btn-emerald {
+  background: linear-gradient(180deg, #34d399 0%, #10b981 45%, #059669 100%) !important;
+  border: 2px solid rgba(255, 255, 255, 0.95) !important;
+  color: #ffffff !important;
+  box-shadow: 
+    0 0 0 1.5px rgba(16, 185, 129, 0.6),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.85),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.15),
+    0 4px 12px -2px rgba(16, 185, 129, 0.4) !important;
+}
+
+.liquid-btn-emerald:hover {
+  background: linear-gradient(180deg, #6ee7b7 0%, #34d399 45%, #10b981 100%) !important;
+  border-color: #ffffff !important;
+  box-shadow: 
+    0 0 0 1.5px rgba(16, 185, 129, 0.8),
+    inset 0 2px 2.5px rgba(255, 255, 255, 0.95),
+    0 6px 16px -2px rgba(16, 185, 129, 0.5) !important;
+}
+
+.dark .liquid-btn {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.85) 50%, rgba(2, 6, 23, 0.8) 100%);
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  color: #f1f5f9;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.25),
+    inset 0 -1px 1.5px rgba(0, 0, 0, 0.4),
+    0 4px 12px -2px rgba(0, 0, 0, 0.4);
+}
+
+.dark .liquid-btn:hover {
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.95) 0%, rgba(30, 41, 59, 0.9) 50%, rgba(15, 23, 42, 0.85) 100%);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+.dark .liquid-btn-active {
+  background: linear-gradient(180deg, rgba(6, 78, 59, 0.9) 0%, rgba(6, 95, 70, 0.8) 100%) !important;
+  border: 2px solid rgba(52, 211, 153, 0.8) !important;
+  color: #a7f3d0 !important;
+}
+
+.dark .liquid-btn-active-sky {
+  background: linear-gradient(180deg, rgba(12, 74, 110, 0.9) 0%, rgba(3, 105, 161, 0.8) 100%) !important;
+  border: 2px solid rgba(56, 189, 248, 0.8) !important;
+  color: #bae6fd !important;
+}
+
+.dark .liquid-btn-active-pink {
+  background: linear-gradient(180deg, rgba(131, 24, 67, 0.9) 0%, rgba(157, 23, 77, 0.8) 100%) !important;
+  border: 2px solid rgba(244, 114, 182, 0.8) !important;
+  color: #fbcfe8 !important;
+}
+
