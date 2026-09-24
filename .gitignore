@@ -1,0 +1,28 @@
+# Node & Build Outputs
+node_modules/
+dist/
+build/
+coverage/
+.DS_Store
+*.log
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# Android Build Outputs & Gradle Cache
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/*.iml
+.gradle/
+*.apk
+*.aab
+!update/MarketBD.apk
+
+

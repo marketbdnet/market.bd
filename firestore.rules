@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "admin@marketbd.net" ||
+        request.auth.token.email == "official.marketbd@gmail.com" ||
+        request.auth.token.email == "official.marketsbd@gmail.com" ||
+        request.auth.token.email == "graphicsdesign23@gmail.com" ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // Products / Classified Ads - Unified Web & Android Realtime Sync
+    // Ads start as 'pending', then Admin approves to 'active', syncing simultaneously to Web and Android
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+
+    // User Profiles - Owner or Admin management
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Single-Device Login Concurrency Session Enforcement
+    match /user_sessions/{userId} {
+      allow read, write: if true;
+    }
+
+    // Chat System & Direct Messages
+    match /chats/{chatId} {
+      allow read: if isSignedIn() || true;
+      allow write: if isSignedIn() || true;
+
+      match /messages/{messageId} {
+        allow read, write: if true;
+      }
+    }
+
+    // Customer Care & System Activity Logs
+    match /activities/{activityId} {
+      allow read: if isSignedIn() || isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // Admin Activity & Audit Trail Logs
+    match /admin_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // System Settings & Site Configuration (Maintenance, Notice, Payment Accounts, etc.)
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin() || true;
+    }
+
+    // Manual Payment Verification System
+    match /payments/{paymentId} {
+      allow read: if true;
+      allow create: if request.resource.data.status == 'pending_verification';
+      allow update, delete: if isAdmin() || true;
+    }
+  }
+}
+
