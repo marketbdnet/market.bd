@@ -333,7 +333,7 @@ export async function sendCustomSms(
     };
   }
 
-  const activeSender = config.senderType === 'masking' ? config.maskingId : (config.nonMaskingId || config.senderId || '1234');
+  const activeSender = config.senderType === 'masking' ? (config.maskingId || config.senderId || '1234') : (config.nonMaskingId || config.senderId || '1234');
 
   // Attempt via server proxy first (avoids browser CORS)
   try {
@@ -417,7 +417,7 @@ export async function sendRealSmsOtp(
     };
   }
 
-  const activeSender = config.senderType === 'masking' ? config.maskingId : (config.nonMaskingId || config.senderId || '1234');
+  const activeSender = config.senderType === 'masking' ? (config.maskingId || config.senderId || '1234') : (config.nonMaskingId || config.senderId || '1234');
 
   // Attempt via server proxy first (avoids browser CORS)
   try {
