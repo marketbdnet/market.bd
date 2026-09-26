@@ -133,6 +133,7 @@ export interface UserProfile {
   status?: 'active' | 'blocked';
   registeredAt?: string;
   memberSince?: string;
+  membership?: BusinessMembership;
   avatar?: string;
   authProvider?: 'phone' | 'email' | 'google' | 'facebook' | 'manual' | string;
   location?: Location;
