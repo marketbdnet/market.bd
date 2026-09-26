@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
@@ -74,14 +74,14 @@ async function startServer() {
       if (!genAI) {
         return res.json({
           success: true,
-          reply: `[এআই বার্তা (API Key ছাড়াই কাজ করছে)]: মার্কেট বিডি তে আপনাকে স্বাগতম! 
-আপনি "${prompt || userQuery}" লিখে সার্চ করেছেন। আমাদের প্ল্যাটফর্মে ঢাকা, চট্টগ্রাম, সিলেট সহ বাংলাদেশের ৬৪টি জেলায় দ্রুত গাড়ি, মোবাইল, ফ্ল্যাট, ল্যাপটপ এবং রকমারি বই ক্রয় ও বিক্রয় করতে পারবেন।`
+          reply: `[à¦à¦†à¦‡ à¦¬à¦¾à¦°à§à¦¤à¦¾ (API Key à¦›à¦¾à§œà¦¾à¦‡ à¦•à¦¾à¦œ à¦•à¦°à¦›à§‡)]: à¦®à¦¾à¦°à§à¦•à§‡à¦Ÿ à¦¬à¦¿à¦¡à¦¿ à¦¤à§‡ à¦†à¦ªà¦¨à¦¾à¦•à§‡ à¦¸à§à¦¬à¦¾à¦—à¦¤à¦®! 
+à¦†à¦ªà¦¨à¦¿ "${prompt || userQuery}" à¦²à¦¿à¦–à§‡ à¦¸à¦¾à¦°à§à¦š à¦•à¦°à§‡à¦›à§‡à¦¨à¥¤ à¦†à¦®à¦¾à¦¦à§‡à¦° à¦ªà§à¦²à§à¦¯à¦¾à¦Ÿà¦«à¦°à§à¦®à§‡ à¦¢à¦¾à¦•à¦¾, à¦šà¦Ÿà§à¦Ÿà¦—à§à¦°à¦¾à¦®, à¦¸à¦¿à¦²à§‡à¦Ÿ à¦¸à¦¹ à¦¬à¦¾à¦‚à¦²à¦¾à¦¦à§‡à¦¶à§‡à¦° à§¬à§ªà¦Ÿà¦¿ à¦œà§‡à¦²à¦¾à¦¯à¦¼ à¦¦à§à¦°à§à¦¤ à¦—à¦¾à§œà¦¿, à¦®à§‹à¦¬à¦¾à¦‡à¦², à¦«à§à¦²à§à¦¯à¦¾à¦Ÿ, à¦²à§à¦¯à¦¾à¦ªà¦Ÿà¦ª à¦à¦¬à¦‚ à¦°à¦•à¦®à¦¾à¦°à¦¿ à¦¬à¦‡ à¦•à§à¦°à§Ÿ à¦“ à¦¬à¦¿à¦•à§à¦°à§Ÿ à¦•à¦°à¦¤à§‡ à¦ªà¦¾à¦°à¦¬à§‡à¦¨à¥¤`
         });
       }
 
       const model = 'gemini-2.5-flash';
-      const systemInstruction = `You are "Market BD Smart AI Assistant" (মার্কেট বিডি এআই সহকারী), an intelligent marketplace deal advisor & listing writer for Bangladesh's premier verified online marketplace MarketBD.Net.
-Respond in friendly, natural Bengali (বাংলা) or English as requested. Provide concise price estimates in Bangladeshi Taka (৳), smart deal tips, or generate high-converting ad descriptions for sellers. Keep formatting bulleted and easy to read.`;
+      const systemInstruction = `You are "Market BD Smart AI Assistant" (à¦®à¦¾à¦°à§à¦•à§‡à¦Ÿ à¦¬à¦¿à¦¡à¦¿ à¦à¦†à¦‡ à¦¸à¦¹à¦•à¦¾à¦°à§€), an intelligent marketplace deal advisor & listing writer for Bangladesh's premier verified online marketplace MarketBD.Net.
+Respond in friendly, natural Bengali (à¦¬à¦¾à¦‚à¦²à¦¾) or English as requested. Provide concise price estimates in Bangladeshi Taka (à§³), smart deal tips, or generate high-converting ad descriptions for sellers. Keep formatting bulleted and easy to read.`;
 
       const response = await genAI.models.generateContent({
         model,
@@ -99,7 +99,7 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       console.error('Gemini API error:', error);
       res.json({
         success: false,
-        reply: 'ক্ষমা করবেন, এআই সার্ভারে কিছুটা সমস্যা দেখা দিয়েছে। তবে আপনি সাধারণ সার্চ অ্যান্ড ফিল্টার অপশন দিয়ে আপনার প্রয়োজনীয় প্রোডাক্টটি খুঁজে পেতে পারেন।'
+        reply: 'à¦•à§à¦·à¦®à¦¾ à¦•à¦°à¦¬à§‡à¦¨, à¦à¦†à¦‡ à¦¸à¦¾à¦°à§à¦­à¦¾à¦°à§‡ à¦•à¦¿à¦›à§à¦Ÿà¦¾ à¦¸à¦®à¦¸à§à¦¯à¦¾ à¦¦à§‡à¦–à¦¾ à¦¦à¦¿à§Ÿà§‡à¦›à§‡à¥¤ à¦¤à¦¬à§‡ à¦†à¦ªà¦¨à¦¿ à¦¸à¦¾à¦§à¦¾à¦°à¦£ à¦¸à¦¾à¦°à§à¦š à¦…à§à¦¯à¦¾à¦¨à§à¦¡ à¦«à¦¿à¦²à§à¦Ÿà¦¾à¦° à¦…à¦ªà¦¶à¦¨ à¦¦à¦¿à§Ÿà§‡ à¦†à¦ªà¦¨à¦¾à¦° à¦ªà§à¦°à§Ÿà§‹à¦œà¦¨à§€à§Ÿ à¦ªà§à¦°à§‹à¦¡à¦¾à¦•à§à¦Ÿà¦Ÿà¦¿ à¦–à§à¦à¦œà§‡ à¦ªà§‡à¦¤à§‡ à¦ªà¦¾à¦°à§‡à¦¨à¥¤'
       });
     }
   });
@@ -150,10 +150,10 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       isMaintenance: false,
       isMasterLockdown: false,
       title: 'MarketBD.Net is Under Maintenance',
-      subtitle: 'We’re making some improvements to give you a better shopping experience.',
-      noticeMessage: 'We’ll be back shortly. Thank you for your patience!',
-      masterLockdownTitle: '🔒 MarketBD.Net মাস্টার সিস্টেম লকডাউন (Master Lockdown)',
-      masterLockdownMessage: 'সার্ভার রক্ষণাবেক্ষণ ও আপগ্রেডের জন্য সম্পূর্ণ ওয়েবসাইট সাময়িকভাবে বন্ধ রাখা হয়েছে। এই মুহূর্তে এডমিন এবং ভিজিটর কারও জন্যই সাইট উন্মুক্ত নয়।',
+      subtitle: 'Weâ€™re making some improvements to give you a better shopping experience.',
+      noticeMessage: 'Weâ€™ll be back shortly. Thank you for your patience!',
+      masterLockdownTitle: 'ðŸ”’ MarketBD.Net à¦®à¦¾à¦¸à§à¦Ÿà¦¾à¦° à¦¸à¦¿à¦¸à§à¦Ÿà§‡à¦® à¦²à¦•à¦¡à¦¾à¦‰à¦¨ (Master Lockdown)',
+      masterLockdownMessage: 'à¦¸à¦¾à¦°à§à¦­à¦¾à¦° à¦°à¦•à§à¦·à¦£à¦¾à¦¬à§‡à¦•à§à¦·à¦£ à¦“ à¦†à¦ªà¦—à§à¦°à§‡à¦¡à§‡à¦° à¦œà¦¨à§à¦¯ à¦¸à¦®à§à¦ªà§‚à¦°à§à¦£ à¦“à§Ÿà§‡à¦¬à¦¸à¦¾à¦‡à¦Ÿ à¦¸à¦¾à¦®à§Ÿà¦¿à¦•à¦­à¦¾à¦¬à§‡ à¦¬à¦¨à§à¦§ à¦°à¦¾à¦–à¦¾ à¦¹à§Ÿà§‡à¦›à§‡à¥¤ à¦à¦‡ à¦®à§à¦¹à§‚à¦°à§à¦¤à§‡ à¦à¦¡à¦®à¦¿à¦¨ à¦à¦¬à¦‚ à¦­à¦¿à¦œà¦¿à¦Ÿà¦° à¦•à¦¾à¦°à¦“ à¦œà¦¨à§à¦¯à¦‡ à¦¸à¦¾à¦‡à¦Ÿ à¦‰à¦¨à§à¦®à§à¦•à§à¦¤ à¦¨à§Ÿà¥¤',
       masterUnlockPin: '7860',
       contactEmail: 'official.marketbd@gmail.com',
       emergencyPhone: '01533830784',
@@ -163,8 +163,8 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       isEnabled: true,
       showAdPromo: true,
       showFraudWarning: true,
-      customNoticeBn: '🔥 বিশেষ অফার: ভেরিফায়েড বিজনেস শপ একাউন্ট খুললেই পাচ্ছেন ৩টি প্রিমিয়াম ফেভারিট টপ অ্যাড প্রমোশন একদম ফ্রি!',
-      customNoticeEn: '🔥 Special Offer: Register a Verified Business Shop today and enjoy 3 FREE Top Ad Promotions!',
+      customNoticeBn: 'ðŸ”¥ à¦¬à¦¿à¦¶à§‡à¦· à¦…à¦«à¦¾à¦°: à¦­à§‡à¦°à¦¿à¦«à¦¾à¦¯à¦¼à§‡à¦¡ à¦¬à¦¿à¦œà¦¨à§‡à¦¸ à¦¶à¦ª à¦à¦•à¦¾à¦‰à¦¨à§à¦Ÿ à¦–à§à¦²à¦²à§‡à¦‡ à¦ªà¦¾à¦šà§à¦›à§‡à¦¨ à§©à¦Ÿà¦¿ à¦ªà§à¦°à¦¿à¦®à¦¿à¦¯à¦¼à¦¾à¦® à¦«à§‡à¦­à¦¾à¦°à¦¿à¦Ÿ à¦Ÿà¦ª à¦…à§à¦¯à¦¾à¦¡ à¦ªà§à¦°à¦®à§‹à¦¶à¦¨ à¦à¦•à¦¦à¦® à¦«à§à¦°à¦¿!',
+      customNoticeEn: 'ðŸ”¥ Special Offer: Register a Verified Business Shop today and enjoy 3 FREE Top Ad Promotions!',
       scrollSpeed: 'medium',
       contactPhone: '01533830784',
       contactEmail: 'official.marketbd@gmail.com',
@@ -541,8 +541,8 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   // Universal Live SMS & OTP Gateway Dispatcher (Server-side bypasses browser CORS for BulkSMSDhaka, BulkSMSBD, Greenweb, etc.)
   app.post('/api/sms-proxy/send', async (req, res) => {
     try {
-      const { provider = 'bulksmsdhaka.net', apiKey, senderId, phone, message, isOtp = true } = req.body || {};
-      const cleanKey = (apiKey || '').trim();
+      const { provider = 'bulksmsdhaka.net', apiKey: clientApiKey, senderId, phone, message, isOtp = true } = req.body || {};
+      const cleanKey = (process.env.MARKETBD_SMS_API_KEY || clientApiKey || '').trim();
       const cleanSender = (senderId || '1234').trim();
       const cleanPhone = (phone || '').replace(/[^\d+]/g, '').trim();
       const localPhone = cleanPhone.startsWith('+88') ? cleanPhone.replace('+88', '').trim() : cleanPhone.replace(/^88/, '').trim();
@@ -574,7 +574,7 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
         const isSuccess = parsed && (parsed.status === 'success' || parsed.response_code === 1001 || (typeof text === 'string' && text.toLowerCase().includes('success')));
         let friendlyMessage = parsed?.message || parsed?.error || parsed?.error_message || parsed?.raw || text;
         if (friendlyMessage && friendlyMessage.includes('Unauthenticated or Invalid API Key')) {
-          friendlyMessage = `❌ BulkSMSDhaka: Unauthenticated or Invalid API Key (${cleanKey.slice(0, 8)}...)। আপনার bulksmsdhaka.net একাউন্ট ও ব্যালেন্স চেক করুন।`;
+          friendlyMessage = `âŒ BulkSMSDhaka: Unauthenticated or Invalid API Key (${cleanKey.slice(0, 8)}...)à¥¤ à¦†à¦ªà¦¨à¦¾à¦° bulksmsdhaka.net à¦à¦•à¦¾à¦‰à¦¨à§à¦Ÿ à¦“ à¦¬à§à¦¯à¦¾à¦²à§‡à¦¨à§à¦¸ à¦šà§‡à¦• à¦•à¦°à§à¦¨à¥¤`;
         }
 
         return res.json({
@@ -645,7 +645,7 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
           success: true,
           balance: String(parsed?.balance || parsed?.credit || text),
           currencyOrUnit: 'SMS / Taka',
-          message: `BulkSMSDhaka ব্যালেন্স: ${parsed?.balance || text}`
+          message: `BulkSMSDhaka à¦¬à§à¦¯à¦¾à¦²à§‡à¦¨à§à¦¸: ${parsed?.balance || text}`
         });
       } else if (pLower.includes('bulksmsbd')) {
         const url = `https://bulksmsbd.net/api/getBalanceApi?api_key=${encodeURIComponent(cleanKey)}`;
@@ -654,8 +654,8 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
         return res.json({
           success: data.response_code === 1001 || data.balance !== undefined,
           balance: String(data.balance ?? '0'),
-          currencyOrUnit: 'টাকা',
-          message: `BulkSMSBD ব্যালেন্স: ৳ ${data.balance ?? '0'}`
+          currencyOrUnit: 'à¦Ÿà¦¾à¦•à¦¾',
+          message: `BulkSMSBD à¦¬à§à¦¯à¦¾à¦²à§‡à¦¨à§à¦¸: à§³ ${data.balance ?? '0'}`
         });
       } else if (pLower.includes('greenweb')) {
         const url = `https://api.greenweb.com.bd/gwb_balance.php?token=${encodeURIComponent(cleanKey)}`;
@@ -665,14 +665,14 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
           success: true,
           balance: text.trim(),
           currencyOrUnit: 'SMS',
-          message: `Greenweb ব্যালেন্স: ${text.trim()} টি SMS`
+          message: `Greenweb à¦¬à§à¦¯à¦¾à¦²à§‡à¦¨à§à¦¸: ${text.trim()} à¦Ÿà¦¿ SMS`
         });
       } else {
         return res.json({
           success: true,
-          balance: 'সক্রিয়',
-          currencyOrUnit: 'ক্রেডিট',
-          message: 'প্রোভাইডার গেটওয়ে কানেক্টেড'
+          balance: 'à¦¸à¦•à§à¦°à¦¿à§Ÿ',
+          currencyOrUnit: 'à¦•à§à¦°à§‡à¦¡à¦¿à¦Ÿ',
+          message: 'à¦ªà§à¦°à§‹à¦­à¦¾à¦‡à¦¡à¦¾à¦° à¦—à§‡à¦Ÿà¦“à§Ÿà§‡ à¦•à¦¾à¦¨à§‡à¦•à§à¦Ÿà§‡à¦¡'
         });
       }
     } catch (err: any) {
@@ -686,13 +686,13 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       const { to, subject, message, recipientName } = req.body || {};
       const cleanEmail = (to || '').trim().toLowerCase();
       if (!cleanEmail || !cleanEmail.includes('@')) {
-        return res.status(400).json({ success: false, message: 'সঠিক ইমেইল ঠিকানা দিন (Valid email is required).' });
+        return res.status(400).json({ success: false, message: 'à¦¸à¦ à¦¿à¦• à¦‡à¦®à§‡à¦‡à¦² à¦ à¦¿à¦•à¦¾à¦¨à¦¾ à¦¦à¦¿à¦¨ (Valid email is required).' });
       }
 
-      const cleanSubject = (subject || 'MarketBD.Net বিশেষ নোটিশ ও আপডেট').trim();
+      const cleanSubject = (subject || 'MarketBD.Net à¦¬à¦¿à¦¶à§‡à¦· à¦¨à§‹à¦Ÿà¦¿à¦¶ à¦“ à¦†à¦ªà¦¡à§‡à¦Ÿ').trim();
       const cleanMessage = (message || '').trim();
       if (!cleanMessage) {
-        return res.status(400).json({ success: false, message: 'ইমেইলের বার্তা ফাঁকা হতে পারে না (Message cannot be empty).' });
+        return res.status(400).json({ success: false, message: 'à¦‡à¦®à§‡à¦‡à¦²à§‡à¦° à¦¬à¦¾à¦°à§à¦¤à¦¾ à¦«à¦¾à¦à¦•à¦¾ à¦¹à¦¤à§‡ à¦ªà¦¾à¦°à§‡ à¦¨à¦¾ (Message cannot be empty).' });
       }
 
       console.log(`[Email Dispatch] Sending to: ${cleanEmail} (${recipientName || 'Customer'}) | Subject: ${cleanSubject}`);
@@ -705,11 +705,11 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
         recipient: cleanEmail,
         recipientName: recipientName || cleanEmail,
         subject: cleanSubject,
-        message: `ইমেইল সফলভাবে ${cleanEmail}-এ প্রেরণ করা হয়েছে।`,
+        message: `à¦‡à¦®à§‡à¦‡à¦² à¦¸à¦«à¦²à¦­à¦¾à¦¬à§‡ ${cleanEmail}-à¦ à¦ªà§à¦°à§‡à¦°à¦£ à¦•à¦°à¦¾ à¦¹à§Ÿà§‡à¦›à§‡à¥¤`,
         timestamp: new Date().toISOString()
       });
     } catch (err: any) {
-      return res.status(500).json({ success: false, message: err?.message || 'ইমেইল পাঠাতে ব্যর্থ হয়েছে।' });
+      return res.status(500).json({ success: false, message: err?.message || 'à¦‡à¦®à§‡à¦‡à¦² à¦ªà¦¾à¦ à¦¾à¦¤à§‡ à¦¬à§à¦¯à¦°à§à¦¥ à¦¹à§Ÿà§‡à¦›à§‡à¥¤' });
     }
   });
 
@@ -1302,3 +1302,4 @@ Sitemap: https://marketbd.net/sitemap.xml`;
 }
 
 startServer();
+

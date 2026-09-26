@@ -1,0 +1,13 @@
+node_modules/
+.git/
+android/
+update/
+dist/
+*.apk
+*.aab
+*.map
+*.backup*
+*.bak
+*.log
+otp-*.txt
+.env.local
