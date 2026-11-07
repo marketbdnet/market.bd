@@ -1,0 +1,88 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product Ad",
+      "description": "Classified ad listing on MarketBD.Net",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 200 },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "division": { "type": "string" },
+        "district": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["approved", "pending", "rejected", "sold"] },
+        "showPhoneNumber": { "type": "boolean", "description": "Whether the seller allowed buyers to see their phone number (default false)" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "price", "category", "sellerId"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Registered buyer or seller profile on MarketBD.Net",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["buyer", "seller", "admin"] },
+        "isVerified": { "type": "boolean" }
+      },
+      "required": ["name", "phone"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "In-app buyer to seller chat message",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "text": { "type": "string", "maxLength": 2000 },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["senderId", "receiverId", "text"]
+    },
+    "AdminActivityLog": {
+      "title": "Admin Activity Log",
+      "description": "Audit trail of key administrative operations performed by staff and superadmins",
+      "type": "object",
+      "properties": {
+        "adminId": { "type": "string" },
+        "adminName": { "type": "string", "maxLength": 100 },
+        "adminEmail": { "type": "string" },
+        "action": { "type": "string", "maxLength": 200 },
+        "actionType": { "type": "string", "enum": ["ad_moderation", "site_maintenance", "user_management", "system_settings", "security"] },
+        "targetId": { "type": "string" },
+        "targetTitle": { "type": "string", "maxLength": 250 },
+        "details": { "type": "string", "maxLength": 2000 },
+        "timestamp": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "ip": { "type": "string" },
+        "device": { "type": "string" }
+      },
+      "required": ["adminName", "action", "actionType", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Public classified ad listings"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User account profiles and verification badges"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Encrypted direct messaging between buyers and sellers"
+    },
+    "/admin_logs/{logId}": {
+      "schema": "AdminActivityLog",
+      "description": "Real-time admin activity and audit trail logs"
+    },
+    "/activities/{activityId}": {
+      "schema": "AdminActivityLog",
+      "description": "Customer care and system activity records"
+    }
+  }
+}
