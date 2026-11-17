@@ -1,128 +1,11 @@
 import React from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
-import { getSubcategoryImageUrl, getSecondLevelImageUrl } from '../../utils/categoryImages';
-import { isProductPublicActive } from '../../utils/productStatus';
-import {
-  ChevronRight,
-  Home,
-  Layers,
-  Car,
-  Bike,
-  Bus,
-  Truck,
-  Wrench,
-  Ship,
-  Tractor,
-  CircleDot,
-  BatteryCharging,
-  Lightbulb,
-  Zap,
-  Armchair,
-  Shield,
-  Speaker,
-  ShieldCheck,
-  Sparkles,
-  Package,
-  Cog,
-  Disc,
-  GitCommit,
-  Anchor,
-  Smartphone,
-  Tablet,
-  Watch,
-  Headphones,
-  Camera,
-  Gamepad2,
-  Server,
-  HardDrive,
-  Printer,
-  Cpu,
-  Monitor,
-  Wifi,
-  Radio,
-  Video,
-  Mic,
-  Laptop,
-  Tv,
-  Building2,
-  Sofa,
-  Shirt,
-  HeartPulse,
-  Baby,
-  BookOpen,
-  Dog,
-  Briefcase,
-  GraduationCap,
-  Plane,
-  Utensils,
-  Ticket,
-  MoreHorizontal,
-  LucideIcon
-} from 'lucide-react';
+import { getCategoryImageUrl, getSubcategoryImageUrl, getSecondLevelImageUrl } from '../../utils/categoryImages';
+import { getLiveCategoryCount, getLiveSubcategoryCount, getLiveSecondLevelCount } from '../../utils/categoryCounts';
+import { toBengaliNumber } from '../../utils/dateUtils';
+import { ChevronRight, Home } from 'lucide-react';
 import { Category, SubCategory, SecondLevelCategory } from '../../types';
-
-// Map icon string to Lucide component
-const ICON_MAP: Record<string, LucideIcon> = {
-  Car,
-  Bike,
-  Bus,
-  Truck,
-  Wrench,
-  Ship,
-  Tractor,
-  CircleDot,
-  BatteryCharging,
-  Lightbulb,
-  Zap,
-  Armchair,
-  Shield,
-  Speaker,
-  ShieldCheck,
-  Sparkles,
-  Package,
-  Cog,
-  Disc,
-  GitCommit,
-  Anchor,
-  Smartphone,
-  Tablet,
-  Watch,
-  Headphones,
-  Camera,
-  Gamepad2,
-  Server,
-  HardDrive,
-  Printer,
-  Cpu,
-  Monitor,
-  Wifi,
-  Radio,
-  Video,
-  Mic,
-  Laptop,
-  Tv,
-  Building2,
-  Home: Building2,
-  Sofa,
-  Shirt,
-  HeartPulse,
-  Baby,
-  BookOpen,
-  Dog,
-  Briefcase,
-  GraduationCap,
-  Plane,
-  Utensils,
-  Ticket,
-  MoreHorizontal,
-  Layers
-};
-
-const getCategoryIconComponent = (iconName?: string): LucideIcon => {
-  if (!iconName) return Layers;
-  return ICON_MAP[iconName] || Layers;
-};
 
 interface CategoryHierarchyViewProps {
   onCategorySelect?: (categoryId: string, subCategoryId?: string, secondLevelId?: string) => void;
@@ -152,69 +35,11 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
     sl => sl.id === filters.secondLevelCategory || (sl.nameEn && (filters.secondLevelCategory || '') && sl.nameEn.toLowerCase() === (filters.secondLevelCategory || '').toLowerCase())
   );
 
-  // Calculate live product counts for subcategories
-  const getSubcategoryCount = (catId: string, subId: string) => {
-    const cLower = String(catId || '').toLowerCase();
-    const sLower = String(subId || '').toLowerCase();
-    return (products || []).filter(p => {
-      if (!p) return false;
-      if (!isProductPublicActive(p)) return false;
-      const pCat = String(p.category || '').toLowerCase();
-      const catMatch = pCat === cLower;
-      if (!catMatch) return false;
-      
-      const pSub = String(p.subCategory || '').toLowerCase();
-      // Flexible subcategory matching
-      if (sLower === 'motorcycles_scooters') {
-        return pSub === 'motorcycles_scooters' || pSub === 'motorcycles' || pSub === 'scooters';
-      }
-      if (sLower === 'buses_microbuses') {
-        return pSub === 'buses_microbuses' || pSub === 'buses' || pSub === 'microbuses';
-      }
-      if (sLower === 'vehicle_parts_accessories') {
-        return pSub === 'vehicle_parts_accessories' || pSub === 'spare_parts' || pSub === 'tyres_wheels' || pSub === 'vehicle_acc';
-      }
-      if (sLower === 'trucks_heavy_vehicles') {
-        return pSub === 'trucks_heavy_vehicles' || pSub === 'trucks';
-      }
-      if (sLower === 'three_wheelers') {
-        return pSub === 'three_wheelers' || pSub === 'auto_rickshaws';
-      }
-      if (sLower === 'water_transport') {
-        return pSub === 'water_transport' || pSub === 'boats';
-      }
-      
-      return pSub === sLower;
-    }).length;
-  };
+  const getSubcategoryCount = (catId: string, subId: string) =>
+    getLiveSubcategoryCount(products, catId, subId);
 
-  // Calculate live product count for second-level category
-  const getSecondLevelCount = (catId: string, subId: string, slId: string, slNameEn: string) => {
-    const cLower = String(catId || '').toLowerCase();
-    const sIdLower = String(slId || '').toLowerCase();
-    const sNameLower = String(slNameEn || '').toLowerCase();
-
-    return (products || []).filter(p => {
-      if (!p) return false;
-      if (!isProductPublicActive(p)) return false;
-      const pCat = String(p.category || '').toLowerCase();
-      const catMatch = pCat === cLower;
-      if (!catMatch) return false;
-
-      const pSL = String(p.secondLevelCategory || '').toLowerCase();
-      if (pSL && pSL === sIdLower) return true;
-      
-      const pBrand = String(p.brand || '').toLowerCase();
-      if (pBrand && (pBrand === sIdLower || (sNameLower && pBrand === sNameLower))) return true;
-      
-      const pTitle = String(p.title || '').toLowerCase();
-      if (sNameLower && pTitle && pTitle.includes(sNameLower)) return true;
-
-      const pDesc = String(p.description || '').toLowerCase();
-      if (sNameLower && pDesc && pDesc.includes(sNameLower)) return true;
-      return false;
-    }).length;
-  };
+  const getSecondLevelCount = (catId: string, subId: string, slId: string, slNameEn: string) =>
+    getLiveSecondLevelCount(products, catId, subId, slId, slNameEn);
 
   const handleNavClick = (catId: string = '', subId: string = '', slId: string = '') => {
     if (onCategorySelect) {
@@ -229,15 +54,22 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
     }
   };
 
-  // 1. Breadcrumb Component
+  const formatCountLabel = (count?: number) => {
+    const num = (count || 0).toLocaleString('en-US');
+    return language === 'bn' ? `${toBengaliNumber(num)}টি` : `${num} ads`;
+  };
+
+  // 1. Clean Bikroy-style Breadcrumb Bar
   const renderBreadcrumb = () => {
     return (
-      <nav aria-label="Category Breadcrumb" className="flex items-center flex-wrap gap-1.5 text-xs text-slate-600 dark:text-slate-300 py-1.5 px-3 bg-slate-50/90 dark:bg-slate-800/80 rounded-2xl border border-pink-200 dark:border-slate-700 shadow-2xs">
+      <nav
+        aria-label="Category Breadcrumb"
+        className="flex items-center flex-wrap gap-1.5 text-xs text-slate-600 dark:text-slate-300 py-2 px-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800"
+      >
         <button
-          onClick={() => {
-            setActiveTab('home');
-          }}
-          className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-200 hover:text-pink-600 dark:hover:text-pink-400 transition cursor-pointer"
+          type="button"
+          onClick={() => setActiveTab('home')}
+          className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-400 transition cursor-pointer"
         >
           <Home className="w-3.5 h-3.5" />
           <span>{language === 'bn' ? 'হোম' : 'Home'}</span>
@@ -246,13 +78,12 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
         <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
 
         <button
-          onClick={() => {
-            handleNavClick('', '', '');
-          }}
-          className={`font-bold transition cursor-pointer ${
+          type="button"
+          onClick={() => handleNavClick('', '', '')}
+          className={`font-semibold transition cursor-pointer ${
             !activeCategory
-              ? 'text-pink-600 dark:text-pink-400 font-extrabold'
-              : 'hover:text-pink-600 dark:hover:text-pink-400'
+              ? 'text-emerald-700 dark:text-emerald-400 font-bold'
+              : 'hover:text-emerald-700 dark:hover:text-emerald-400'
           }`}
         >
           {language === 'bn' ? 'সব ক্যাটাগরি' : 'All Categories'}
@@ -262,11 +93,12 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
           <>
             <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <button
+              type="button"
               onClick={() => handleNavClick(activeCategory.id, '', '')}
-              className={`font-bold transition cursor-pointer ${
+              className={`font-semibold transition cursor-pointer ${
                 !activeSubcategory
-                  ? 'text-pink-600 dark:text-pink-400 font-extrabold'
-                  : 'hover:text-pink-600 dark:hover:text-pink-400'
+                  ? 'text-emerald-700 dark:text-emerald-400 font-bold'
+                  : 'hover:text-emerald-700 dark:hover:text-emerald-400'
               }`}
             >
               {language === 'bn' ? activeCategory.nameBn : activeCategory.nameEn}
@@ -278,11 +110,12 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
           <>
             <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <button
+              type="button"
               onClick={() => handleNavClick(activeCategory.id, activeSubcategory.id, '')}
-              className={`font-bold transition cursor-pointer ${
+              className={`font-semibold transition cursor-pointer ${
                 !activeSecondLevel
-                  ? 'text-pink-600 dark:text-pink-400 font-extrabold'
-                  : 'hover:text-pink-600 dark:hover:text-pink-400'
+                  ? 'text-emerald-700 dark:text-emerald-400 font-bold'
+                  : 'hover:text-emerald-700 dark:hover:text-emerald-400'
               }`}
             >
               {language === 'bn' ? activeSubcategory.nameBn : activeSubcategory.nameEn}
@@ -293,7 +126,7 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
         {activeSecondLevel && activeSubcategory && activeCategory && (
           <>
             <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span className="font-black text-pink-600 dark:text-pink-400 truncate max-w-[150px]">
+            <span className="font-bold text-emerald-700 dark:text-emerald-400 truncate max-w-[160px]">
               {language === 'bn' ? activeSecondLevel.nameBn : activeSecondLevel.nameEn}
             </span>
           </>
@@ -302,91 +135,49 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
     );
   };
 
-  // If no category is selected and showAllIfNoCategory is false, just render breadcrumb or return null
   if (!activeCategory && !showAllIfNoCategory) {
     return renderBreadcrumb();
   }
 
-  // 2. Render Subcategories Grid (when Main Category is active, but Subcategory is not selected yet)
-  const renderSubcategories = () => {
-    if (!activeCategory) return null;
-    const subs = activeCategory.subcategories || [];
-
-    const MainIcon = getCategoryIconComponent(activeCategory.icon);
-
+  // 2. Render Clean All-17 Categories Grid when showAllIfNoCategory is true & no category selected
+  const renderAllCategories = () => {
     return (
-      <div className="space-y-3 bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl border-2 border-pink-500/80 shadow-sm">
-        {/* Category Header banner */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-pink-100 dark:border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 text-white flex items-center justify-center shadow-xs">
-              <MainIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">
-                {language === 'bn' ? activeCategory.nameBn : activeCategory.nameEn}
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {language === 'bn'
-                  ? `সাব-ক্যাটাগরি বেছে নিন (${subs.length}টি বিভাগ রয়েছে)`
-                  : `Select a Subcategory (${subs.length} available)`}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold px-3 py-1 bg-pink-50 dark:bg-pink-950/80 text-pink-700 dark:text-pink-300 rounded-full border border-pink-200 dark:border-pink-800">
-              {activeCategory.count ? `${activeCategory.count.toLocaleString()}+` : ''} {language === 'bn' ? 'বিজ্ঞাপন' : 'Ads'}
-            </span>
-          </div>
-        </div>
-
-        {/* 9 Subcategories (or category subs) Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5">
-          {subs.map(sub => {
-            const SubIcon = getCategoryIconComponent(sub.icon);
-            const count = getSubcategoryCount(activeCategory.id, sub.id);
-            const imgUrl = getSubcategoryImageUrl(activeCategory.id, sub.id, sub.image);
-
+      <div className="space-y-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+        <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+          {language === 'bn' ? 'সকল ক্যাটাগরি' : 'All Categories'}
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          {categories.map(cat => {
+            const catImg = getCategoryImageUrl(cat.id, cat.image);
+            const liveCatCount = getLiveCategoryCount(products, cat.id);
             return (
               <button
-                key={sub.id}
-                onClick={() => handleNavClick(activeCategory.id, sub.id, '')}
-                className="flex flex-col items-center justify-between p-2 rounded-2xl border-2 border-pink-400/70 dark:border-pink-500/60 bg-white dark:bg-slate-800/90 hover:bg-pink-50/70 dark:hover:bg-pink-950/30 hover:border-pink-600 transition duration-200 cursor-pointer text-center group shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95 overflow-hidden"
+                key={cat.id}
+                type="button"
+                onClick={() => handleNavClick(cat.id, '', '')}
+                className="flex items-center justify-between gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/70 transition text-left cursor-pointer group"
               >
-                {/* Visual Image / Icon Container */}
-                <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-700/40 relative flex items-center justify-center p-1.5">
-                  <img
-                    src={getOptimizedImageUrl(imgUrl, 350)}
-                    alt={sub.nameEn}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-contain group-hover:scale-108 transition-transform duration-300 drop-shadow-xs"
-                    onError={e => {
-                      const target = e.currentTarget;
-                      if (!target.dataset.retried) {
-                        target.dataset.retried = 'true';
-                        target.src = getOptimizedImageUrl(activeCategory.image || '', 350);
-                      }
-                    }}
-                  />
-                  <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs flex items-center justify-center text-pink-600 shadow-2xs">
-                    <SubIcon className="w-3.5 h-3.5" />
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                    <img
+                      src={getOptimizedImageUrl(catImg, 160)}
+                      alt={cat.nameEn}
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 truncate">
+                      {language === 'bn' ? cat.nameBn : cat.nameEn}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                      {formatCountLabel(liveCatCount)}
+                    </div>
                   </div>
                 </div>
-
-                {/* Subcategory Label & Count */}
-                <div className="w-full mt-2">
-                  <h3 className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors line-clamp-1">
-                    {language === 'bn' ? sub.nameBn : sub.nameEn}
-                  </h3>
-                  <div className="flex items-center justify-center gap-1 mt-0.5">
-                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                      {count > 0 ? `${count} ${language === 'bn' ? 'টি আইটেম' : 'items'}` : (language === 'bn' ? 'ব্রাউজ করুন' : 'Browse')}
-                    </span>
-                    <ChevronRight className="w-3 h-3 text-pink-500 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 shrink-0" />
               </button>
             );
           })}
@@ -395,55 +186,140 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
     );
   };
 
-  // 3. Render Second-Level Categories Grid (when Subcategory is selected)
-  const renderSecondLevelCategories = () => {
-    if (!activeCategory || !activeSubcategory) return null;
-    const secondLevels = activeSubcategory.secondLevelCategories || [];
-    if (secondLevels.length === 0) return null;
-
-    const SubIcon = getCategoryIconComponent(activeSubcategory.icon);
+  // 3. Render Subcategories (Horizontal row cards with Image right next to Subcategory Name)
+  const renderSubcategories = () => {
+    if (!activeCategory) return null;
+    const subs = activeCategory.subcategories || [];
+    const mainCatImg = getCategoryImageUrl(activeCategory.id, activeCategory.image);
 
     return (
-      <div className="space-y-3 bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl border-2 border-pink-500/80 shadow-sm">
-        {/* Header with Subcategory title & Reset */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-pink-100 dark:border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 text-white flex items-center justify-center shadow-xs">
-              <SubIcon className="w-5 h-5" />
+      <div className="space-y-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+              <img
+                src={getOptimizedImageUrl(mainCatImg, 140)}
+                alt={activeCategory.nameEn}
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-contain"
+              />
             </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">
-                {language === 'bn' ? activeSubcategory.nameBn : activeSubcategory.nameEn}
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+                {language === 'bn' ? activeCategory.nameBn : activeCategory.nameEn}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {language === 'bn'
-                  ? `নির্দিষ্ট ব্র্যান্ড বা টাইপ নির্বাচন করুন (${secondLevels.length}টি অপশন)`
-                  : `Select a Brand or Type (${secondLevels.length} options)`}
+                  ? `সাব-ক্যাটাগরি নির্বাচন করুন (${toBengaliNumber(subs.length)}টি)`
+                  : `Select a subcategory (${subs.length})`}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleNavClick(activeCategory.id, '', '')}
-              className="text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-pink-600 underline cursor-pointer"
-            >
-              ← {language === 'bn' ? 'সব সাব-ক্যাটাগরি' : 'All Subcategories'}
-            </button>
-          </div>
+          <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tabular-nums shrink-0">
+            {formatCountLabel(getLiveCategoryCount(products, activeCategory.id))}
+          </span>
         </div>
 
-        {/* Second-Level Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-3">
+        {/* Subcategory Horizontal Cards: Image on Left right next to Subcategory Name */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          {subs.map(sub => {
+            const count = getSubcategoryCount(activeCategory.id, sub.id);
+            const imgUrl = getSubcategoryImageUrl(activeCategory.id, sub.id, sub.image);
+
+            return (
+              <button
+                key={sub.id}
+                type="button"
+                onClick={() => handleNavClick(activeCategory.id, sub.id, '')}
+                className="flex items-center justify-between gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/70 hover:border-emerald-500 transition cursor-pointer text-left group"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-11 h-11 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 shrink-0">
+                    <img
+                      src={getOptimizedImageUrl(imgUrl, 160)}
+                      alt={sub.nameEn}
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      onError={e => {
+                        const target = e.currentTarget;
+                        if (!target.dataset.retried) {
+                          target.dataset.retried = 'true';
+                          target.src = getOptimizedImageUrl(mainCatImg, 160);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white leading-snug group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors truncate">
+                      {language === 'bn' ? sub.nameBn : sub.nameEn}
+                    </h3>
+                    <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums mt-0.5">
+                      {language === 'bn' ? `${toBengaliNumber(count)}টি বিজ্ঞাপন` : `${count} ads`}
+                    </div>
+                  </div>
+                </div>
+
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 shrink-0" />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // 4. Render Second-Level Categories (Image next to name in clean horizontal rows)
+  const renderSecondLevelCategories = () => {
+    if (!activeCategory || !activeSubcategory) return null;
+    const secondLevels = activeSubcategory.secondLevelCategories || [];
+    if (secondLevels.length === 0) return null;
+    const subImg = getSubcategoryImageUrl(activeCategory.id, activeSubcategory.id, activeSubcategory.image);
+
+    return (
+      <div className="space-y-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-3 min-w-0">
+            <img
+              src={getOptimizedImageUrl(subImg, 140)}
+              alt={activeSubcategory.nameEn}
+              referrerPolicy="no-referrer"
+              className="w-10 h-10 rounded-lg object-cover bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0"
+            />
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+                {language === 'bn' ? activeSubcategory.nameBn : activeSubcategory.nameEn}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {language === 'bn'
+                  ? `ব্র্যান্ড বা ধরন বেছে নিন (${toBengaliNumber(secondLevels.length)}টি)`
+                  : `Select brand or type (${secondLevels.length})`}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleNavClick(activeCategory.id, '', '')}
+            className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer self-start sm:self-auto"
+          >
+            ← {language === 'bn' ? 'সব সাব-ক্যাটাগরি' : 'All Subcategories'}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           {secondLevels.map(sl => {
             const isSelected = activeSecondLevel?.id === sl.id;
-            const SLIcon = getCategoryIconComponent(sl.icon || activeSubcategory.icon);
             const count = getSecondLevelCount(activeCategory.id, activeSubcategory.id, sl.id, sl.nameEn);
             const slImg = getSecondLevelImageUrl(activeCategory.id, activeSubcategory.id, sl.id, sl.nameEn, sl.image);
 
             return (
               <button
                 key={sl.id}
+                type="button"
                 onClick={() => {
                   if (isSelected) {
                     handleNavClick(activeCategory.id, activeSubcategory.id, '');
@@ -451,56 +327,45 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
                     handleNavClick(activeCategory.id, activeSubcategory.id, sl.id);
                   }
                 }}
-                className={`flex flex-col items-center justify-between p-2 rounded-2xl border-2 transition duration-150 cursor-pointer text-center group shadow-2xs hover:shadow-sm active:scale-95 overflow-hidden ${
+                className={`flex items-center justify-between gap-2.5 p-2 rounded-xl border transition cursor-pointer text-left group ${
                   isSelected
-                    ? 'bg-pink-600 text-white border-pink-700 shadow-md scale-[1.02]'
-                    : 'bg-slate-50 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 border-pink-300/80 dark:border-pink-600/50 hover:bg-pink-50/70 hover:border-pink-600'
+                    ? 'bg-emerald-600 text-white border-emerald-700'
+                    : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800 hover:border-emerald-500 hover:bg-slate-50 dark:hover:bg-slate-800/70'
                 }`}
               >
-                {/* Visual Product Image Preview filling 80-90% frame */}
-                <div className={`w-full h-18 sm:h-20 rounded-xl overflow-hidden relative flex items-center justify-center p-1 mb-1.5 ${
-                  isSelected ? 'bg-white/10' : 'bg-white dark:bg-slate-700/50'
-                }`}>
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <img
-                    src={getOptimizedImageUrl(slImg, 250)}
+                    src={getOptimizedImageUrl(slImg, 120)}
                     alt={sl.nameEn}
                     loading="lazy"
                     decoding="async"
-                    className="w-full h-full object-contain group-hover:scale-108 transition-transform duration-300 drop-shadow-2xs"
+                    referrerPolicy="no-referrer"
+                    className="w-9 h-9 rounded-md object-cover bg-slate-100 dark:bg-slate-800 shrink-0"
                     onError={e => {
                       const target = e.currentTarget;
                       if (!target.dataset.retried) {
                         target.dataset.retried = 'true';
-                        target.style.display = 'none';
+                        target.src = getOptimizedImageUrl(subImg, 120);
                       }
                     }}
                   />
-                  <div className={`absolute top-1 right-1 w-5 h-5 rounded-md flex items-center justify-center ${
-                    isSelected ? 'bg-white/30 text-white' : 'bg-white/90 dark:bg-slate-800/90 text-pink-600 shadow-2xs'
-                  }`}>
-                    <SLIcon className="w-3 h-3" />
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={`font-semibold text-xs leading-tight truncate ${
+                        isSelected ? 'text-white' : 'text-slate-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-400'
+                      }`}
+                    >
+                      {language === 'bn' ? sl.nameBn : sl.nameEn}
+                    </div>
+                    <div
+                      className={`text-[10px] tabular-nums mt-0.5 ${
+                        isSelected ? 'text-emerald-100' : 'text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      {language === 'bn' ? `${toBengaliNumber(count)}টি` : `${count} ads`}
+                    </div>
                   </div>
                 </div>
-
-                <span
-                  className={`font-bold text-xs leading-tight line-clamp-1 w-full px-1 ${
-                    isSelected ? 'text-white font-black' : 'text-slate-900 dark:text-white group-hover:text-pink-600'
-                  }`}
-                >
-                  {language === 'bn' ? sl.nameBn : sl.nameEn}
-                </span>
-
-                {count > 0 && (
-                  <span
-                    className={`text-[10px] mt-1 px-2 py-0.5 rounded-full font-bold ${
-                      isSelected
-                        ? 'bg-white/20 text-white'
-                        : 'bg-pink-100 dark:bg-pink-950/80 text-pink-700 dark:text-pink-300'
-                    }`}
-                  >
-                    {count} {language === 'bn' ? 'টি' : 'items'}
-                  </span>
-                )}
               </button>
             );
           })}
@@ -511,13 +376,9 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
 
   return (
     <div className={`space-y-3 ${className}`}>
-      {/* 1. Breadcrumb bar */}
       {renderBreadcrumb()}
-
-      {/* 2. Subcategory Grid (when Main Category is chosen but Subcategory is not) */}
+      {!activeCategory && showAllIfNoCategory && renderAllCategories()}
       {activeCategory && !activeSubcategory && renderSubcategories()}
-
-      {/* 3. Second-Level Category Grid (when Subcategory is chosen) */}
       {activeCategory && activeSubcategory && renderSecondLevelCategories()}
     </div>
   );

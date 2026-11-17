@@ -40,22 +40,38 @@ function escapeHtml(val: any): string {
 }
 
 const CATEGORY_NAMES_BN: Record<string, string> = {
+  vehicles: 'যানবাহন ও গাড়ি',
+  property: 'প্রপার্টি ও বাসস্থান',
   mobiles: 'মোবাইল ও ট্যাবলেট',
-  computers: 'কম্পিউটার ও ল্যাপটপ',
-  electronics: 'ইলেকট্রনিক্স ও গ্যাজেট',
-  vehicles: 'মোটরসাইকেল ও গাড়ি',
-  property: 'ফ্ল্যাট, বাড়ি ও জমি',
-  furniture: 'আসবাবপত্র ও ডেকোরেশন',
+  electronics: 'ইলেকট্রনিক্স',
+  home_furniture: 'ঘর, আসবাব ও অ্যাপ্লায়েন্স',
   fashion: 'ফ্যাশন ও লাইফস্টাইল',
+  health_beauty: 'সৌন্দর্য ও ব্যক্তিগত যত্ন',
+  services: 'সেবা ও সার্ভিসেস',
+  repair_construction: 'মেরামত ও নির্মাণ',
+  business_equipment: 'ব্যবসায়িক সরঞ্জাম ও যন্ত্রপাতি',
+  books_sports: 'অবসর, বই ও খেলাধুলা',
+  baby_kids: 'শিশু ও বাচ্চাদের সামগ্রী',
+  agriculture: 'খাবার, কৃষি ও খামার',
+  animal_pets: 'পশুপাখি ও পোষা প্রাণী',
+  jobs: 'চাকরি',
+  seeking_work: 'কাজের সন্ধান - সিভি',
+  business_industry: 'ব্যবসা ও শিল্প'
+};
+
+const LEGACY_SEO_CATEGORY_NAMES: Record<string, string> = {
+  computers: 'কম্পিউটার ও ল্যাপটপ',
+  furniture: 'আসবাবপত্র ও ডেকোরেশন',
   books: 'রকমারি বই ও স্টেশনারি',
   health: 'স্বাস্থ্য ও রূপচর্চা',
   pets: 'পোষা প্রাণী ও পাখি',
-  agriculture: 'কৃষি ও খামার',
   business: 'ব্যবসা ও শিল্পপণ্য',
-  services: 'দৈনন্দিন ও কর্পোরেট সেবা',
-  jobs: 'চাকরি ও ক্যারিয়ার',
   education: 'শিক্ষা ও প্রশিক্ষণ',
-  others: 'অন্যান্য দরকারি পণ্য'
+  education_courses: 'শিক্ষা ও কোর্স',
+  travel_tours: 'ভ্রমণ ও ট্যুর',
+  food_restaurants: 'খাবার ও রেস্টুরেন্ট',
+  events_tickets: 'ইভেন্ট ও টিকেট',
+  others: 'অন্যান্য পণ্য'
 };
 
 export function getPageMetadata(urlPath: string, products: any[]): PageMetadata {
@@ -290,7 +306,7 @@ export function getPageMetadata(urlPath: string, products: any[]): PageMetadata 
   const catMatch = cleanPath.match(/^\/category\/([^/]+)/);
   if (catMatch) {
     const catId = catMatch[1];
-    const catName = CATEGORY_NAMES_BN[catId] || catId;
+    const catName = CATEGORY_NAMES_BN[catId] || LEGACY_SEO_CATEGORY_NAMES[catId] || catId;
     const catProducts = products.filter(p => p && p.category === catId).slice(0, 12);
     const title = `${catName} ক্রয়-বিক্রয় | Best Deals on ${catName} | MarketBD.Net`;
     const description = `বাংলাদেশের ৬৪ জেলায় সেরা দামে ${catName} কিনুন ও বিক্রি করুন। যাচাইকৃত বিক্রেতা, আসল ছবি ও সরাসরি ফোন নম্বর সহ সাশ্রয়ী মূল্যে MarketBD.Net এ।`;
@@ -405,7 +421,7 @@ export function getPageMetadata(urlPath: string, products: any[]): PageMetadata 
       <section class="my-6">
         <h2 class="text-xl font-bold text-slate-800 mb-4 border-b pb-2">জনপ্রিয় ক্যাটাগরি সমূহ</h2>
         <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 text-center text-xs">
-          ${Object.entries(CATEGORY_NAMES_BN).slice(0, 12).map(([id, name]) => `
+          ${Object.entries(CATEGORY_NAMES_BN).map(([id, name]) => `
             <a href="/category/${id}" class="p-3 bg-slate-100 hover:bg-emerald-50 rounded-xl border font-bold text-slate-800 hover:text-emerald-700">${escapeHtml(name)}</a>
           `).join('')}
         </div>

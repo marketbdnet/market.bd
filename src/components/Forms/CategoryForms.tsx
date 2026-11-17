@@ -3,10 +3,12 @@ import { useMarket } from '../../context/MarketContext';
 import { WatermarkedImage } from '../Product/WatermarkedImage';
 import { BkashLogo, NagadLogo, RocketLogo } from '../Common/BrandLogos';
 import { CATEGORIES, BANGLADESH_DIVISIONS, CATEGORY_BRANDS_MODELS } from '../../data/bangladeshData';
+import { getCategoryImageUrl } from '../../utils/categoryImages';
 import { Product, AdType, Condition } from '../../types';
 import { storage as safeStorage, safeParseJSON } from '../../utils/storage';
 import { validateBangladeshiPhone, formatPhoneDisplay } from '../../utils/phoneUtils';
 import { checkMonthlyFreeAdQuota, validateTransactionId } from '../../utils/adLimitHelper';
+import { getLiveCategoryCount } from '../../utils/categoryCounts';
 import { LiveCameraModal } from './LiveCameraModal';
 import { DirectPaymentModal } from './DirectPaymentModal';
 import {
@@ -126,6 +128,28 @@ const CATEGORY_FEATURES_MAP: Record<string, { id: string; bn: string; en: string
     { id: 'foldable_travel', bn: 'কম্প্যাক্ট ফোল্ডিং ও ট্রাভেল ফ্রেন্ডলি', en: 'Compact Folding Travel Friendly' },
     { id: 'authentic_brand', bn: 'অরিজিনাল ব্র্যান্ড ইনভয়েস সহ', en: 'Original Brand Invoice Included' },
     { id: 'home_delivery', bn: 'ক্যাশ অন ডেলিভারি / হোম ডেলিভারি', en: 'Cash on Delivery Available' }
+  ],
+  repair_construction: [
+    { id: 'skilled_team', bn: 'দক্ষ কারিগর ও ইঞ্জিনিয়ার দ্বারা কাজ', en: 'Skilled Technicians & Engineers' },
+    { id: 'warranty', bn: 'কাজের ওয়ারেন্টি / সার্ভিস গ্যারান্টি', en: 'Workmanship Warranty Included' },
+    { id: 'genuine_materials', bn: '১০০% অরিজিনাল নির্মাণ সামগ্রী', en: '100% Authentic Construction Materials' },
+    { id: 'free_visit', bn: 'ফ্রি সাইট ভিজিট ও কোটেশন', en: 'Free Site Inspection & Quote' }
+  ],
+  seeking_work: [
+    { id: 'immediate_join', bn: 'তাৎক্ষণিক যোগদানে প্রস্তুত', en: 'Available to Join Immediately' },
+    { id: 'verified_cv', bn: 'এনআইডি ও একাডেমিক সার্টিফিকেট প্রস্তুত', en: 'NID & Academic Certificates Ready' },
+    { id: 'experienced', bn: 'পূর্ববর্তী কাজের অভিজ্ঞতা রয়েছে', en: 'Prior Work Experience Available' },
+    { id: 'relocate_ok', bn: 'দেশের যেকোনো জেলায় কাজ করতে আগ্রহী', en: 'Willing to Relocate' }
+  ],
+  business_industry: [
+    { id: 'wholesale_moq', bn: 'পাইকারি ও ফ্যাক্টরি মূল্যে সরবরাহ', en: 'Factory & Wholesale Pricing' },
+    { id: 'trade_license', bn: 'ভ্যাট, ট্রেড লাইসেন্স ও ইনভয়েস রয়েছে', en: 'Trade License & Official Invoice' },
+    { id: 'bulk_delivery', bn: 'সারা দেশে ট্রান্সপোর্ট/কুরিয়ার ডেলিভারি', en: 'Nationwide Bulk Delivery' }
+  ],
+  business_equipment: [
+    { id: 'warranty', bn: 'মেশিন ও পার্টস ওয়ারেন্টি রয়েছে', en: 'Machine & Parts Warranty' },
+    { id: 'installation_training', bn: 'সেটআপ ও অপারেটিং ট্রেনিং অন্তর্ভুক্ত', en: 'Installation & Training Included' },
+    { id: 'heavy_duty', bn: 'হেভি ডিউটি কমার্শিয়াল গ্রেড', en: 'Heavy Duty Commercial Grade' }
   ],
   default: [
     { id: 'authentic', bn: '১০০% অরিজিনাল ও মানসম্মত সার্ভিস/প্রোডাক্ট', en: '100% Authentic Product/Service' },
@@ -506,6 +530,33 @@ export const CategoryForms: React.FC = () => {
           titlePlaceholderBn: 'যেমন: ওয়ালটন ২৫২ লিটার নন-ফ্রস্ট ইনভার্টার রেফ্রিজারেটর',
           titlePlaceholderEn: 'e.g. Walton 252 Liter Direct Cool Non-Frost Refrigerator'
         };
+      case 'seeking_work':
+        return {
+          brandLabelBn: 'পেশার ক্ষেত্র / দক্ষতা (Job Sector / Skill)',
+          brandLabelEn: 'Preferred Job Sector / Skill',
+          brandPlaceholderBn: 'যেমন: অ্যাকাউন্টস, সেলস, আইটি, ড্রাইভিং...',
+          brandPlaceholderEn: 'e.g. Accounts, Sales, IT, Driving...',
+          modelLabelBn: 'অভিজ্ঞতা ও শিক্ষাগত যোগ্যতা (Experience & Education)',
+          modelLabelEn: 'Experience & Qualification',
+          modelPlaceholderBn: 'যেমন: ৩ বছর অভিজ্ঞতা, বিবিএ/বিএসসি...',
+          modelPlaceholderEn: 'e.g. 3 Years Experience, BBA/BSc...',
+          titlePlaceholderBn: 'যেমন: অ্যাকাউন্টস ও ফিন্যান্স অফিসার পদে চাকরি প্রত্যাশী (৩ বছর অভিজ্ঞতা)',
+          titlePlaceholderEn: 'e.g. Seeking Position as Accounts Officer (3 Years Experience)'
+        };
+      case 'business_industry':
+      case 'business_equipment':
+        return {
+          brandLabelBn: 'ব্র্যান্ড / প্রতিষ্ঠান (Brand / Manufacturer)',
+          brandLabelEn: 'Brand / Manufacturer',
+          brandPlaceholderBn: 'যেমন: Juki, Epson, Brother, Local Factory...',
+          brandPlaceholderEn: 'e.g. Juki, Epson, Brother, Industrial...',
+          modelLabelBn: 'মডেল ও ক্যাপাসিটি (Model / Capacity)',
+          modelLabelEn: 'Model / Capacity',
+          modelPlaceholderBn: 'যেমন: ইন্ডাস্ট্রিয়াল সেলাই মেশিন, পিওএস সিস্টেম...',
+          modelPlaceholderEn: 'e.g. Industrial Sewing Machine, POS System...',
+          titlePlaceholderBn: 'যেমন: হেভি ডিউটি ইন্ডাস্ট্রিয়াল মেশিন ও বাণিজ্যিক সরঞ্জাম',
+          titlePlaceholderEn: 'e.g. Heavy Duty Commercial Machine & Business Equipment'
+        };
       default:
         return {
           brandLabelBn: 'ব্র্যান্ড / প্রস্তুতকারক (Brand)',
@@ -644,8 +695,19 @@ export const CategoryForms: React.FC = () => {
   const [imageError, setImageError] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
 
-  // bKash / Nagad / Rocket Paid Ad Payment state
-  const [payMethod, setPayMethod] = useState<'bkash' | 'nagad' | 'rocket'>('bkash');
+  // Active Paid Ad Payment Methods (Default: bKash, Nagad, Rocket active; Upay & Bank only if Admin activates)
+  type PaidPayMethod = 'bkash' | 'nagad' | 'rocket' | 'upay' | 'bank';
+  const enabledPayMethods: PaidPayMethod[] = [
+    ...(paymentAccounts?.bkashEnabled !== false ? (['bkash'] as const) : []),
+    ...(paymentAccounts?.nagadEnabled !== false ? (['nagad'] as const) : []),
+    ...(paymentAccounts?.rocketEnabled !== false ? (['rocket'] as const) : []),
+    ...(paymentAccounts?.upayEnabled === true ? (['upay'] as const) : []),
+    ...(paymentAccounts?.bankAccount?.isEnabled === true ? (['bank'] as const) : []),
+  ];
+  const availablePayMethods: PaidPayMethod[] =
+    enabledPayMethods.length > 0 ? enabledPayMethods : ['bkash', 'nagad', 'rocket'];
+
+  const [payMethod, setPayMethod] = useState<PaidPayMethod>(availablePayMethods[0]);
   const [featuredPlan, setFeaturedPlan] = useState<'7' | '30'>('7');
   const [senderNumber, setSenderNumber] = useState('');
   const [trxId, setTrxId] = useState('');
@@ -654,6 +716,18 @@ export const CategoryForms: React.FC = () => {
   const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
   const [isDirectPayModalOpen, setIsDirectPayModalOpen] = useState(false);
   const [isAutoPaid, setIsAutoPaid] = useState(false);
+
+  useEffect(() => {
+    if (!availablePayMethods.includes(payMethod)) {
+      setPayMethod(availablePayMethods[0]);
+    }
+  }, [
+    paymentAccounts?.bkashEnabled,
+    paymentAccounts?.nagadEnabled,
+    paymentAccounts?.rocketEnabled,
+    paymentAccounts?.upayEnabled,
+    paymentAccounts?.bankAccount?.isEnabled,
+  ]);
 
   // Monthly Free Ad Quota check (5 ads/month across 5 categories, max 1 per category)
   const freeQuota = checkMonthlyFreeAdQuota(
@@ -664,9 +738,11 @@ export const CategoryForms: React.FC = () => {
     language
   );
 
-  const getPaymentNumber = (method: 'bkash' | 'nagad' | 'rocket') => {
+  const getPaymentNumber = (method: PaidPayMethod) => {
     if (method === 'bkash') return paymentAccounts?.bkashNumber || '01723230230';
     if (method === 'nagad') return paymentAccounts?.nagadNumber || '01723230230';
+    if (method === 'upay') return paymentAccounts?.upayNumber || '01723230230';
+    if (method === 'bank') return paymentAccounts?.bankAccount?.accountNumber || '2050 3928 1000 9281';
     return paymentAccounts?.rocketNumber || '01533830784';
   };
 
@@ -1167,35 +1243,51 @@ export const CategoryForms: React.FC = () => {
         }
       })()}
 
-      {/* STEP 1: Select Category */}
+      {/* STEP 1: Select Category (Clean Bikroy-style Grid with Category Images) */}
       {step === 1 && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xs">
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-2xs">
           <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">
             {language === 'bn' ? '১. সঠিক ক্যাটাগরি বেছে নিন' : '1. Select Category'}
           </h2>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => {
-                  setCategory(cat.id);
-                  setStep(2);
-                }}
-                className={`p-4 rounded-xl border text-left transition flex flex-col justify-between hover:border-pink-400 hover:shadow-2xs ${
-                  category === cat.id ? 'border-pink-600 bg-pink-50/50 dark:bg-pink-950/40 text-pink-950 dark:text-pink-200 font-semibold' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200'
-                }`}
-              >
-                <div>
-                  <span className="text-xs bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold px-2 py-0.5 rounded border border-pink-100 dark:border-pink-900/40">
-                    {cat.count.toLocaleString()} ads
-                  </span>
-                  <h3 className="font-bold text-sm mt-2 text-slate-900 dark:text-slate-100">
-                    {language === 'bn' ? cat.nameBn : cat.nameEn}
-                  </h3>
-                </div>
-              </button>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+            {CATEGORIES.map(cat => {
+              const catImg = getCategoryImageUrl(cat.id, cat.image);
+              const isSelected = category === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => {
+                    setCategory(cat.id);
+                    setStep(2);
+                  }}
+                  className={`p-3 rounded-xl border text-left transition flex items-center gap-3 hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/30 cursor-pointer ${
+                    isSelected
+                      ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 font-semibold'
+                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+                  }`}
+                >
+                  <div className="w-11 h-11 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                    <img
+                      src={catImg}
+                      alt={language === 'bn' ? cat.nameBn : cat.nameEn}
+                      className="w-full h-full object-contain"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate">
+                      {language === 'bn' ? cat.nameBn : cat.nameEn}
+                    </h3>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium tabular-nums">
+                      {getLiveCategoryCount(products, cat.id).toLocaleString()} {language === 'bn' ? 'টি বিজ্ঞাপন' : 'ads'}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -2754,43 +2846,77 @@ export const CategoryForms: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Clear prominent Payment Method Selector Logos */}
+                {/* Clear prominent Payment Method Selector Logos (only Admin-enabled methods shown) */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setPayMethod('bkash')}
-                    className={`px-3 py-1.5 rounded-xl transition border flex items-center gap-2 cursor-pointer ${
-                      payMethod === 'bkash'
-                        ? 'bg-pink-950/90 border-pink-400 ring-2 ring-pink-500 shadow-lg scale-105'
-                        : 'bg-slate-900 border-slate-700 hover:bg-slate-800 opacity-80 hover:opacity-100'
-                    }`}
-                  >
-                    <BkashLogo className="h-7 w-auto shrink-0" />
-                  </button>
+                  {availablePayMethods.includes('bkash') && (
+                    <button
+                      type="button"
+                      onClick={() => setPayMethod('bkash')}
+                      className={`px-3 py-1.5 rounded-xl transition border flex items-center gap-2 cursor-pointer ${
+                        payMethod === 'bkash'
+                          ? 'bg-pink-950/90 border-pink-400 ring-2 ring-pink-500 shadow-lg scale-105'
+                          : 'bg-slate-900 border-slate-700 hover:bg-slate-800 opacity-80 hover:opacity-100'
+                      }`}
+                    >
+                      <BkashLogo className="h-7 w-auto shrink-0" />
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => setPayMethod('nagad')}
-                    className={`px-3 py-1.5 rounded-xl transition border flex items-center gap-2 cursor-pointer ${
-                      payMethod === 'nagad'
-                        ? 'bg-orange-950/90 border-orange-400 ring-2 ring-orange-500 shadow-lg scale-105'
-                        : 'bg-slate-900 border-slate-700 hover:bg-slate-800 opacity-80 hover:opacity-100'
-                    }`}
-                  >
-                    <NagadLogo className="h-7 w-auto shrink-0" />
-                  </button>
+                  {availablePayMethods.includes('nagad') && (
+                    <button
+                      type="button"
+                      onClick={() => setPayMethod('nagad')}
+                      className={`px-3 py-1.5 rounded-xl transition border flex items-center gap-2 cursor-pointer ${
+                        payMethod === 'nagad'
+                          ? 'bg-orange-950/90 border-orange-400 ring-2 ring-orange-500 shadow-lg scale-105'
+                          : 'bg-slate-900 border-slate-700 hover:bg-slate-800 opacity-80 hover:opacity-100'
+                      }`}
+                    >
+                      <NagadLogo className="h-7 w-auto shrink-0" />
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => setPayMethod('rocket')}
-                    className={`px-3 py-1.5 rounded-xl transition border flex items-center gap-2 cursor-pointer ${
-                      payMethod === 'rocket'
-                        ? 'bg-purple-950/90 border-purple-400 ring-2 ring-purple-500 shadow-lg scale-105'
-                        : 'bg-slate-900 border-slate-700 hover:bg-slate-800 opacity-80 hover:opacity-100'
-                    }`}
-                  >
-                    <RocketLogo className="h-7 w-auto shrink-0" />
-                  </button>
+                  {availablePayMethods.includes('rocket') && (
+                    <button
+                      type="button"
+                      onClick={() => setPayMethod('rocket')}
+                      className={`px-3 py-1.5 rounded-xl transition border flex items-center gap-2 cursor-pointer ${
+                        payMethod === 'rocket'
+                          ? 'bg-purple-950/90 border-purple-400 ring-2 ring-purple-500 shadow-lg scale-105'
+                          : 'bg-slate-900 border-slate-700 hover:bg-slate-800 opacity-80 hover:opacity-100'
+                      }`}
+                    >
+                      <RocketLogo className="h-7 w-auto shrink-0" />
+                    </button>
+                  )}
+
+                  {availablePayMethods.includes('upay') && (
+                    <button
+                      type="button"
+                      onClick={() => setPayMethod('upay')}
+                      className={`px-3 py-2 rounded-xl transition border flex items-center gap-1.5 cursor-pointer text-xs font-black ${
+                        payMethod === 'upay'
+                          ? 'bg-indigo-950/90 border-indigo-400 ring-2 ring-indigo-500 text-white shadow-lg scale-105'
+                          : 'bg-slate-900 border-slate-700 text-indigo-300 hover:bg-slate-800 opacity-80 hover:opacity-100'
+                      }`}
+                    >
+                      <span>upay (উপায়)</span>
+                    </button>
+                  )}
+
+                  {availablePayMethods.includes('bank') && (
+                    <button
+                      type="button"
+                      onClick={() => setPayMethod('bank')}
+                      className={`px-3 py-2 rounded-xl transition border flex items-center gap-1.5 cursor-pointer text-xs font-black ${
+                        payMethod === 'bank'
+                          ? 'bg-emerald-950/90 border-emerald-400 ring-2 ring-emerald-500 text-white shadow-lg scale-105'
+                          : 'bg-slate-900 border-slate-700 text-emerald-300 hover:bg-slate-800 opacity-80 hover:opacity-100'
+                      }`}
+                    >
+                      <span>{language === 'bn' ? 'ব্যাংক ট্রান্সফার' : 'Bank Deposit'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2803,6 +2929,10 @@ export const CategoryForms: React.FC = () => {
                         ? 'bKash Personal / Merchant Number'
                         : payMethod === 'nagad'
                         ? 'Nagad Personal / Merchant Number'
+                        : payMethod === 'upay'
+                        ? 'Upay (উপায়) Wallet Number'
+                        : payMethod === 'bank'
+                        ? `${paymentAccounts?.bankAccount?.bankName || 'Bank'} Account Number`
                         : 'Rocket Personal / Wallet Number'}
                     </span>
                     <div className="text-2xl font-black text-white tracking-widest font-mono flex items-center gap-2">
@@ -2811,6 +2941,11 @@ export const CategoryForms: React.FC = () => {
                         {currentPaymentNumber}
                       </span>
                     </div>
+                    {payMethod === 'bank' && paymentAccounts?.bankAccount && (
+                      <p className="text-[11px] text-slate-300 font-medium">
+                        {paymentAccounts.bankAccount.accountName} • {paymentAccounts.bankAccount.branchName} (Routing: {paymentAccounts.bankAccount.routingNumber})
+                      </p>
+                    )}
                   </div>
 
                   <button
@@ -2827,27 +2962,35 @@ export const CategoryForms: React.FC = () => {
                   <p className="font-bold text-pink-400 mb-1">
                     {language === 'bn' ? 'পেমেন্ট নির্দেশিকা (Payment Instructions):' : 'Payment Steps:'}
                   </p>
-                  <ol className="list-decimal list-inside space-y-1">
-                    <li>
-                      {language === 'bn'
-                        ? `${payMethod === 'bkash' ? 'bKash App' : payMethod === 'nagad' ? 'Nagad App' : 'Rocket App'} অথবা ${
-                            payMethod === 'bkash' ? '*247#' : payMethod === 'nagad' ? '*167#' : '*322#'
-                          } ডায়াল করুন।`
-                        : `Open ${payMethod === 'bkash' ? 'bKash App' : payMethod === 'nagad' ? 'Nagad App' : 'Rocket App'} or dial ${
-                            payMethod === 'bkash' ? '*247#' : payMethod === 'nagad' ? '*167#' : '*322#'
-                          }.`}
-                    </li>
-                    <li>
-                      {language === 'bn'
-                        ? `Send Money / Payment অপশনে গিয়ে ${currentPaymentNumber} নম্বরে ঠিক ৳${adType === 'urgent' ? '49' : featuredPlan === '7' ? '99' : '199'} পাঠান।`
-                        : `Select Send Money / Payment to ${currentPaymentNumber} with exact ৳${adType === 'urgent' ? '49' : featuredPlan === '7' ? '99' : '199'}.`}
-                    </li>
-                    <li>
-                      {language === 'bn'
-                        ? 'পেমেন্ট সম্পন্ন হওয়ার পর আপনার নম্বর ও TrxID নিচে টাইপ করুন।'
-                        : 'Enter your sender mobile number and Transaction ID (TrxID) below.'}
-                    </li>
-                  </ol>
+                  {payMethod === 'bank' ? (
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>{language === 'bn' ? `উপরোক্ত ব্যাংক একাউন্টে (${paymentAccounts?.bankAccount?.bankName}) NPSB / BEFTN / ডিপোজিট করুন।` : 'Transfer to the official bank account above via NPSB / BEFTN / deposit.'}</li>
+                      <li>{language === 'bn' ? `ঠিক ৳${adType === 'urgent' ? '49' : featuredPlan === '7' ? '99' : '199'} টাকা পাঠিয়ে রসিদ বা ট্রানজেকশন রেফারেন্স সংগ্রহ করুন।` : `Send exact ৳${adType === 'urgent' ? '49' : featuredPlan === '7' ? '99' : '199'} and keep your reference ID.`}</li>
+                      <li>{language === 'bn' ? 'নিচে আপনার নম্বর ও রেফারেন্স/TrxID দিন।' : 'Enter your phone number and Reference / TrxID below.'}</li>
+                    </ol>
+                  ) : (
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>
+                        {language === 'bn'
+                          ? `${payMethod === 'bkash' ? 'bKash App' : payMethod === 'nagad' ? 'Nagad App' : payMethod === 'upay' ? 'Upay App' : 'Rocket App'} অথবা ${
+                              payMethod === 'bkash' ? '*247#' : payMethod === 'nagad' ? '*167#' : payMethod === 'upay' ? '*268#' : '*322#'
+                            } ডায়াল করুন।`
+                          : `Open ${payMethod === 'bkash' ? 'bKash App' : payMethod === 'nagad' ? 'Nagad App' : payMethod === 'upay' ? 'Upay App' : 'Rocket App'} or dial ${
+                              payMethod === 'bkash' ? '*247#' : payMethod === 'nagad' ? '*167#' : payMethod === 'upay' ? '*268#' : '*322#'
+                            }.`}
+                      </li>
+                      <li>
+                        {language === 'bn'
+                          ? `Send Money / Payment অপশনে গিয়ে ${currentPaymentNumber} নম্বরে ঠিক ৳${adType === 'urgent' ? '49' : featuredPlan === '7' ? '99' : '199'} পাঠান।`
+                          : `Select Send Money / Payment to ${currentPaymentNumber} with exact ৳${adType === 'urgent' ? '49' : featuredPlan === '7' ? '99' : '199'}.`}
+                      </li>
+                      <li>
+                        {language === 'bn'
+                          ? 'পেমেন্ট সম্পন্ন হওয়ার পর আপনার নম্বর ও TrxID নিচে টাইপ করুন।'
+                          : 'Enter your sender mobile number and Transaction ID (TrxID) below.'}
+                      </li>
+                    </ol>
+                  )}
                 </div>
               </div>
 
@@ -3048,7 +3191,7 @@ export const CategoryForms: React.FC = () => {
       <DirectPaymentModal
         isOpen={isDirectPayModalOpen}
         onClose={() => setIsDirectPayModalOpen(false)}
-        method={payMethod}
+        method={payMethod === 'bkash' || payMethod === 'nagad' || payMethod === 'rocket' ? payMethod : 'bkash'}
         amount={adType === 'urgent' ? 49 : featuredPlan === '7' ? 99 : 199}
         planName={
           adType === 'urgent'

@@ -13,39 +13,66 @@ import { sendLocalBrowserPushNotification, requestWebPushPermission } from '../s
 import { db, auth, safeFirestoreSetDoc, safeFirestoreDeleteDoc, onAuthStateChanged, signOut } from '../lib/firebase';
 import { doc, onSnapshot, collection, getDoc } from 'firebase/firestore';
 import { INITIAL_ADMIN_LOGS, saveAdminLogToFirestore, subscribeToFirestoreAdminLogs, fetchAllAdminLogsFromFirestore, formatAdminLogTimestamp } from '../services/adminLogService';
+import {
+  REACTIONS_STORAGE_KEY,
+  loadStoredReactions,
+  computeNextReactions,
+  extractGlobalReactionCounts,
+  mergeServerReactionCounts,
+  type ProductReaction
+} from '../utils/reactionUtils';
+
+const CATEGORY_STORAGE_KEY = 'marketbd_categories_v3_bikroy17';
+
+const isBikroy17CategoryList = (list: unknown): list is Category[] => {
+  if (!Array.isArray(list) || list.length < 15) return false;
+  const ids = new Set(list.map((c: any) => c?.id).filter(Boolean));
+  const hasLegacyRoot =
+    ids.has('computers') ||
+    ids.has('education_courses') ||
+    ids.has('travel_tours') ||
+    ids.has('food_restaurants') ||
+    ids.has('events_tickets') ||
+    ids.has('others');
+  return !hasLegacyRoot && ids.has('seeking_work') && ids.has('repair_construction') && ids.has('business_industry');
+};
 
 export const DEFAULT_PAYMENT_PARTNERS: PaymentPartnerItem[] = [
   { id: 'partner-1', name: 'bKash', category: 'mfs', isEnabled: true },
   { id: 'partner-2', name: 'Nagad (নগদ)', category: 'mfs', isEnabled: true },
   { id: 'partner-3', name: 'Rocket (রকেট)', category: 'mfs', isEnabled: true },
-  { id: 'partner-4', name: 'Upay (উপায়)', category: 'mfs', isEnabled: true },
-  { id: 'partner-5', name: 'VISA Card', category: 'card', isEnabled: true },
-  { id: 'partner-6', name: 'Mastercard', category: 'card', isEnabled: true },
-  { id: 'partner-7', name: 'American Express (AMEX)', category: 'card', isEnabled: true },
-  { id: 'partner-8', name: 'DBBL NEXUS', category: 'card', isEnabled: true },
-  { id: 'partner-9', name: 'UnionPay', category: 'card', isEnabled: true },
-  { id: 'partner-10', name: 'Islami Bank Bangladesh PLC', category: 'bank', isEnabled: true },
-  { id: 'partner-11', name: 'BRAC Bank', category: 'bank', isEnabled: true },
-  { id: 'partner-12', name: 'City Bank (Citytouch)', category: 'bank', isEnabled: true },
-  { id: 'partner-13', name: 'Bank Asia', category: 'bank', isEnabled: true },
-  { id: 'partner-14', name: 'AB Bank', category: 'bank', isEnabled: true },
-  { id: 'partner-15', name: 'Mutual Trust Bank (MTB)', category: 'bank', isEnabled: true },
-  { id: 'partner-16', name: 'Southeast Bank', category: 'bank', isEnabled: true },
-  { id: 'partner-17', name: 'Ok Wallet', category: 'mfs', isEnabled: true },
-  { id: 'partner-18', name: 'SureCash', category: 'mfs', isEnabled: true },
-  { id: 'partner-19', name: 'Tap\'n Pay', category: 'mfs', isEnabled: true },
-  { id: 'partner-20', name: 'SSLCOMMERZ Gateway', category: 'other', isEnabled: true },
+  { id: 'partner-4', name: 'Upay (উপায়)', category: 'mfs', isEnabled: false },
+  { id: 'partner-5', name: 'VISA Card', category: 'card', isEnabled: false },
+  { id: 'partner-6', name: 'Mastercard', category: 'card', isEnabled: false },
+  { id: 'partner-7', name: 'American Express (AMEX)', category: 'card', isEnabled: false },
+  { id: 'partner-8', name: 'DBBL NEXUS', category: 'card', isEnabled: false },
+  { id: 'partner-9', name: 'UnionPay', category: 'card', isEnabled: false },
+  { id: 'partner-10', name: 'Islami Bank Bangladesh PLC', category: 'bank', isEnabled: false },
+  { id: 'partner-11', name: 'BRAC Bank', category: 'bank', isEnabled: false },
+  { id: 'partner-12', name: 'City Bank (Citytouch)', category: 'bank', isEnabled: false },
+  { id: 'partner-13', name: 'Bank Asia', category: 'bank', isEnabled: false },
+  { id: 'partner-14', name: 'AB Bank', category: 'bank', isEnabled: false },
+  { id: 'partner-15', name: 'Mutual Trust Bank (MTB)', category: 'bank', isEnabled: false },
+  { id: 'partner-16', name: 'Southeast Bank', category: 'bank', isEnabled: false },
+  { id: 'partner-17', name: 'Ok Wallet', category: 'mfs', isEnabled: false },
+  { id: 'partner-18', name: 'SureCash', category: 'mfs', isEnabled: false },
+  { id: 'partner-19', name: 'Tap\'n Pay', category: 'mfs', isEnabled: false },
+  { id: 'partner-20', name: 'SSLCOMMERZ Gateway', category: 'other', isEnabled: false },
 ];
 
 export const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountsConfig = {
   bkashNumber: '01723230230',
   bkashLogoUrl: '',
+  bkashEnabled: true,
   nagadNumber: '01723230230',
   nagadLogoUrl: '',
+  nagadEnabled: true,
   rocketNumber: '01533830784',
   rocketLogoUrl: '',
+  rocketEnabled: true,
   upayNumber: '01723230230',
   upayLogoUrl: '',
+  upayEnabled: false,
   bankAccount: {
     bankName: 'Islami Bank Bangladesh PLC',
     accountName: 'MarketBD Net Technologies Ltd',
@@ -53,7 +80,7 @@ export const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountsConfig = {
     branchName: 'Dhanmondi Branch, Dhaka',
     routingNumber: '125263829',
     bankLogoUrl: '',
-    isEnabled: true,
+    isEnabled: false,
   },
 };
 
@@ -164,12 +191,7 @@ export const INITIAL_REGISTERED_USERS: UserProfile[] = [
   }
 ];
 
-export interface ProductReaction {
-  likes: number;
-  dislikes: number;
-  loves: number;
-  userReaction?: 'like' | 'dislike' | 'love';
-}
+export type { ProductReaction } from '../utils/reactionUtils';
 
 export interface SellerReview {
   id: string;
@@ -673,8 +695,23 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             });
           }
           if (d.paymentAccounts) {
+            const migrated = storage.getItem('marketbd_payment_defaults_v2_only_bnr') === '1';
             setPaymentAccountsState(prev => {
-              const merged = { ...prev, ...d.paymentAccounts };
+              const incoming = d.paymentAccounts;
+              const merged = {
+                ...DEFAULT_PAYMENT_ACCOUNTS,
+                ...prev,
+                ...incoming,
+                bankAccount: {
+                  ...DEFAULT_PAYMENT_ACCOUNTS.bankAccount,
+                  ...(prev.bankAccount || {}),
+                  ...(incoming.bankAccount || {}),
+                },
+              };
+              if (!migrated && incoming.upayEnabled === undefined) {
+                merged.upayEnabled = false;
+                merged.bankAccount.isEnabled = false;
+              }
               storage.setItem('marketbd_payment_accounts_v1', JSON.stringify(merged));
               return merged;
             });
@@ -687,8 +724,12 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             });
           }
           if (d.paymentPartners && Array.isArray(d.paymentPartners) && d.paymentPartners.length > 0) {
-            setPaymentPartnersState(d.paymentPartners);
-            storage.setItem('marketbd_payment_partners_v1', JSON.stringify(d.paymentPartners));
+            const migrated = storage.getItem('marketbd_payment_defaults_v2_only_bnr') === '1';
+            const listToUse = !migrated && d.paymentPartners.every((p: any) => p.isEnabled !== false)
+              ? DEFAULT_PAYMENT_PARTNERS
+              : d.paymentPartners;
+            setPaymentPartnersState(listToUse);
+            storage.setItem('marketbd_payment_partners_v1', JSON.stringify(listToUse));
           }
           if (d.branding) {
             if (d.branding.customLogoUrl !== undefined) {
@@ -715,13 +756,13 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               return merged;
             });
           }
-          if (d.categories && Array.isArray(d.categories) && d.categories.length > 0) {
+          if (isBikroy17CategoryList(d.categories)) {
             setCategoriesState(d.categories);
-            storage.setItem('marketbd_categories_v2', JSON.stringify(d.categories));
+            storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(d.categories));
           }
-          if (d.categories_config && Array.isArray(d.categories_config) && d.categories_config.length > 0) {
+          if (isBikroy17CategoryList(d.categories_config)) {
             setCategoriesState(d.categories_config);
-            storage.setItem('marketbd_categories_v2', JSON.stringify(d.categories_config));
+            storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(d.categories_config));
           }
           if (d.category_image_overrides || d.categoryImageOverrides) {
             const overrides = d.category_image_overrides || d.categoryImageOverrides;
@@ -766,6 +807,13 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               });
               const merged = Array.from(map.values());
               storage.setItem('marketbd_registered_users', JSON.stringify(merged));
+              return merged;
+            });
+          }
+          if (d.product_reactions && typeof d.product_reactions === 'object') {
+            setReactions(prev => {
+              const merged = mergeServerReactionCounts(prev, d.product_reactions);
+              storage.setItem(REACTIONS_STORAGE_KEY, JSON.stringify(merged));
               return merged;
             });
           }
@@ -999,9 +1047,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const unsubCategories = onSnapshot(doc(db, 'settings', 'categories_config'), (snapshot) => {
         if (snapshot.exists()) {
           const val = snapshot.data()?.value;
-          if (Array.isArray(val) && val.length > 0) {
+          if (isBikroy17CategoryList(val)) {
             setCategoriesState(val);
-            storage.setItem('marketbd_categories_v2', JSON.stringify(val));
+            storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(val));
           }
         }
       }, (err) => console.log('Categories listener notice:', err));
@@ -1567,52 +1615,27 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const canGoBack = activeTab !== 'home' || selectedProduct !== null || tabHistory.length > 1;
   const canGoForward = forwardHistory.length > 0;
 
-  // Product Reactions State
-  const [reactions, setReactions] = useState<Record<string, ProductReaction>>({
-    'prod-1': { likes: 24, dislikes: 1, loves: 18 },
-    'prod-2': { likes: 12, dislikes: 0, loves: 9 },
-    'prod-3': { likes: 45, dislikes: 2, loves: 32 }
-  });
+  // Product Reactions State (Zero dummy reacts; only real user reactions are stored & synced)
+  const [reactions, setReactions] = useState<Record<string, ProductReaction>>(() =>
+    loadStoredReactions(storage.getItem(REACTIONS_STORAGE_KEY))
+  );
 
   const toggleReaction = (productId: string, type: 'like' | 'dislike' | 'love') => {
     setReactions(prev => {
-      const current = prev[productId] || { likes: 10, dislikes: 0, loves: 5 };
-      const userPrev = current.userReaction;
-
-      if (userPrev === type) {
-        return {
-          ...prev,
-          [productId]: {
-            ...current,
-            userReaction: undefined,
-            likes: type === 'like' ? Math.max(0, current.likes - 1) : current.likes,
-            dislikes: type === 'dislike' ? Math.max(0, current.dislikes - 1) : current.dislikes,
-            loves: type === 'love' ? Math.max(0, current.loves - 1) : current.loves
-          }
-        };
-      }
-
-      let newLikes = current.likes;
-      let newDislikes = current.dislikes;
-      let newLoves = current.loves;
-
-      if (userPrev === 'like') newLikes--;
-      if (userPrev === 'dislike') newDislikes--;
-      if (userPrev === 'love') newLoves--;
-
-      if (type === 'like') newLikes++;
-      if (type === 'dislike') newDislikes++;
-      if (type === 'love') newLoves++;
-
-      return {
-        ...prev,
-        [productId]: {
-          likes: newLikes,
-          dislikes: newDislikes,
-          loves: newLoves,
-          userReaction: type
-        }
-      };
+      const next = computeNextReactions(prev, productId, type);
+      try {
+        storage.setItem(REACTIONS_STORAGE_KEY, JSON.stringify(next));
+      } catch {}
+      try {
+        fetch('/api/sync/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product_reactions: extractGlobalReactionCounts(next),
+          }),
+        }).catch(() => {});
+      } catch {}
+      return next;
     });
   };
 
@@ -3493,13 +3516,18 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (e) {}
   };
 
-  // Payment Partners State
+  // Payment Partners State (One-time migration to bKash, Nagad, Rocket active by default)
   const [paymentPartners, setPaymentPartnersState] = useState<PaymentPartnerItem[]>(() => {
     try {
+      const migrated = storage.getItem('marketbd_payment_defaults_v2_only_bnr') === '1';
       const saved = storage.getItem('marketbd_payment_partners_v1');
-      if (saved) {
+      if (saved && migrated) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      if (!migrated) {
+        storage.setItem('marketbd_payment_partners_v1', JSON.stringify(DEFAULT_PAYMENT_PARTNERS));
+        storage.setItem('marketbd_payment_defaults_v2_only_bnr', '1');
       }
     } catch (e) {
       console.error('Error reading stored payment partners:', e);
@@ -3515,6 +3543,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setPaymentPartnersState(prev => {
       const updated = [newItem, ...prev];
       storage.setItem('marketbd_payment_partners_v1', JSON.stringify(updated));
+      storage.setItem('marketbd_payment_defaults_v2_only_bnr', '1');
       syncToCloud('payment_partners', updated);
       return updated;
     });
@@ -3524,6 +3553,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setPaymentPartnersState(prev => {
       const newList = prev.map(p => (p.id === id ? { ...p, ...updated } : p));
       storage.setItem('marketbd_payment_partners_v1', JSON.stringify(newList));
+      storage.setItem('marketbd_payment_defaults_v2_only_bnr', '1');
       syncToCloud('payment_partners', newList);
       return newList;
     });
@@ -3533,6 +3563,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setPaymentPartnersState(prev => {
       const newList = prev.filter(p => p.id !== id);
       storage.setItem('marketbd_payment_partners_v1', JSON.stringify(newList));
+      storage.setItem('marketbd_payment_defaults_v2_only_bnr', '1');
       syncToCloud('payment_partners', newList);
       return newList;
     });
@@ -3541,12 +3572,14 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const resetPaymentPartnersToDefault = () => {
     setPaymentPartnersState(DEFAULT_PAYMENT_PARTNERS);
     storage.setItem('marketbd_payment_partners_v1', JSON.stringify(DEFAULT_PAYMENT_PARTNERS));
+    storage.setItem('marketbd_payment_defaults_v2_only_bnr', '1');
     syncToCloud('payment_partners', DEFAULT_PAYMENT_PARTNERS);
   };
 
-  // Payment Accounts State
+  // Payment Accounts State (Default: only bKash, Nagad, Rocket active; Upay & Bank disabled until Admin activates)
   const [paymentAccounts, setPaymentAccountsState] = useState<PaymentAccountsConfig>(() => {
     try {
+      const migrated = storage.getItem('marketbd_payment_defaults_v2_accounts') === '1';
       const saved = storage.getItem('marketbd_payment_accounts_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -3562,8 +3595,26 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (parsed.rocketNumber === '01634025151' || !parsed.rocketNumber) {
           parsed.rocketNumber = '01533830784';
         }
-        return { ...DEFAULT_PAYMENT_ACCOUNTS, ...parsed };
+        const merged: PaymentAccountsConfig = {
+          ...DEFAULT_PAYMENT_ACCOUNTS,
+          ...parsed,
+          bankAccount: {
+            ...DEFAULT_PAYMENT_ACCOUNTS.bankAccount,
+            ...(parsed.bankAccount || {}),
+          },
+        };
+        if (!migrated) {
+          merged.bkashEnabled = true;
+          merged.nagadEnabled = true;
+          merged.rocketEnabled = true;
+          merged.upayEnabled = false;
+          merged.bankAccount.isEnabled = false;
+          storage.setItem('marketbd_payment_accounts_v1', JSON.stringify(merged));
+          storage.setItem('marketbd_payment_defaults_v2_accounts', '1');
+        }
+        return merged;
       }
+      storage.setItem('marketbd_payment_defaults_v2_accounts', '1');
     } catch (e) {
       console.error('Error reading stored payment accounts:', e);
     }
@@ -3581,6 +3632,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         },
       };
       storage.setItem('marketbd_payment_accounts_v1', JSON.stringify(updated));
+      storage.setItem('marketbd_payment_defaults_v2_accounts', '1');
       syncToCloud('payment_accounts', updated);
       return updated;
     });
@@ -3748,10 +3800,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Browse Categories State with LocalStorage & Firestore Sync
   const [categories, setCategoriesState] = useState<Category[]>(() => {
     try {
-      const saved = storage.getItem('marketbd_categories_v2');
+      const saved = storage.getItem(CATEGORY_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= CATEGORIES.length) {
+        if (isBikroy17CategoryList(parsed) && parsed.length >= CATEGORIES.length) {
           return parsed.map((c: Category) => {
             if (c.id === 'vehicles') {
               return { ...c, nameBn: 'যানবাহন ও গাড়ি', nameEn: 'Vehicles' };
@@ -3781,7 +3833,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Ensure unique ID
       const filtered = prev.filter(c => c.id !== item.id);
       const updated = [item, ...filtered];
-      storage.setItem('marketbd_categories_v2', JSON.stringify(updated));
+      storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(updated));
       syncToCloud('categories_config', updated);
       return updated;
     });
@@ -3800,7 +3852,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         return c;
       });
-      storage.setItem('marketbd_categories_v2', JSON.stringify(updated));
+      storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(updated));
       syncToCloud('categories_config', updated);
       return updated;
     });
@@ -3809,7 +3861,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const deleteCategory = (id: string) => {
     setCategoriesState(prev => {
       const updated = prev.filter(c => c.id !== id);
-      storage.setItem('marketbd_categories_v2', JSON.stringify(updated));
+      storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(updated));
       syncToCloud('categories_config', updated);
       return updated;
     });
@@ -3817,7 +3869,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const resetCategoriesToDefault = () => {
     setCategoriesState(CATEGORIES);
-    storage.setItem('marketbd_categories_v2', JSON.stringify(CATEGORIES));
+    storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(CATEGORIES));
     syncToCloud('categories_config', CATEGORIES);
   };
 

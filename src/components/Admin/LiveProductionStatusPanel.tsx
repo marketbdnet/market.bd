@@ -31,18 +31,6 @@ export const LiveProductionStatusPanel: React.FC = () => {
     storage.getItem('marketbd_live_mode') !== 'false'
   );
 
-  const [smsProvider, setSmsProvider] = useState<'bulksmsbd' | 'steadfast' | 'greenweb' | 'firebase'>(
-    (storage.getItem('marketbd_sms_provider') as any) || 'bulksmsbd'
-  );
-
-  const [smsApiKey, setSmsApiKey] = useState<string>(
-    storage.getItem('marketbd_sms_api_key') || ''
-  );
-
-  const [smsSenderId, setSmsSenderId] = useState<string>(
-    storage.getItem('marketbd_sms_sender_id') || 'MarketBD'
-  );
-
   const [gaMeasurementId, setGaMeasurementId] = useState<string>(
     storage.getItem('marketbd_ga_id') || 'G-MARKETBD2026'
   );
@@ -60,9 +48,6 @@ export const LiveProductionStatusPanel: React.FC = () => {
 
   const handleSaveSettings = () => {
     storage.setItem('marketbd_live_mode', isLiveMode ? 'true' : 'false');
-    storage.setItem('marketbd_sms_provider', smsProvider);
-    storage.setItem('marketbd_sms_api_key', smsApiKey);
-    storage.setItem('marketbd_sms_sender_id', smsSenderId);
     storage.setItem('marketbd_ga_id', gaMeasurementId);
     storage.setItem('marketbd_gsc_token', gscToken);
 
@@ -73,10 +58,7 @@ export const LiveProductionStatusPanel: React.FC = () => {
   const handleSendTestSms = async () => {
     setTestSmsStatus('sending');
     const result = await sendRealSmsOtp(testPhone, '889922', {
-      provider: smsProvider,
-      apiKey: smsApiKey,
-      senderId: smsSenderId,
-      isLiveMode: isLiveMode
+      isLiveMode,
     });
     setTestSmsStatus(result.message);
   };
@@ -97,9 +79,9 @@ export const LiveProductionStatusPanel: React.FC = () => {
     },
     {
       id: 2,
-      title: language === 'bn' ? 'Real SMS OTP Gateway (BulkSMSBD / Steadfast)' : 'Real SMS OTP Gateway',
-      desc: language === 'bn' ? 'বাংলাদেশের যেকোনো গ্রাহকের মোবাইলে রিয়েল SMS OTP পাঠানো যাবে' : 'Direct API Gateway integration for 64 districts',
-      status: smsApiKey ? 'ready' : 'configured',
+      title: language === 'bn' ? 'Unified SMS OTP Gateway' : 'Unified SMS OTP Gateway',
+      desc: language === 'bn' ? 'একক সার্ভার-ভিত্তিক সিস্টেম দিয়ে ৬৪ জেলায় ওটিপি প্রেরণ সচল' : 'Single unified SMS OTP system ready for 64 districts',
+      status: 'ready',
       icon: Smartphone
     },
     {
@@ -253,81 +235,54 @@ export const LiveProductionStatusPanel: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* SMS Gateway Settings */}
+          {/* Unified SMS Gateway Status & Test */}
           <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-4">
             <h4 className="text-xs font-black text-emerald-400 uppercase tracking-wider flex items-center gap-2">
               <Smartphone className="w-4 h-4" />
-              {language === 'bn' ? '১. রিয়েল SMS OTP প্রোভাইডার সেটিংস' : '1. Real SMS OTP Provider Setup'}
+              {language === 'bn' ? '১. একক SMS OTP গেটওয়ে স্ট্যাটাস' : '1. Unified SMS OTP Gateway Status'}
             </h4>
 
-            <div className="space-y-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                  SMS Gateway Provider
-                </label>
-                <select
-                  value={smsProvider}
-                  onChange={e => setSmsProvider(e.target.value as any)}
-                  className="w-full bg-slate-900 border border-slate-700 text-white text-xs font-bold rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="bulksmsbd">BulkSMSBD.net (Bangladesh Popular)</option>
-                  <option value="steadfast">Steadfast SMS Gateway</option>
-                  <option value="greenweb">Greenweb SMS BD</option>
-                  <option value="firebase">Firebase Recaptcha Phone Auth</option>
-                </select>
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-1.5 text-xs text-slate-300">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-200">{language === 'bn' ? 'গেটওয়ে মোড:' : 'Gateway Mode:'}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  isLiveMode ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                }`}>
+                  {isLiveMode ? 'LIVE' : 'SANDBOX'}
+                </span>
               </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                {language === 'bn'
+                  ? 'সকল ওটিপি এবং কাস্টমার এসএমএস একটি একক নিরাপদ সার্ভার গেটওয়ের মাধ্যমে পরিচালিত হচ্ছে। পূর্ণ কনফিগারেশন গেটওয়ে ট্যাবে রয়েছে।'
+                  : 'All OTP and customer SMS traffic uses one unified secure gateway configured in System Gateways.'}
+              </p>
+            </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                  API Key / Token
-                </label>
-                <input
-                  type="password"
-                  value={smsApiKey}
-                  onChange={e => setSmsApiKey(e.target.value)}
-                  placeholder="e.g. 98457204928509382"
-                  className="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 font-mono focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                  Sender ID / Masking Name
-                </label>
+            {/* Test SMS Box */}
+            <div className="pt-2 border-t border-slate-800 space-y-2">
+              <label className="text-[11px] font-bold text-slate-300 block">
+                {language === 'bn' ? '🧪 SMS টেস্ট ওটিপি পাঠান:' : '🧪 Test Send Unified OTP:'}
+              </label>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  value={smsSenderId}
-                  onChange={e => setSmsSenderId(e.target.value)}
-                  placeholder="e.g. MarketBD"
-                  className="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500 font-bold"
+                  value={testPhone}
+                  onChange={e => setTestPhone(e.target.value)}
+                  className="flex-1 bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-1.5 focus:outline-none"
                 />
+                <button
+                  type="button"
+                  onClick={handleSendTestSms}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  Send OTP
+                </button>
               </div>
-
-              {/* Test SMS Box */}
-              <div className="pt-2 border-t border-slate-800 space-y-2">
-                <label className="text-[11px] font-bold text-slate-300 block">
-                  {language === 'bn' ? '🧪 SMS টেস্ট মেসেজ পাঠান:' : '🧪 Test Send Real SMS:'}
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={testPhone}
-                    onChange={e => setTestPhone(e.target.value)}
-                    className="flex-1 bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-1.5 focus:outline-none"
-                  />
-                  <button
-                    onClick={handleSendTestSms}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl cursor-pointer"
-                  >
-                    Send OTP
-                  </button>
-                </div>
-                {testSmsStatus && (
-                  <p className="text-[10px] text-amber-300 font-mono bg-slate-900 p-2 rounded-lg border border-slate-800">
-                    {testSmsStatus}
-                  </p>
-                )}
-              </div>
+              {testSmsStatus && (
+                <p className="text-[10px] text-amber-300 font-mono bg-slate-900 p-2 rounded-lg border border-slate-800">
+                  {testSmsStatus}
+                </p>
+              )}
             </div>
           </div>
 

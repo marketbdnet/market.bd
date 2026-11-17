@@ -167,8 +167,14 @@ function getCategoryBasePrice(catId: string, subId: string): number {
       return 45000;
     case 'services':
       return 3500;
+    case 'repair_construction':
+      return 4500;
     case 'jobs':
       return 35000;
+    case 'seeking_work':
+      return 22000;
+    case 'business_industry':
+      return 25000;
     case 'education_courses':
       return 6500;
     case 'travel_tours':

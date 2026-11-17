@@ -234,12 +234,16 @@ export interface BankAccountInfo {
 export interface PaymentAccountsConfig {
   bkashNumber: string;
   bkashLogoUrl?: string;
+  bkashEnabled?: boolean;
   nagadNumber: string;
   nagadLogoUrl?: string;
+  nagadEnabled?: boolean;
   rocketNumber: string;
   rocketLogoUrl?: string;
+  rocketEnabled?: boolean;
   upayNumber: string;
   upayLogoUrl?: string;
+  upayEnabled?: boolean;
   bankAccount: BankAccountInfo;
 }
 

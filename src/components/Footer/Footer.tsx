@@ -132,10 +132,10 @@ export const Footer: React.FC = () => {
             <ul className="space-y-2 text-xs text-slate-400">
               {[
                 { id: 'mobiles', name: 'মোবাইল ও ট্যাবলেট' },
-                { id: 'electronics', name: 'ল্যাপটপ ও পিসি' },
-                { id: 'vehicles', name: 'ভিহিকল/কার' },
-                { id: 'property', name: 'ফ্ল্যাট ও জমি' },
-                { id: 'books', name: 'রকমারি বই' },
+                { id: 'electronics', name: 'ইলেকট্রনিক্স ও ল্যাপটপ' },
+                { id: 'vehicles', name: 'যানবাহন ও গাড়ি' },
+                { id: 'property', name: 'প্রপার্টি ও বাসস্থান' },
+                { id: 'books_sports', name: 'অবসর, বই ও খেলাধুলা' },
                 { id: 'fashion', name: 'ফ্যাশন পণ্য' }
               ].map(cat => (
                 <li key={cat.id}>

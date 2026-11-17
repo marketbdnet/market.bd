@@ -8,8 +8,11 @@ import dotenv from 'dotenv';
 import { CANONICAL_400_PRODUCTS } from './src/data/canonicalCatalog400';
 import { KNOWN_JUNK_PRODUCT_IDS } from './src/utils/knownJunkProductIds';
 import { getPageMetadata, injectSeoIntoHtml } from './server_seo';
+import { isDummyChatThread } from './src/utils/chatUtils';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDocs, collection, deleteDoc, onSnapshot, setLogLevel } from 'firebase/firestore';
+import adminAuthHandler from './api/admin-auth';
+import smsHandler from './api/sms';
 
 try {
   setLogLevel('error');
@@ -234,6 +237,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   // Re-verify after spread that marketplace_products is non-empty and valid
   sharedSyncState.marketplace_products = initialAuthoritativeProducts;
   sharedSyncState.products = initialAuthoritativeProducts;
+  sharedSyncState.chatThreads = Array.isArray(sharedSyncState.chatThreads)
+    ? sharedSyncState.chatThreads.filter((t: any) => !isDummyChatThread(t))
+    : [];
 
   function persistSyncState() {
     try {
@@ -787,6 +793,181 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     }
   });
 
+  // ================= REAL-TIME BIKROY-STYLE CHAT API & SSE STREAM =================
+  const chatSseClients = new Set<express.Response>();
+
+  const broadcastChatEvent = (payload: Record<string, any>) => {
+    const serialized = `data: ${JSON.stringify(payload)}\n\n`;
+    chatSseClients.forEach(client => {
+      try {
+        client.write(serialized);
+      } catch {
+        chatSseClients.delete(client);
+      }
+    });
+  };
+
+  app.get('/api/chats/stream', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+    res.write(`data: ${JSON.stringify({ type: 'connected', ts: Date.now() })}\n\n`);
+    chatSseClients.add(res);
+
+    const keepAlive = setInterval(() => {
+      try {
+        res.write(': keepalive\n\n');
+      } catch {
+        clearInterval(keepAlive);
+        chatSseClients.delete(res);
+      }
+    }, 25000);
+
+    req.on('close', () => {
+      clearInterval(keepAlive);
+      chatSseClients.delete(res);
+    });
+  });
+
+  app.get('/api/chats', (req, res) => {
+    try {
+      const threads: any[] = Array.isArray(sharedSyncState.chatThreads)
+        ? sharedSyncState.chatThreads.filter((t: any) => !isDummyChatThread(t))
+        : [];
+      const { userId, phone, email } = req.query;
+      const uid = typeof userId === 'string' ? userId.trim() : '';
+      const uEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+      const normP = (p?: string) => String(p || '').replace(/\D/g, '').replace(/^880?/, '').replace(/^0/, '');
+      const uPhone = typeof phone === 'string' ? normP(phone) : '';
+
+      const filtered = (uid || uEmail || uPhone)
+        ? threads.filter(t =>
+            (uid && (t.buyerId === uid || t.seller?.id === uid)) ||
+            (uEmail && t.seller?.email && String(t.seller.email).toLowerCase() === uEmail) ||
+            (uPhone && t.seller?.phone && normP(t.seller.phone) === uPhone)
+          )
+        : threads;
+
+      res.json({ success: true, data: filtered });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || 'Failed to load chats' });
+    }
+  });
+
+  app.post('/api/chats/thread', (req, res) => {
+    try {
+      const incoming = req.body?.thread;
+      if (!incoming || !incoming.id || !incoming.productId) {
+        return res.status(400).json({ success: false, message: 'Valid thread object required' });
+      }
+      if (!Array.isArray(sharedSyncState.chatThreads)) {
+        sharedSyncState.chatThreads = [];
+      }
+      const existing = sharedSyncState.chatThreads.find(
+        (t: any) =>
+          t.id === incoming.id ||
+          (t.productId === incoming.productId && t.buyerId === incoming.buyerId)
+      );
+      if (existing) {
+        return res.json({ success: true, data: existing });
+      }
+      const cleanThread = { ...incoming, messages: Array.isArray(incoming.messages) ? incoming.messages : [] };
+      sharedSyncState.chatThreads.unshift(cleanThread);
+      persistSyncState();
+      broadcastChatEvent({ type: 'chat:updated', thread: cleanThread });
+      res.status(201).json({ success: true, data: cleanThread });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || 'Failed to create chat thread' });
+    }
+  });
+
+  app.post('/api/chats/message', (req, res) => {
+    try {
+      const { threadId, message, threadSnapshot } = req.body || {};
+      if (!threadId || !message || !message.id) {
+        return res.status(400).json({ success: false, message: 'threadId and message are required' });
+      }
+      if (!Array.isArray(sharedSyncState.chatThreads)) {
+        sharedSyncState.chatThreads = [];
+      }
+
+      let idx = sharedSyncState.chatThreads.findIndex((t: any) => t.id === threadId);
+      if (idx === -1 && threadSnapshot) {
+        sharedSyncState.chatThreads.unshift({ ...threadSnapshot, messages: [] });
+        idx = 0;
+      }
+      if (idx === -1) {
+        return res.status(404).json({ success: false, message: 'Chat thread not found' });
+      }
+
+      const target = sharedSyncState.chatThreads[idx];
+      const existingMsgs: any[] = Array.isArray(target.messages) ? target.messages : [];
+      // Idempotent duplicate check
+      if (!existingMsgs.some((m: any) => m.id === message.id)) {
+        const deliveredMsg = { ...message, status: message.status || 'delivered' };
+        const updatedThread = {
+          ...target,
+          lastMessage: deliveredMsg.text,
+          lastMessageTime: deliveredMsg.timestamp,
+          unreadCount: (target.unreadCount || 0) + 1,
+          messages: [...existingMsgs, deliveredMsg]
+        };
+        sharedSyncState.chatThreads.splice(idx, 1);
+        sharedSyncState.chatThreads.unshift(updatedThread);
+        persistSyncState();
+        broadcastChatEvent({ type: 'chat:updated', thread: updatedThread });
+        return res.json({ success: true, data: updatedThread });
+      }
+
+      res.json({ success: true, data: target });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || 'Failed to send message' });
+    }
+  });
+
+  app.post('/api/chats/read', (req, res) => {
+    try {
+      const { threadId, readerId } = req.body || {};
+      if (!threadId || !Array.isArray(sharedSyncState.chatThreads)) {
+        return res.json({ success: true });
+      }
+      const idx = sharedSyncState.chatThreads.findIndex((t: any) => t.id === threadId);
+      if (idx >= 0) {
+        const t = sharedSyncState.chatThreads[idx];
+        const updatedMsgs = (t.messages || []).map((m: any) =>
+          readerId && m.senderId !== readerId ? { ...m, status: 'seen' } : m
+        );
+        const updatedThread = { ...t, unreadCount: 0, messages: updatedMsgs };
+        sharedSyncState.chatThreads[idx] = updatedThread;
+        persistSyncState();
+        broadcastChatEvent({ type: 'chat:updated', thread: updatedThread });
+        return res.json({ success: true, data: updatedThread });
+      }
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || 'Failed to mark chat read' });
+    }
+  });
+
+  app.delete('/api/chats/:threadId', (req, res) => {
+    try {
+      const { threadId } = req.params;
+      if (Array.isArray(sharedSyncState.chatThreads)) {
+        sharedSyncState.chatThreads = sharedSyncState.chatThreads.filter((t: any) => t.id !== threadId);
+        persistSyncState();
+      }
+      broadcastChatEvent({ type: 'chat:deleted', threadId });
+      res.json({ success: true, threadId });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || 'Failed to delete chat thread' });
+    }
+  });
+
+  // Mount Vercel-compatible API routes in Express so they work identically in AI Studio / Node.js
+  app.all('/api/admin-auth', (req, res) => adminAuthHandler(req, res));
+  app.all('/api/sms', (req, res) => smsHandler(req, res));
+
   // Health check
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', name: 'MarketBD.Net Enterprise API' });
@@ -838,11 +1019,12 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     const SITE_URL = 'https://marketbd.net';
     const today = new Date().toISOString().split('T')[0];
 
-    // Popular marketplace categories
+    // Popular marketplace categories (Bikroy 17)
     const categories = [
-      'mobiles', 'computers', 'electronics', 'vehicles', 'property',
-      'furniture', 'fashion', 'health', 'pets', 'agriculture',
-      'business', 'services', 'jobs', 'others', 'education'
+      'vehicles', 'property', 'mobiles', 'electronics', 'home_furniture',
+      'fashion', 'health_beauty', 'services', 'repair_construction', 'business_equipment',
+      'books_sports', 'baby_kids', 'agriculture', 'animal_pets', 'jobs',
+      'seeking_work', 'business_industry'
     ];
 
     // Core static policy & contact pages

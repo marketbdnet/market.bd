@@ -1,4 +1,4 @@
-export type PaymentMethod = 'bKash' | 'Nagad' | 'Rocket';
+export type PaymentMethod = 'bKash' | 'Nagad' | 'Rocket' | 'Upay' | 'Bank';
 
 export type PaymentStatus = 'pending_verification' | 'paid' | 'rejected';
 
@@ -43,6 +43,7 @@ export interface PaymentSubmissionInput {
   customerMobile: string;
   customerEmail?: string;
   paymentMethod: PaymentMethod;
+  recipientAccountNumber?: string;
   senderMobileNumber: string;
   transactionId: string;
   submittedAmount: number;

@@ -53,19 +53,22 @@ export const SensitiveActionModal: React.FC<SensitiveActionModalProps> = ({
       return;
     }
 
-    if (!validPins.includes(securityPin.trim())) {
-      setErrorMsg(language === 'bn' ? 'ভুল সিকিউরিটি পিন! সঠিক কোড দিয়ে চেষ্টা করুন (যেমন: 123456 বা 016340)।' : 'Invalid Security PIN! (e.g., 123456 or 016340)');
-      return;
-    }
-
     setIsVerifying(true);
-    setTimeout(() => {
-      setIsVerifying(false);
+    try {
+      const ok = await verifyAdminPassword(securityPin.trim());
+      if (!ok) {
+        setErrorMsg(language === 'bn' ? 'ভুল সিকিউরিটি পিন! সঠিক এডমিন পাসওয়ার্ড বা পিন দিয়ে চেষ্টা করুন।' : 'Invalid Security PIN! Please enter the valid admin password/PIN.');
+        setIsVerifying(false);
+        return;
+      }
+
       onConfirm(adminNote.trim());
       setSecurityPin('');
       setAdminNote('');
       onClose();
-    }, 400);
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   return (

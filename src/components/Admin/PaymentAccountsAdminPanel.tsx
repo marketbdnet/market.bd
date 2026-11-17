@@ -23,28 +23,32 @@ export const PaymentAccountsAdminPanel: React.FC = () => {
     paymentAccounts.bkashNumber || PAYMENT_ACCOUNTS_CONFIG.bKash.accountNumber
   );
   const [bkashLogo, setBkashLogo] = useState(paymentAccounts.bkashLogoUrl || '');
+  const [isBkashEnabled, setIsBkashEnabled] = useState(paymentAccounts.bkashEnabled !== false);
 
   const [nagadNumber, setNagadNumber] = useState(
     paymentAccounts.nagadNumber || PAYMENT_ACCOUNTS_CONFIG.Nagad.accountNumber
   );
   const [nagadLogo, setNagadLogo] = useState(paymentAccounts.nagadLogoUrl || '');
+  const [isNagadEnabled, setIsNagadEnabled] = useState(paymentAccounts.nagadEnabled !== false);
 
   const [rocketNumber, setRocketNumber] = useState(
     paymentAccounts.rocketNumber || PAYMENT_ACCOUNTS_CONFIG.Rocket.accountNumber
   );
   const [rocketLogo, setRocketLogo] = useState(paymentAccounts.rocketLogoUrl || '');
+  const [isRocketEnabled, setIsRocketEnabled] = useState(paymentAccounts.rocketEnabled !== false);
 
   const [upayNumber, setUpayNumber] = useState(paymentAccounts.upayNumber || '01723230230');
   const [upayLogo, setUpayLogo] = useState(paymentAccounts.upayLogoUrl || '');
+  const [isUpayEnabled, setIsUpayEnabled] = useState(paymentAccounts.upayEnabled === true);
 
-  // Bank Account State
+  // Bank Account State (default off; Admin can enable anytime)
   const [bankName, setBankName] = useState(paymentAccounts.bankAccount?.bankName || 'Islami Bank Bangladesh PLC');
   const [accountName, setAccountName] = useState(paymentAccounts.bankAccount?.accountName || 'MarketBD Net Technologies Ltd');
   const [accountNumber, setAccountNumber] = useState(paymentAccounts.bankAccount?.accountNumber || '2050 3928 1000 9281');
   const [branchName, setBranchName] = useState(paymentAccounts.bankAccount?.branchName || 'Dhanmondi Branch, Dhaka');
   const [routingNumber, setRoutingNumber] = useState(paymentAccounts.bankAccount?.routingNumber || '125263829');
   const [bankLogo, setBankLogo] = useState(paymentAccounts.bankAccount?.bankLogoUrl || '');
-  const [isBankEnabled, setIsBankEnabled] = useState(paymentAccounts.bankAccount?.isEnabled !== false);
+  const [isBankEnabled, setIsBankEnabled] = useState(paymentAccounts.bankAccount?.isEnabled === true);
 
   const [statusMsg, setStatusMsg] = useState('');
 
@@ -80,12 +84,16 @@ export const PaymentAccountsAdminPanel: React.FC = () => {
     updatePaymentAccounts({
       bkashNumber: bkashNumber.trim(),
       bkashLogoUrl: bkashLogo,
+      bkashEnabled: isBkashEnabled,
       nagadNumber: nagadNumber.trim(),
       nagadLogoUrl: nagadLogo,
+      nagadEnabled: isNagadEnabled,
       rocketNumber: rocketNumber.trim(),
       rocketLogoUrl: rocketLogo,
+      rocketEnabled: isRocketEnabled,
       upayNumber: upayNumber.trim(),
       upayLogoUrl: upayLogo,
+      upayEnabled: isUpayEnabled,
       bankAccount: {
         bankName: bankName.trim(),
         accountName: accountName.trim(),
@@ -159,13 +167,31 @@ export const PaymentAccountsAdminPanel: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* bKash Box */}
-            <div className="p-4 bg-pink-50/50 dark:bg-pink-950/30 rounded-2xl border border-pink-200 dark:border-pink-900/60 space-y-3">
-              <div className="flex items-center justify-between">
+            <div className={`p-4 rounded-2xl border space-y-3 transition ${
+              isBkashEnabled
+                ? 'bg-pink-50/50 dark:bg-pink-950/30 border-pink-200 dark:border-pink-900/60'
+                : 'bg-slate-100/70 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 opacity-75'
+            }`}>
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <BkashLogo className="h-6 w-auto" />
                   <span className="text-xs font-black text-slate-900 dark:text-white">bKash (বিকাশ)</span>
                 </div>
-                <span className="text-[10px] text-pink-600 dark:text-pink-400 font-bold bg-pink-100 dark:bg-pink-900/50 px-2 py-0.5 rounded">Personal / Merchant</span>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isBkashEnabled}
+                    onChange={(e) => setIsBkashEnabled(e.target.checked)}
+                    className="w-4 h-4 accent-pink-600 rounded cursor-pointer"
+                  />
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    isBkashEnabled
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                      : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                  }`}>
+                    {isBkashEnabled ? (language === 'bn' ? 'সচল' : 'Active') : (language === 'bn' ? 'বন্ধ' : 'Off')}
+                  </span>
+                </label>
               </div>
 
               <div>
@@ -209,13 +235,31 @@ export const PaymentAccountsAdminPanel: React.FC = () => {
             </div>
 
             {/* Nagad Box */}
-            <div className="p-4 bg-orange-50/50 dark:bg-orange-950/30 rounded-2xl border border-orange-200 dark:border-orange-900/60 space-y-3">
-              <div className="flex items-center justify-between">
+            <div className={`p-4 rounded-2xl border space-y-3 transition ${
+              isNagadEnabled
+                ? 'bg-orange-50/50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900/60'
+                : 'bg-slate-100/70 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 opacity-75'
+            }`}>
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <NagadLogo className="h-6 w-auto" />
                   <span className="text-xs font-black text-slate-900 dark:text-white">Nagad (নগদ)</span>
                 </div>
-                <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold bg-orange-100 dark:bg-orange-900/50 px-2 py-0.5 rounded">Personal / Merchant</span>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isNagadEnabled}
+                    onChange={(e) => setIsNagadEnabled(e.target.checked)}
+                    className="w-4 h-4 accent-orange-600 rounded cursor-pointer"
+                  />
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    isNagadEnabled
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                      : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                  }`}>
+                    {isNagadEnabled ? (language === 'bn' ? 'সচল' : 'Active') : (language === 'bn' ? 'বন্ধ' : 'Off')}
+                  </span>
+                </label>
               </div>
 
               <div>
@@ -259,13 +303,31 @@ export const PaymentAccountsAdminPanel: React.FC = () => {
             </div>
 
             {/* Rocket Box */}
-            <div className="p-4 bg-purple-50/50 dark:bg-purple-950/30 rounded-2xl border border-purple-200 dark:border-purple-900/60 space-y-3">
-              <div className="flex items-center justify-between">
+            <div className={`p-4 rounded-2xl border space-y-3 transition ${
+              isRocketEnabled
+                ? 'bg-purple-50/50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-900/60'
+                : 'bg-slate-100/70 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 opacity-75'
+            }`}>
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <RocketLogo className="h-6 w-auto" />
                   <span className="text-xs font-black text-slate-900 dark:text-white">Rocket (রকেট)</span>
                 </div>
-                <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded">Wallet Number</span>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isRocketEnabled}
+                    onChange={(e) => setIsRocketEnabled(e.target.checked)}
+                    className="w-4 h-4 accent-purple-600 rounded cursor-pointer"
+                  />
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    isRocketEnabled
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                      : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                  }`}>
+                    {isRocketEnabled ? (language === 'bn' ? 'সচল' : 'Active') : (language === 'bn' ? 'বন্ধ' : 'Off')}
+                  </span>
+                </label>
               </div>
 
               <div>
@@ -309,13 +371,31 @@ export const PaymentAccountsAdminPanel: React.FC = () => {
             </div>
 
             {/* Upay Box */}
-            <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200 dark:border-indigo-900/60 space-y-3">
-              <div className="flex items-center justify-between">
+            <div className={`p-4 rounded-2xl border space-y-3 transition ${
+              isUpayEnabled
+                ? 'bg-indigo-50/50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-900/60'
+                : 'bg-slate-100/70 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 opacity-75'
+            }`}>
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="font-black text-red-600 text-sm">upay</span>
                   <span className="text-xs font-black text-slate-900 dark:text-white">Upay (উপায়)</span>
                 </div>
-                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-100 dark:bg-indigo-900/50 px-2 py-0.5 rounded">Wallet Number</span>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isUpayEnabled}
+                    onChange={(e) => setIsUpayEnabled(e.target.checked)}
+                    className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
+                  />
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    isUpayEnabled
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                      : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                  }`}>
+                    {isUpayEnabled ? (language === 'bn' ? 'সচল' : 'Active') : (language === 'bn' ? 'আপাতত বন্ধ' : 'Paused')}
+                  </span>
+                </label>
               </div>
 
               <div>

@@ -4,8 +4,8 @@ import { INITIAL_PRODUCTS } from '../src/data/mockProducts';
 import { isProductPublicActive } from '../src/utils/productStatus';
 
 describe('MarketBD Production Listing & Category Coverage Audit', () => {
-  it('should verify 20 main categories defined', () => {
-    expect(CATEGORIES.length).toBe(20);
+  it('should verify 17 main categories defined', () => {
+    expect(CATEGORIES.length).toBe(17);
   });
 
   it('guarantees 100% coverage across Main, Sub, and Second-Level categories', () => {
@@ -107,7 +107,7 @@ describe('MarketBD Production Listing & Category Coverage Audit', () => {
     expect(slCoveragePercent).toBe(100);
 
     console.log(`Coverage Results:`);
-    console.log(`- Main Categories: 20/20 (100%)`);
+    console.log(`- Main Categories: ${CATEGORIES.length}/${CATEGORIES.length} (100%)`);
     console.log(`- Subcategories: ${totalSubs}/${totalSubs} (100%)`);
     console.log(`- Second-Level Categories: ${totalSecondLevel}/${totalSecondLevel} (100%)`);
     console.log(`- Total Live Published Ads: ${INITIAL_PRODUCTS.length}`);

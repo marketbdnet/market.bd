@@ -163,6 +163,18 @@ export const PaymentPartnersAdminPanel: React.FC = () => {
         </div>
       </div>
 
+      {/* Default Active Summary Strip */}
+      <div className="p-3.5 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+        <div className="font-bold text-amber-900 dark:text-amber-200">
+          {language === 'bn'
+            ? `💡 বর্তমানে সচল: ${paymentPartners.filter(p => p.isEnabled).length}টি (ডিফল্ট: বিকাশ, নগদ, রকেট) • সাময়িক বন্ধ: ${paymentPartners.filter(p => !p.isEnabled).length}টি`
+            : `💡 Active now: ${paymentPartners.filter(p => p.isEnabled).length} (Default: bKash, Nagad, Rocket) • Paused: ${paymentPartners.filter(p => !p.isEnabled).length}`}
+        </div>
+        <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+          {language === 'bn' ? 'যেকোনো কার্ডের "বন্ধ/চালু" বাটনে ক্লিক করে এখনই অন/অফ করুন' : 'Click Active/Disabled pill on any card to toggle anytime'}
+        </span>
+      </div>
+
       {successMsg && (
         <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-black rounded-2xl animate-in zoom-in-95 flex items-center gap-2">
           <Check className="w-4 h-4 text-emerald-600" />

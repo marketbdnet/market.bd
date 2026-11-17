@@ -147,21 +147,26 @@ export async function submitManualPayment(
       };
     }
 
-    const configAccount = PAYMENT_ACCOUNTS_CONFIG[input.paymentMethod];
-    if (!configAccount) {
+    const accountsMap = PAYMENT_ACCOUNTS_CONFIG as Record<string, { accountNumber: string; type: string; instructions: string }>;
+    const configAccount = accountsMap[input.paymentMethod];
+    const resolvedAccountNumber = configAccount?.accountNumber || input.recipientAccountNumber;
+
+    if (!resolvedAccountNumber) {
       return {
         success: false,
         error: 'নির্বাচিত পেমেন্ট মেথডটি সঠিক নয়।'
       };
     }
 
-    // Account validation check
-    const isValidAccount = validatePaymentAccount(input.paymentMethod, configAccount.accountNumber);
-    if (!isValidAccount) {
-      return {
-        success: false,
-        error: 'পেমেন্ট অ্যাকাউন্টের তথ্যে অসঙ্গতি রয়েছে।'
-      };
+    // Account validation check for central MFS config methods
+    if (configAccount) {
+      const isValidAccount = validatePaymentAccount(input.paymentMethod, configAccount.accountNumber);
+      if (!isValidAccount) {
+        return {
+          success: false,
+          error: 'পেমেন্ট অ্যাকাউন্টের তথ্যে অসঙ্গতি রয়েছে।'
+        };
+      }
     }
 
     // Duplicate TrxID Check
@@ -194,7 +199,7 @@ export async function submitManualPayment(
       customerEmail: input.customerEmail || undefined,
 
       paymentMethod: input.paymentMethod,
-      marketbdAccountNumber: configAccount.accountNumber,
+      marketbdAccountNumber: resolvedAccountNumber,
 
       senderMobileNumber: input.senderMobileNumber.trim(),
       transactionId: normalizedTrx,

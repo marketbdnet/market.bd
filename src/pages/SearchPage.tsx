@@ -4,6 +4,7 @@ import { CATEGORIES, BANGLADESH_DIVISIONS, CONDITION_OPTIONS } from '../data/ban
 import { ProductCard } from '../components/Product/ProductCard';
 import { Product } from '../types';
 import { isProductPublicActive } from '../utils/productStatus';
+import { isCategoryMatched } from '../utils/categoryMapping';
 import { SEOHelmet } from '../components/SEO/SEOHelmet';
 import { CategoryHierarchyView } from '../components/Category/CategoryHierarchyView';
 import {
@@ -23,37 +24,34 @@ import {
   Layers
 } from 'lucide-react';
 
-// Comprehensive synonym mapping for Bangla & English search terms
+// Comprehensive synonym mapping for Bangla & English search terms (Bikroy 17 Categories)
 const QUERY_CATEGORY_SYNONYMS: Record<string, string[]> = {
-  mobiles: ['mobile', 'mobiles', 'phone', 'phones', 'smartphone', 'smartphones', 'মোবাইল', 'ফোন', 'স্মার্টফোন', 'গ্যাজেট', 'আইফোন', 'iphone', 'samsung', 'vivo', 'xiaomi', 'realme', 'oppo', 'বাটন ফোন', 'ট্যাবলেট', 'ট্যাব', 'স্যামসাং', 'ভিভো', 'শাওমি', 'রেডমি'],
-  computers: ['computer', 'computers', 'laptop', 'laptops', 'pc', 'desktop', 'কম্পিউটার', 'ল্যাপটপ', 'পিসি', 'মনিটর', 'প্রসেসর', 'আইটি', 'ম্যাকবুক', 'macbook', 'ডেস্কটপ'],
-  electronics: ['electronics', 'tv', 'fridge', 'ac', 'refrigerator', 'washing machine', 'ইলেকট্রনিক্স', 'টিভি', 'ফ্রিজ', 'এসি', 'রেফ্রিজারেটর'],
   vehicles: ['vehicle', 'vehicles', 'car', 'cars', 'bike', 'bikes', 'motorcycle', 'scooter', 'গাড়ি', 'গাড়ি', 'বাইক', 'মোটরসাইকেল', 'স্কুটার', 'যানবাহন', 'রয়্যাল এনাফিল্ড', 'বাইসাইকেল', 'সাইকেল', 'প্রাইভেট কার', 'প্রাইভেটকার', 'টয়োটা', 'toyota', 'corolla'],
   property: ['property', 'properties', 'flat', 'flats', 'apartment', 'house', 'land', 'plot', 'ফ্ল্যাট', 'বাড়ি', 'বাসা', 'জমি', 'প্লট', 'প্রপার্টি', 'এপার্টমেন্ট'],
-  home_furniture: ['living', 'furniture', 'sofa', 'bed', 'table', 'chair', 'আসবাবপত্র', 'সোফা', 'খাট', 'টেবিল', 'চেয়ার', 'ফার্নিচার', 'ঘর ও আসবাব', 'home_furniture'],
+  mobiles: ['mobile', 'mobiles', 'phone', 'phones', 'smartphone', 'smartphones', 'মোবাইল', 'ফোন', 'স্মার্টফোন', 'গ্যাজেট', 'আইফোন', 'iphone', 'samsung', 'vivo', 'xiaomi', 'realme', 'oppo', 'বাটন ফোন', 'ট্যাবলেট', 'ট্যাব', 'স্যামসাং', 'ভিভো', 'শাওমি', 'রেডমি'],
+  electronics: ['electronics', 'tv', 'fridge', 'ac', 'refrigerator', 'washing machine', 'computer', 'computers', 'laptop', 'laptops', 'pc', 'desktop', 'ইলেকট্রনিক্স', 'টিভি', 'ফ্রিজ', 'এসি', 'রেফ্রিজারেটর', 'কম্পিউটার', 'ল্যাপটপ', 'পিসি', 'মনিটর', 'প্রসেসর', 'ম্যাকবুক', 'macbook', 'ডেস্কটপ'],
+  home_furniture: ['living', 'furniture', 'sofa', 'bed', 'table', 'chair', 'appliances', 'আসবাবপত্র', 'সোফা', 'খাট', 'টেবিল', 'চেয়ার', 'ফার্নিচার', 'ঘর ও আসবাব', 'home_furniture'],
   fashion: ['fashion', 'clothes', 'dress', 'shoes', 'sneakers', 'watch', 'জুতা', 'ঘড়ি', 'পোশাক', 'শাড়ি', 'পাঞ্জাবি', 'ফ্যাশন', 'ব্যাগ'],
-  health_beauty: ['health', 'beauty', 'perfume', 'কোসমেটিকস', 'পারফিউম', 'হেলথ', 'স্বাস্থ্য ও সৌন্দর্য', 'health_beauty'],
+  health_beauty: ['health', 'beauty', 'perfume', 'cosmetics', 'স্কিনকেয়ার', 'কসমেটিকস', 'পারফিউম', 'সৌন্দর্য', 'health_beauty'],
+  services: ['service', 'services', 'education', 'course', 'courses', 'tutor', 'tuition', 'training', 'ielts', 'সার্ভিস', 'সেবা', 'শিক্ষা', 'কোর্স', 'টিউশন'],
+  repair_construction: ['repair', 'construction', 'plumber', 'electrician', 'cement', 'tiles', 'bricks', 'paint', 'মেরামত', 'নির্মাণ', 'ইলেকট্রিশিয়ান', 'প্লাম্বার', 'টাইলস', 'সিমেন্ট', 'রং'],
+  business_equipment: ['business', 'equipment', 'machinery', 'commercial', 'tools', 'espresso', 'pos', 'ব্যবসার সরঞ্জাম', 'মেশিনারি', 'যন্ত্রপাতি', 'জেনারেটর'],
+  books_sports: ['book', 'books', 'sports', 'leisure', 'cricket', 'bat', 'stationery', 'travel', 'tour', 'event', 'ticket', 'concert', 'guitar', 'বই', 'খেলাধুলা', 'অবসর', 'ভ্রমণ', 'ট্যুর', 'ইভেন্ট', 'টিকিট', 'books_sports'],
   baby_kids: ['baby', 'kids', 'child', 'children', 'stroller', 'toy', 'toys', 'শিশু সামগ্রী', 'খেলনা', 'baby_kids'],
-  books_sports: ['book', 'books', 'sports', 'cricket', 'bat', 'stationery', 'বই', 'বইপত্র', 'স্টেশনারি', 'খেলাধুলা', 'বই ও খেলাধুলা', 'books_sports'],
+  agriculture: ['agriculture', 'agri', 'farm', 'farming', 'tractor', 'food', 'restaurant', 'honey', 'organic', 'কৃষি', 'খামার', 'ট্রাক্টর', 'বীজ', 'খাবার', 'মধু'],
   animal_pets: ['pet', 'pets', 'cat', 'dog', 'bird', 'cow', 'qurbani', 'পশু', 'পাখি', 'বিড়াল', 'কুকুর', 'পোষা প্রাণী', 'পশুপাখি', 'animal_pets'],
-  agriculture: ['agriculture', 'agri', 'farm', 'tractor', 'krishi', 'কৃষি', 'খামার', 'ট্রাক্টর', 'বীজ'],
-  business_equipment: ['business', 'equipment', 'machinery', 'espresso', 'coffee', 'ব্যবসার সরঞ্জাম', 'মেশিনারি'],
-  services: ['service', 'services', 'repair', 'servicing', 'সার্ভিস', 'সেবা', 'মেরামত'],
   jobs: ['job', 'jobs', 'developer', 'hiring', 'salary', 'চাকরি', 'নিয়োগ'],
-  education_courses: ['education', 'course', 'courses', 'coaching', 'training', 'IELTS', 'MERN', 'শিক্ষা ও কোর্স', 'কোর্স'],
-  travel_tours: ['travel', 'tour', 'tours', 'tourism', 'sajek', 'resort', 'ভ্রমণ ও ট্যুর', 'ট্যুর', 'ভ্রমণ'],
-  food_restaurants: ['food', 'restaurant', 'honey', 'organic', 'biryani', 'খাবার ও রেস্টুরেন্ট', 'খাবার', 'মধু'],
-  events_tickets: ['event', 'events', 'ticket', 'tickets', 'concert', 'pass', 'ইভেন্ট ও টিকেট', 'টিকিট', 'কনসার্ট'],
-  others: ['others', 'antique', 'antiques', 'vintage', 'অন্যান্য', 'অ্যান্টিক']
+  seeking_work: ['seeking work', 'cv', 'cvs', 'resume', 'biodata', 'job seeker', 'কাজের সন্ধান', 'সিভি', 'রিজিউমি', 'seeking_work'],
+  business_industry: ['industry', 'wholesale', 'factory', 'garments', 'packaging', 'antique', 'ব্যবসা ও শিল্প', 'পাইকারি', 'কারখানা', 'business_industry']
 };
 
 // Flexible category match helper
-const isCategoryMatch = (productCategory?: string, filterCategory?: string): boolean => {
+const isCategoryMatch = (productCategory?: string, filterCategory?: string, productSubCategory?: string): boolean => {
   if (!productCategory || !filterCategory) return false;
+  if (isCategoryMatched(productCategory, filterCategory, productSubCategory)) return true;
+
   const targetLower = String(filterCategory).trim().toLowerCase();
   const pLower = String(productCategory).trim().toLowerCase();
-
-  if (pLower === targetLower) return true;
 
   const catObj = CATEGORIES.find(c => 
     (c.id && c.id.toLowerCase() === targetLower) || 
@@ -195,9 +193,9 @@ export const SearchPage: React.FC = () => {
 
     // Category match
     if (filters.category && !queryMatchedCategory) {
-      if (!isCategoryMatch(p.category, filters.category)) return;
+      if (!isCategoryMatch(p.category, filters.category, p.subCategory)) return;
     } else if (filters.category && queryMatchedCategory) {
-      if (!isCategoryMatch(p.category, queryMatchedCategory) && !isCategoryMatch(p.category, filters.category)) return;
+      if (!isCategoryMatch(p.category, queryMatchedCategory, p.subCategory) && !isCategoryMatch(p.category, filters.category, p.subCategory)) return;
     }
 
     // Subcategory match

@@ -86,7 +86,7 @@ export function checkMonthlyFreeAdQuota(
  * Rejects invalid length, fake patterns, repeated chars, and duplicate TrxIDs.
  */
 export function validateTransactionId(
-  method: 'bkash' | 'nagad' | 'rocket',
+  method: 'bkash' | 'nagad' | 'rocket' | 'upay' | 'bank',
   trxId: string,
   existingProducts: Product[] = [],
   language: 'bn' | 'en' = 'bn'
@@ -100,7 +100,7 @@ export function validateTransactionId(
     };
   }
 
-  // Length & pattern check per MFS provider
+  // Length & pattern check per MFS / Bank provider
   if (method === 'bkash') {
     if (cleanId.length < 8 || cleanId.length > 11 || !/^[A-Z0-9]+$/.test(cleanId)) {
       return {
@@ -126,6 +126,15 @@ export function validateTransactionId(
         error: language === 'bn'
           ? '⚠️ সঠিক রকেট TrxID দিন (৮-১২ অক্ষরের সংখ্যা বা কোড, যেমন: 1029384756)'
           : '⚠️ Invalid Rocket TrxID format (8-12 digits or alphanumeric).'
+      };
+    }
+  } else {
+    if (cleanId.length < 6 || cleanId.length > 20 || !/^[A-Z0-9-]+$/.test(cleanId)) {
+      return {
+        isValid: false,
+        error: language === 'bn'
+          ? '⚠️ সঠিক ট্রানজেকশন বা রেফারেন্স নম্বর দিন (কমপক্ষে ৬ অক্ষরের)।'
+          : '⚠️ Invalid Transaction / Reference ID.'
       };
     }
   }

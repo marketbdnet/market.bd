@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
-import { formatPostedAt } from '../../utils/dateUtils';
+import { formatPostedAt, formatPostDateTime } from '../../utils/dateUtils';
+import { EMPTY_REACTION } from '../../utils/reactionUtils';
 import { getSecondLevelImageUrl, getSubcategoryImageUrl, getCategoryImageUrl } from '../../utils/categoryImages';
 import { ShareModal } from './ShareModal';
 import { WatermarkedImage } from './WatermarkedImage';
@@ -121,7 +122,7 @@ export const ProductDetailModal: React.FC = () => {
   const isWishlisted = wishlist.includes(selectedProduct.id);
   const isCompared = compareList.some(p => p.id === selectedProduct.id);
   const isFollowingSeller = followedSellers.includes(selectedProduct.seller?.id || '');
-  const productReaction = reactions[selectedProduct.id] || { likes: 12, dislikes: 1, loves: 8 };
+  const productReaction = reactions[selectedProduct.id] || EMPTY_REACTION;
 
   const handleRevealPhone = () => {
     setShowPhone(!showPhone);
@@ -392,9 +393,12 @@ export const ProductDetailModal: React.FC = () => {
                       {selectedProduct.location.thana}, {selectedProduct.location.district}, {selectedProduct.location.division}
                     </span>
                     <span>•</span>
-                    <span className="flex items-center gap-1.5 ml-auto text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                      <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 animate-pulse" />
-                      {formatPostedAt(selectedProduct.postedAt, language)}
+                    <span className="flex items-center gap-1.5 ml-auto text-xs sm:text-sm font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                      <Clock className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>{formatPostDateTime(selectedProduct.postedAt, language)}</span>
+                      <span className="text-[11px] font-bold text-emerald-600/80 dark:text-emerald-400/80">
+                        ({formatPostedAt(selectedProduct.postedAt, language)})
+                      </span>
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1 bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold px-2.5 py-1 rounded-full border border-pink-100 dark:border-pink-900/50">
@@ -415,7 +419,7 @@ export const ProductDetailModal: React.FC = () => {
                       title="Like"
                     >
                       <span>👍</span>
-                      <span>{productReaction.likes}</span>
+                      <span className="tabular-nums">{productReaction.likes}</span>
                     </button>
 
                     <button
@@ -428,7 +432,7 @@ export const ProductDetailModal: React.FC = () => {
                       title="Love"
                     >
                       <span>❤️</span>
-                      <span>{productReaction.loves}</span>
+                      <span className="tabular-nums">{productReaction.loves}</span>
                     </button>
 
                     <button
@@ -441,7 +445,7 @@ export const ProductDetailModal: React.FC = () => {
                       title="Dislike"
                     >
                       <span>👎</span>
-                      <span>{productReaction.dislikes}</span>
+                      <span className="tabular-nums">{productReaction.dislikes}</span>
                     </button>
                   </div>
                 </div>

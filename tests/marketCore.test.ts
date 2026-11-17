@@ -4,6 +4,13 @@ import { checkAndExpireAds, renewExpiredAd } from '../src/utils/adExpiryEngine';
 import { Product } from '../src/types';
 import { CATEGORIES } from '../src/data/categoriesData';
 import { INITIAL_PRODUCTS } from '../src/data/mockProducts';
+import {
+  EMPTY_REACTION,
+  loadStoredReactions,
+  computeNextReactions,
+  extractGlobalReactionCounts,
+  mergeServerReactionCounts
+} from '../src/utils/reactionUtils';
 
 const baseMockAd: Product = {
   id: 'test-ad-1',
@@ -105,10 +112,10 @@ describe('Ad Status & Flow Logic Verification', () => {
   });
 });
 
-describe('Production Advertisement & 20-Category Coverage Verification', () => {
-  it('ensures all 20 main categories have at least 1 active advertisement', () => {
-    expect(CATEGORIES.length).toBe(20);
-    expect(INITIAL_PRODUCTS.length).toBeGreaterThanOrEqual(20);
+describe('Production Advertisement & 17-Category Coverage Verification', () => {
+  it('ensures all 17 main categories have at least 1 active advertisement', () => {
+    expect(CATEGORIES.length).toBe(17);
+    expect(INITIAL_PRODUCTS.length).toBeGreaterThanOrEqual(17);
 
     const categoryAdCounts = new Map<string, number>();
     CATEGORIES.forEach(c => categoryAdCounts.set(c.id, 0));
@@ -153,4 +160,48 @@ describe('Production Advertisement & 20-Category Coverage Verification', () => {
     });
   });
 });
+
+describe('Real Product Reactions (Zero Dummy Reacts)', () => {
+  it('starts with zero dummy likes, loves, and dislikes', () => {
+    expect(EMPTY_REACTION).toEqual({ likes: 0, dislikes: 0, loves: 0 });
+    expect(loadStoredReactions(null)).toEqual({});
+    expect(loadStoredReactions('invalid-json')).toEqual({});
+  });
+
+  it('tracks real user love/like/dislike clicks from zero and toggles cleanly', () => {
+    let state = loadStoredReactions(null);
+
+    // First real love click increments from 0 -> 1
+    state = computeNextReactions(state, 'prod-1', 'love');
+    expect(state['prod-1']).toEqual({ likes: 0, dislikes: 0, loves: 1, userReaction: 'love' });
+
+    // Switching from love to like adjusts real counts accurately (love -> 0, like -> 1)
+    state = computeNextReactions(state, 'prod-1', 'like');
+    expect(state['prod-1']).toEqual({ likes: 1, dislikes: 0, loves: 0, userReaction: 'like' });
+
+    // Clicking like again removes personal reaction cleanly (0)
+    state = computeNextReactions(state, 'prod-1', 'like');
+    expect(state['prod-1']).toEqual({ likes: 0, dislikes: 0, loves: 0, userReaction: undefined });
+  });
+
+  it('preserves real reaction counts during storage reload and server sync merge', () => {
+    let local = computeNextReactions({}, 'real-ad-99', 'love');
+    const serialized = JSON.stringify(local);
+    const reloaded = loadStoredReactions(serialized);
+    expect(reloaded['real-ad-99']).toEqual({ likes: 0, dislikes: 0, loves: 1, userReaction: 'love' });
+
+    // Global server payload strips personal userReaction highlight but preserves real counts
+    const globalPayload = extractGlobalReactionCounts(reloaded);
+    expect(globalPayload['real-ad-99']).toEqual({ likes: 0, dislikes: 0, loves: 1 });
+
+    // Merging higher real server counts preserves local userReaction and keeps highest real count
+    const merged = mergeServerReactionCounts(reloaded, {
+      'real-ad-99': { likes: 2, dislikes: 0, loves: 4 },
+      'other-real-ad': { likes: 1, dislikes: 0, loves: 3 },
+    });
+    expect(merged['real-ad-99']).toEqual({ likes: 2, dislikes: 0, loves: 4, userReaction: 'love' });
+    expect(merged['other-real-ad']).toEqual({ likes: 1, dislikes: 0, loves: 3 });
+  });
+});
+
 

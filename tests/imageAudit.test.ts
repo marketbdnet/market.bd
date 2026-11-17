@@ -11,8 +11,8 @@ import {
 import { INITIAL_PRODUCTS } from '../src/data/mockProducts';
 
 describe('Image Catalog & Category Hierarchy Audit', () => {
-  it('should have 20 main categories with valid non-empty images', () => {
-    expect(CATEGORIES.length).toBe(20);
+  it('should have 17 main categories with valid non-empty images', () => {
+    expect(CATEGORIES.length).toBe(17);
     CATEGORIES.forEach((cat) => {
       const img = getCategoryImageUrl(cat.id, cat.image);
       console.log(`Category: ${cat.id} -> ${img}`);
@@ -36,6 +36,7 @@ describe('Image Catalog & Category Hierarchy Audit', () => {
       });
     });
     console.log(`Subcategories missing direct image entries (${missingSub.length}):`, missingSub);
+    expect(missingSub.length).toBe(0);
   });
 
   it('should resolve second level categories with valid fallback hierarchy', () => {

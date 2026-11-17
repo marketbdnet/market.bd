@@ -37,14 +37,16 @@ export function normalizePhoneNumber(phone: string): string {
  * Returns the configured account details for a payment method
  */
 export function getPaymentAccount(method: PaymentMethod) {
-  return PAYMENT_ACCOUNTS_CONFIG[method] || null;
+  const accounts = PAYMENT_ACCOUNTS_CONFIG as Record<string, { accountNumber: string; type: string; instructions: string }>;
+  return accounts[method] || null;
 }
 
 /**
  * Validates that the submitted account number matches the central configuration for that method
  */
 export function validatePaymentAccount(method: PaymentMethod, submittedAccountNumber: string): boolean {
-  const config = PAYMENT_ACCOUNTS_CONFIG[method];
+  const accounts = PAYMENT_ACCOUNTS_CONFIG as Record<string, { accountNumber: string; type: string; instructions: string }>;
+  const config = accounts[method];
   if (!config) return false;
   return normalizePhoneNumber(config.accountNumber) === normalizePhoneNumber(submittedAccountNumber);
 }

@@ -94,7 +94,7 @@ export const Navbar: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-slate-800 transition-colors shadow-md w-full relative pt-[max(2px,env(safe-area-inset-top))] backdrop-blur-md">
+      <header className="sticky top-0 z-40 bg-[#FF0000] dark:bg-[#B91C1C] text-white border-b-2 border-[#CC0000] dark:border-red-950 transition-colors shadow-md w-full relative pt-[max(2px,env(safe-area-inset-top))] backdrop-blur-md">
       {/* ================= DESKTOP & TABLET LAYOUT (Hidden on mobile & tablet < lg) ================= */}
       <div className="hidden lg:block">
         <div className="max-w-7xl mx-auto px-2 sm:px-3 py-1 sm:py-1.5 flex flex-col gap-1 sm:gap-1.5 relative z-20 w-full">
@@ -106,7 +106,7 @@ export const Navbar: React.FC = () => {
               className="flex items-center gap-1.5 text-left group cursor-pointer shrink-0 select-none py-0"
               title="MarketBD.Net Home"
             >
-              <div className="h-7.5 w-7.5 sm:h-8 sm:w-8 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-800">
+              <div className="h-7.5 w-7.5 sm:h-8 sm:w-8 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-lg border-2 border-white shadow-sm bg-white">
                 <img
                   src={customLogoUrl || '/logo.jpg'}
                   alt="MarketBD.Net Logo"
@@ -121,9 +121,9 @@ export const Navbar: React.FC = () => {
               </div>
               <div className="flex flex-col leading-tight">
                 <span className="text-sm sm:text-base md:text-lg font-black tracking-tight drop-shadow-sm whitespace-nowrap">
-                  <span className="text-red-600">M</span><span className="text-slate-900 dark:text-white">arketBD.</span><span className="text-red-600">Net</span>
+                  <span className="text-[#FFE600]">M</span><span className="text-white">arketBD.</span><span className="text-[#FFE600]">Net</span>
                 </span>
-                <span className="text-[8px] sm:text-[9px] text-emerald-600 dark:text-emerald-400 font-bold whitespace-nowrap">
+                <span className="text-[8px] sm:text-[9px] text-amber-100 font-bold whitespace-nowrap">
                   {language === 'bn' ? 'বিশ্বস্ত মার্কেটপ্লেস' : 'Trusted Marketplace'}
                 </span>
               </div>
@@ -192,15 +192,11 @@ export const Navbar: React.FC = () => {
               {/* Prominent Sell / Post Ad Button */}
               <button
                 onClick={handlePostAdClick}
-                className="liquid-btn liquid-btn-red live-beacon-pulse h-8 sm:h-8.5 flex items-center justify-center gap-1.5 px-3.5 sm:px-4 text-white font-black cursor-pointer text-xs sm:text-[13px] shrink-0"
+                className="rounded-full bg-[#FFC800] hover:bg-[#FFD836] active:scale-95 h-8 sm:h-8.5 flex items-center justify-center gap-1.5 px-3.5 sm:px-4 text-slate-950 font-black border-2 border-white shadow-md transition cursor-pointer text-xs sm:text-[13px] shrink-0"
                 title={language === 'bn' ? 'বিজ্ঞাপন দিন বা সেল করুন' : 'Sell / Post Ad'}
               >
-                <span className="relative flex h-2.5 w-2.5 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-90"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 border border-white"></span>
-                </span>
-                <PlusCircle className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
-                <span className="whitespace-nowrap font-black text-white">{language === 'bn' ? 'সেল / এড পোস্ট' : 'Sell / Post Ad'}</span>
+                <PlusCircle className="w-4 h-4 text-slate-950 shrink-0 stroke-[2.5]" />
+                <span className="whitespace-nowrap font-black text-slate-950">{language === 'bn' ? 'সেল / এড পোস্ট' : 'Sell / Post Ad'}</span>
               </button>
 
               {/* Menu Drawer Toggle Button */}
@@ -333,8 +329,8 @@ export const Navbar: React.FC = () => {
             onSubmit={handleSearchSubmit}
             className="flex-1 min-w-0 relative flex items-center"
           >
-            <div className="relative w-full h-6 sm:h-6.5 bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 hover:border-slate-400 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 rounded-full text-slate-800 dark:text-white transition px-2.5 sm:px-3 flex items-center shadow-[inset_0_1.5px_3px_rgba(0,0,0,0.06),0_2px_6px_rgba(0,0,0,0.04)] overflow-hidden">
-              <Search className="w-3 h-3 text-emerald-600 mr-1.5 shrink-0" />
+            <div className="relative w-full h-6 sm:h-6.5 bg-white dark:bg-slate-800/95 border border-white/95 dark:border-slate-700 hover:border-amber-300 focus-within:border-amber-300 focus-within:ring-2 focus-within:ring-amber-300/40 rounded-full text-slate-800 dark:text-white transition px-2.5 sm:px-3 flex items-center shadow-sm overflow-hidden">
+              <Search className="w-3 h-3 text-[#FF0000] dark:text-red-400 mr-1.5 shrink-0" />
               <input
                 type="text"
                 value={searchInput}
@@ -351,7 +347,7 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleVoiceSearch}
-                  className="p-0.5 text-slate-500 hover:text-emerald-600 hover:bg-slate-200/60 dark:hover:bg-slate-700 rounded-full transition cursor-pointer"
+                  className="p-0.5 text-slate-500 hover:text-[#FF0000] hover:bg-slate-200/60 dark:hover:bg-slate-700 rounded-full transition cursor-pointer"
                   title={language === 'bn' ? 'ভয়েস সার্চ' : 'Voice Search'}
                 >
                   <Mic className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
@@ -359,7 +355,7 @@ export const Navbar: React.FC = () => {
 
                 <button
                   type="submit"
-                  className="liquid-btn liquid-btn-emerald active:scale-95 text-white font-bold px-2.5 sm:px-3 transition text-[10px] sm:text-[11px] flex items-center gap-1 shrink-0 cursor-pointer h-5 sm:h-5.5 whitespace-nowrap"
+                  className="rounded-full bg-[#FFC800] hover:bg-[#FFD836] active:scale-95 text-slate-950 font-black px-2.5 sm:px-3 transition text-[10px] sm:text-[11px] flex items-center gap-1 shrink-0 cursor-pointer h-5 sm:h-5.5 whitespace-nowrap border border-amber-500/40 shadow-2xs"
                 >
                   {language === 'bn' ? 'খুঁজুন' : 'Search'}
                 </button>
@@ -371,7 +367,7 @@ export const Navbar: React.FC = () => {
       </div>
 
       {/* ================= MOBILE & TABLET DEDICATED STRUCTURE (Shown on all mobile & tablet < lg) ================= */}
-      <div className="block lg:hidden px-2 py-1.5 space-y-1.5 w-full bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-slate-800">
+      <div className="block lg:hidden px-2 py-1.5 space-y-1.5 w-full bg-transparent text-white">
         {/* MOBILE ROW 1: Logo + Live Clock (Favorite Clock Always Visible!) */}
         <div className="flex items-center justify-between gap-1.5 w-full">
           {/* Logo */}
@@ -380,7 +376,7 @@ export const Navbar: React.FC = () => {
             className="flex items-center gap-1.5 text-left group cursor-pointer shrink-0 select-none"
             title="MarketBD.Net Home"
           >
-            <div className="h-7 w-7 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-md border border-slate-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-800">
+            <div className="h-7 w-7 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-md border-2 border-white shadow-sm bg-white">
               <img
                 src={customLogoUrl || '/logo.jpg'}
                 alt="MarketBD.Net Logo"
@@ -395,9 +391,9 @@ export const Navbar: React.FC = () => {
             </div>
             <div className="flex flex-col leading-none">
               <span className="text-sm font-black tracking-tight drop-shadow-sm whitespace-nowrap">
-                <span className="text-red-600">M</span><span className="text-slate-900 dark:text-white">arketBD.</span><span className="text-red-600">Net</span>
+                <span className="text-[#FFE600]">M</span><span className="text-white">arketBD.</span><span className="text-[#FFE600]">Net</span>
               </span>
-              <span className="text-[7.5px] text-emerald-600 dark:text-emerald-400 font-bold whitespace-nowrap mt-0.5">
+              <span className="text-[7.5px] text-amber-100 font-bold whitespace-nowrap mt-0.5">
                 {language === 'bn' ? 'বিশ্বস্ত মার্কেটপ্লেস' : 'Trusted Market'}
               </span>
             </div>
@@ -470,15 +466,11 @@ export const Navbar: React.FC = () => {
           {/* Sell Post Button */}
           <button
             onClick={handlePostAdClick}
-            className="liquid-btn liquid-btn-red live-beacon-pulse h-8 px-2 sm:px-2.5 flex items-center justify-center gap-1.5 text-white font-black cursor-pointer text-[11.5px] sm:text-xs shrink-0 whitespace-nowrap"
+            className="rounded-full bg-[#FFC800] hover:bg-[#FFD836] active:scale-95 h-8 px-2.5 sm:px-3 flex items-center justify-center gap-1.5 text-slate-950 font-black border-2 border-white shadow-md transition cursor-pointer text-[11.5px] sm:text-xs shrink-0 whitespace-nowrap"
             title={language === 'bn' ? 'বিজ্ঞাপন দিন বা সেল করুন' : 'Sell / Post Ad'}
           >
-            <span className="relative flex h-2.5 w-2.5 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-90"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 border border-white"></span>
-            </span>
-            <PlusCircle className="w-3.5 h-3.5 text-white shrink-0 stroke-[2.5]" />
-            <span className="whitespace-nowrap font-black text-white">
+            <PlusCircle className="w-3.5 h-3.5 text-slate-950 shrink-0 stroke-[2.5]" />
+            <span className="whitespace-nowrap font-black text-slate-950">
               {language === 'bn' ? 'সেল / এড পোস্ট' : 'Sell / Post Ad'}
             </span>
           </button>
@@ -488,8 +480,8 @@ export const Navbar: React.FC = () => {
             onSubmit={handleSearchSubmit}
             className="flex-1 min-w-0 relative flex items-center"
           >
-            <div className="relative w-full h-8 bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 focus-within:border-emerald-500 rounded-full text-slate-800 dark:text-white transition px-2.5 flex items-center shadow-[inset_0_1px_2px_rgba(0,0,0,0.06),0_1.5px_4px_rgba(0,0,0,0.04)] overflow-hidden">
-              <Search className="w-3.5 h-3.5 text-emerald-600 mr-1 shrink-0" />
+            <div className="relative w-full h-8 bg-white dark:bg-slate-800/95 border border-white/95 dark:border-slate-700 focus-within:border-amber-300 rounded-full text-slate-800 dark:text-white transition px-2.5 flex items-center shadow-sm overflow-hidden">
+              <Search className="w-3.5 h-3.5 text-[#FF0000] dark:text-red-400 mr-1 shrink-0" />
               <input
                 type="text"
                 value={searchInput}
@@ -506,7 +498,7 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleVoiceSearch}
-                  className="p-0.5 text-slate-500 hover:text-emerald-600 rounded-full hover:bg-slate-200/60 dark:hover:bg-slate-700 transition cursor-pointer"
+                  className="p-0.5 text-slate-500 hover:text-[#FF0000] rounded-full hover:bg-slate-200/60 dark:hover:bg-slate-700 transition cursor-pointer"
                   title={language === 'bn' ? 'ভয়েস সার্চ' : 'Voice Search'}
                 >
                   <Mic className="w-3 h-3" />
@@ -514,7 +506,7 @@ export const Navbar: React.FC = () => {
 
                 <button
                   type="submit"
-                  className="liquid-btn liquid-btn-emerald active:scale-95 text-white font-bold px-2 sm:px-2.5 py-0.5 transition text-[10px] sm:text-[10.5px] flex items-center gap-0.5 shrink-0 cursor-pointer h-6 whitespace-nowrap"
+                  className="rounded-full bg-[#FFC800] hover:bg-[#FFD836] active:scale-95 text-slate-950 font-black px-2.5 sm:px-3 py-0.5 transition text-[10px] sm:text-[10.5px] flex items-center gap-0.5 shrink-0 cursor-pointer h-6 whitespace-nowrap border border-amber-500/40 shadow-2xs"
                 >
                   {language === 'bn' ? 'খুঁজুন' : 'Search'}
                 </button>
@@ -951,13 +943,13 @@ export const Navbar: React.FC = () => {
                   <button
                     onClick={() => {
                       setIsMobileMenuOpen(false);
-                      setFilters(prev => ({ ...prev, category: 'computers', subCategory: '' }));
+                      setFilters(prev => ({ ...prev, category: 'electronics', subCategory: 'laptops' }));
                       setActiveTab('search');
                     }}
                     className="flex items-center gap-2 p-2 bg-slate-800/80 hover:bg-slate-700/80 rounded-xl text-slate-200 transition text-left cursor-pointer border border-slate-700/50"
                   >
                     <Laptop className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                    <span className="text-[11px] font-bold truncate">{language === 'bn' ? 'ল্যাপটপ ও আইটি' : 'Computers'}</span>
+                    <span className="text-[11px] font-bold truncate">{language === 'bn' ? 'ল্যাপটপ ও কম্পিউটার' : 'Laptops & PCs'}</span>
                   </button>
 
                   <button

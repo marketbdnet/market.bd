@@ -19,6 +19,7 @@ import {
   OFFICIAL_PAYMENT_EMAIL
 } from '../../config/paymentConfig';
 import { submitManualPayment } from '../../services/paymentService';
+import { useMarket } from '../../context/MarketContext';
 
 interface PaymentCheckoutModalProps {
   isOpen: boolean;
@@ -45,7 +46,19 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
   serviceTitle = 'MarketBD সার্ভিস / অর্ডার',
   onPaymentSubmitted
 }) => {
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('bKash');
+  const { paymentAccounts } = useMarket();
+
+  const activeMethods: PaymentMethod[] = [
+    ...(paymentAccounts?.bkashEnabled !== false ? (['bKash'] as const) : []),
+    ...(paymentAccounts?.nagadEnabled !== false ? (['Nagad'] as const) : []),
+    ...(paymentAccounts?.rocketEnabled !== false ? (['Rocket'] as const) : []),
+    ...(paymentAccounts?.upayEnabled === true ? (['Upay'] as const) : []),
+    ...(paymentAccounts?.bankAccount?.isEnabled === true ? (['Bank'] as const) : []),
+  ];
+  const selectableMethods: PaymentMethod[] =
+    activeMethods.length > 0 ? activeMethods : ['bKash', 'Nagad', 'Rocket'];
+
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(selectableMethods[0]);
   const [senderMobile, setSenderMobile] = useState(customerMobile || '');
   const [transactionId, setTransactionId] = useState('');
   const [submittedAmount, setSubmittedAmount] = useState<string>(String(expectedAmount));
@@ -59,7 +72,42 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentAccountConfig = PAYMENT_ACCOUNTS_CONFIG[selectedMethod];
+  const activeMethod: PaymentMethod = selectableMethods.includes(selectedMethod)
+    ? selectedMethod
+    : selectableMethods[0];
+
+  const getDynamicAccountDetails = (method: PaymentMethod) => {
+    if (method === 'bKash') {
+      return {
+        accountNumber: paymentAccounts?.bkashNumber || PAYMENT_ACCOUNTS_CONFIG.bKash.accountNumber,
+        instructions: PAYMENT_ACCOUNTS_CONFIG.bKash.instructions,
+      };
+    }
+    if (method === 'Nagad') {
+      return {
+        accountNumber: paymentAccounts?.nagadNumber || PAYMENT_ACCOUNTS_CONFIG.Nagad.accountNumber,
+        instructions: PAYMENT_ACCOUNTS_CONFIG.Nagad.instructions,
+      };
+    }
+    if (method === 'Rocket') {
+      return {
+        accountNumber: paymentAccounts?.rocketNumber || PAYMENT_ACCOUNTS_CONFIG.Rocket.accountNumber,
+        instructions: PAYMENT_ACCOUNTS_CONFIG.Rocket.instructions,
+      };
+    }
+    if (method === 'Upay') {
+      return {
+        accountNumber: paymentAccounts?.upayNumber || '01723230230',
+        instructions: 'Upay থেকে এই নম্বরে টাকা পাঠান এবং Transaction ID সংরক্ষণ করুন।',
+      };
+    }
+    return {
+      accountNumber: paymentAccounts?.bankAccount?.accountNumber || '2050 3928 1000 9281',
+      instructions: `${paymentAccounts?.bankAccount?.bankName || 'Bank'} (${paymentAccounts?.bankAccount?.accountName || 'MarketBD'}) - ${paymentAccounts?.bankAccount?.branchName || ''} একাউন্টে ট্রান্সফার করে রেফারেন্স আইডি জমা দিন।`,
+    };
+  };
+
+  const currentAccountConfig = getDynamicAccountDetails(activeMethod);
 
   const handleCopyNumber = () => {
     if (currentAccountConfig?.accountNumber) {
@@ -120,7 +168,8 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
         customerName,
         customerMobile,
         customerEmail,
-        paymentMethod: selectedMethod,
+        paymentMethod: activeMethod,
+        recipientAccountNumber: currentAccountConfig.accountNumber,
         senderMobileNumber: senderMobile,
         transactionId,
         submittedAmount: parsedAmount,
@@ -247,47 +296,80 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
                 পেমেন্ট মেথড নির্বাচন করুন
               </label>
               <div className="grid grid-cols-3 gap-2.5">
-                {/* bKash */}
-                <button
-                  type="button"
-                  onClick={() => setSelectedMethod('bKash')}
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-                    selectedMethod === 'bKash'
-                      ? 'border-[#E2136E] bg-pink-50/50 shadow-sm'
-                      : 'border-gray-200 hover:border-gray-300 bg-white'
-                  }`}
-                >
-                  <BkashLogo className="h-6 w-auto" />
-                  <span className="text-xs font-semibold text-gray-800 mt-1.5">bKash</span>
-                </button>
+                {selectableMethods.includes('bKash') && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMethod('bKash')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                      activeMethod === 'bKash'
+                        ? 'border-[#E2136E] bg-pink-50/50 shadow-sm'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <BkashLogo className="h-6 w-auto" />
+                    <span className="text-xs font-semibold text-gray-800 mt-1.5">bKash</span>
+                  </button>
+                )}
 
-                {/* Nagad */}
-                <button
-                  type="button"
-                  onClick={() => setSelectedMethod('Nagad')}
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-                    selectedMethod === 'Nagad'
-                      ? 'border-[#F7931E] bg-amber-50/50 shadow-sm'
-                      : 'border-gray-200 hover:border-gray-300 bg-white'
-                  }`}
-                >
-                  <NagadLogo className="h-6 w-auto" />
-                  <span className="text-xs font-semibold text-gray-800 mt-1.5">Nagad</span>
-                </button>
+                {selectableMethods.includes('Nagad') && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMethod('Nagad')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                      activeMethod === 'Nagad'
+                        ? 'border-[#F7931E] bg-amber-50/50 shadow-sm'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <NagadLogo className="h-6 w-auto" />
+                    <span className="text-xs font-semibold text-gray-800 mt-1.5">Nagad</span>
+                  </button>
+                )}
 
-                {/* Rocket */}
-                <button
-                  type="button"
-                  onClick={() => setSelectedMethod('Rocket')}
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-                    selectedMethod === 'Rocket'
-                      ? 'border-[#8C3494] bg-purple-50/50 shadow-sm'
-                      : 'border-gray-200 hover:border-gray-300 bg-white'
-                  }`}
-                >
-                  <RocketLogo className="h-6 w-auto" />
-                  <span className="text-xs font-semibold text-gray-800 mt-1.5">Rocket</span>
-                </button>
+                {selectableMethods.includes('Rocket') && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMethod('Rocket')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                      activeMethod === 'Rocket'
+                        ? 'border-[#8C3494] bg-purple-50/50 shadow-sm'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <RocketLogo className="h-6 w-auto" />
+                    <span className="text-xs font-semibold text-gray-800 mt-1.5">Rocket</span>
+                  </button>
+                )}
+
+                {selectableMethods.includes('Upay') && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMethod('Upay')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                      activeMethod === 'Upay'
+                        ? 'border-indigo-600 bg-indigo-50/60 shadow-sm'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <span className="text-sm font-black text-red-600">upay</span>
+                    <span className="text-xs font-semibold text-gray-800 mt-1">Upay</span>
+                  </button>
+                )}
+
+                {selectableMethods.includes('Bank') && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMethod('Bank')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                      activeMethod === 'Bank'
+                        ? 'border-emerald-600 bg-emerald-50/60 shadow-sm'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <span className="text-sm font-black text-emerald-700">BANK</span>
+                    <span className="text-xs font-semibold text-gray-800 mt-1">ব্যাংক</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -295,7 +377,7 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
             <div className="p-3.5 bg-gradient-to-br from-emerald-50/70 to-teal-50/40 border border-emerald-200 rounded-xl space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-emerald-900">
-                  {selectedMethod} Payment Number:
+                  {activeMethod} Payment Number:
                 </span>
                 <span className="text-[11px] text-gray-500 font-medium">MarketBD অফিসিয়াল</span>
               </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { storage } from '../../utils/storage';
 import { verifyAdminPassword } from '../../utils/adminAuth';
+import { sendUnifiedSmsOtp, verifyUnifiedSmsOtp } from '../../services/smsService';
 import { UserProfile } from '../../types';
 import { GoogleLogo, FacebookLogo, GmailLogo } from '../Common/BrandLogos';
 import {
@@ -358,33 +359,24 @@ export const AuthModal: React.FC = () => {
     setResendTimer(120);
 
     if (selectedChannel === 'sms') {
-      // Real SMS via our own secure server endpoint (/api/sms).
+      // Unified secure SMS OTP endpoint (/api/sms) via smsService.
       // The OTP code is created and checked on the server; it is never shown on screen.
       setGeneratedOtp('');
       setConfirmationResult(null);
-      try {
-        const r = await fetch('/api/sms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'send_otp', phone: targetPhone })
-        });
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok || !data.ok) {
-          setIsSendingOtp(false);
-          setErrorMsg(
-            data?.code === 'NOT_CONFIGURED'
-              ? (language === 'bn' ? '❌ এসএমএস সেবা এখনো চালু করা হয়নি। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।' : '❌ SMS service is not enabled yet. Please try again later.')
-              : `❌ ${data?.error || (language === 'bn' ? 'ওটিপি পাঠানো যায়নি। আবার চেষ্টা করুন।' : 'Could not send OTP. Please try again.')}`
-          );
-          return;
-        }
-        setSmsToken(data.token);
-        setSmsExp(data.exp);
-      } catch {
+      const data = await sendUnifiedSmsOtp(targetPhone);
+      if (!data.ok || !data.token || !data.exp) {
         setIsSendingOtp(false);
-        setErrorMsg(language === 'bn' ? '❌ ইন্টারনেট সংযোগ সমস্যা। আবার চেষ্টা করুন।' : '❌ Network problem. Please try again.');
+        setErrorMsg(
+          data.code === 'NOT_CONFIGURED'
+            ? (language === 'bn' ? '❌ এসএমএস সেবা এখনো চালু করা হয়নি। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।' : '❌ SMS service is not enabled yet. Please try again later.')
+            : data.code === 'NETWORK_ERROR'
+            ? (language === 'bn' ? '❌ ইন্টারনেট সংযোগ সমস্যা। আবার চেষ্টা করুন।' : '❌ Network problem. Please try again.')
+            : `❌ ${data.error || (language === 'bn' ? 'ওটিপি পাঠানো যায়নি। আবার চেষ্টা করুন।' : 'Could not send OTP. Please try again.')}`
+        );
         return;
       }
+      setSmsToken(data.token);
+      setSmsExp(data.exp);
     } else {
       // Email channel keeps the previous local-code behaviour.
       const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -751,24 +743,19 @@ export const AuthModal: React.FC = () => {
     let isOtpValid = false;
 
     if (otpChannel === 'sms' && smsToken) {
-      try {
-        const r = await fetch('/api/sms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'verify_otp', phone: phoneOrEmail.trim(), code: cleanOtp, token: smsToken, exp: smsExp })
-        });
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok || !data.ok) {
-          setOtpError(
-            `❌ ${data?.error || (language === 'bn' ? 'ভুল ওটিপি কোড! আপনার মোবাইলে আসা ৬ ডিজিটের সঠিক কোডটি লিখুন।' : 'Incorrect OTP code.')}`
-          );
-          return;
-        }
-        isOtpValid = true;
-      } catch {
-        setOtpError(language === 'bn' ? '❌ ইন্টারনেট সংযোগ সমস্যা। আবার চেষ্টা করুন।' : '❌ Network problem. Please try again.');
+      const data = await verifyUnifiedSmsOtp({
+        phone: phoneOrEmail.trim(),
+        code: cleanOtp,
+        token: smsToken,
+        exp: smsExp,
+      });
+      if (!data.ok) {
+        setOtpError(
+          `❌ ${data.error || (language === 'bn' ? 'ভুল ওটিপি কোড! আপনার মোবাইলে আসা ৬ ডিজিটের সঠিক কোডটি লিখুন।' : 'Incorrect OTP code.')}`
+        );
         return;
       }
+      isOtpValid = true;
     } else if (cleanOtp === generatedOtp && generatedOtp) {
       isOtpValid = true;
     } else {

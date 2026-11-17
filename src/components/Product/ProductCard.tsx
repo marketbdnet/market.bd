@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Product } from '../../types';
 import { useMarket } from '../../context/MarketContext';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
-import { formatPostedAt } from '../../utils/dateUtils';
+import { formatPostedAt, formatPostDateTime } from '../../utils/dateUtils';
 import { getSecondLevelImageUrl, getSubcategoryImageUrl, getCategoryImageUrl } from '../../utils/categoryImages';
 import { ShareModal } from './ShareModal';
 import { WatermarkedImage } from './WatermarkedImage';
@@ -192,13 +192,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, layout, layou
                 </span>
               </div>
 
-              {/* 3. Post Time */}
+              {/* 3. Post Date & Time */}
               <div className="grid grid-cols-[90px_1fr] items-center gap-2 border-b border-slate-200/60 dark:border-slate-700/50 pb-1.5">
-                <span className="text-emerald-600 dark:text-emerald-400 font-black text-xs">
-                  {language === 'bn' ? 'পোস্ট সময়:' : 'Post Time:'}
+                <span className="text-emerald-600 dark:text-emerald-400 font-black text-xs flex items-center gap-1">
+                  <Clock className="w-3 h-3 shrink-0" />
+                  <span>{language === 'bn' ? 'পোস্ট:' : 'Posted:'}</span>
                 </span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold text-left text-xs sm:text-sm">
-                  {formatPostedAt(product.postedAt, language)}
+                <span className="text-emerald-700 dark:text-emerald-400 font-bold text-left text-[11px] sm:text-xs">
+                  {formatPostDateTime(product.postedAt, language)}
                 </span>
               </div>
 
@@ -338,13 +339,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, layout, layou
             </span>
           </div>
 
-          {/* 3. Post Time */}
+          {/* 3. Post Date & Time */}
           <div className="grid grid-cols-[68px_1fr] sm:grid-cols-[80px_1fr] items-center gap-1 sm:gap-2 border-b border-slate-200/60 dark:border-slate-700/50 pb-0.5 sm:pb-1">
-            <span className="text-emerald-600 dark:text-emerald-400 font-black text-[10px] sm:text-[11px]">
-              {language === 'bn' ? 'পোস্ট সময়' : 'Time'}
+            <span className="text-emerald-600 dark:text-emerald-400 font-black text-[10px] sm:text-[11px] flex items-center gap-1">
+              <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" />
+              <span>{language === 'bn' ? 'পোস্ট:' : 'Posted:'}</span>
             </span>
-            <span className="text-emerald-600 dark:text-emerald-400 font-bold text-left text-[10px] sm:text-xs">
-              {formatPostedAt(product.postedAt, language)}
+            <span className="text-emerald-700 dark:text-emerald-400 font-bold text-left text-[9.5px] sm:text-[11px] leading-tight">
+              {formatPostDateTime(product.postedAt, language)}
             </span>
           </div>
 

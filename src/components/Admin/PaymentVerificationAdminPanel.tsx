@@ -29,7 +29,7 @@ import {
 import { BkashLogo, NagadLogo, RocketLogo } from '../Common/BrandLogos';
 
 export const PaymentVerificationAdminPanel: React.FC = () => {
-  const { language, currentUser } = useMarket();
+  const { language, currentUser, paymentAccounts, updatePaymentAccounts } = useMarket();
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -125,6 +125,12 @@ export const PaymentVerificationAdminPanel: React.FC = () => {
   const paidCount = payments.filter(p => p.status === 'paid').length;
   const rejectedCount = payments.filter(p => p.status === 'rejected').length;
 
+  const isBkashActive = paymentAccounts?.bkashEnabled !== false;
+  const isNagadActive = paymentAccounts?.nagadEnabled !== false;
+  const isRocketActive = paymentAccounts?.rocketEnabled !== false;
+  const isUpayActive = paymentAccounts?.upayEnabled === true;
+  const isBankActive = paymentAccounts?.bankAccount?.isEnabled === true;
+
   return (
     <div className="space-y-6">
       
@@ -138,7 +144,7 @@ export const PaymentVerificationAdminPanel: React.FC = () => {
             <div>
               <h2 className="text-xl font-black text-gray-900">পেমেন্ট ভেরিফিকেশন ম্যানেজমেন্ট</h2>
               <p className="text-xs text-gray-500">
-                গ্রাহকদের bKash, Nagad ও Rocket ম্যানুয়াল পেমেন্ট যাচাই ও অনুমোদন সিস্টেম
+                গ্রাহকদের bKash, Nagad ও Rocket ম্যানুয়াল পেমেন্ট যাচাই ও অনুমোদন সিস্টেম (বাকি অপশন এডমিন চাইলে চালু করতে পারবেন)
               </p>
             </div>
           </div>
@@ -156,48 +162,133 @@ export const PaymentVerificationAdminPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Central Configuration Card */}
-      <div className="p-4 bg-gradient-to-r from-emerald-50/80 via-teal-50/50 to-cyan-50/60 border border-emerald-200 rounded-2xl">
-        <div className="flex items-center justify-between mb-2">
+      {/* Central Configuration & Live Method Toggle Card */}
+      <div className="p-4 bg-gradient-to-r from-emerald-50/80 via-teal-50/50 to-cyan-50/60 border border-emerald-200 rounded-2xl space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs font-bold text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            MarketBD অফিসিয়াল পেমেন্ট অ্যাকাউন্টস (Central Configuration)
+            MarketBD পেমেন্ট অপশনসমূহ (শুধু bKash, Nagad, Rocket ডিফল্ট সচল)
           </span>
           <span className="text-[11px] text-gray-500 font-mono">
             Support: {OFFICIAL_PAYMENT_EMAIL}
           </span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-1">
           {/* bKash */}
-          <div className="flex items-center justify-between p-2.5 bg-white border border-emerald-100 rounded-xl shadow-xs">
-            <div className="flex items-center gap-2">
-              <BkashLogo className="h-5 w-auto" />
-              <span className="text-xs font-bold text-gray-800">bKash</span>
+          <div className={`flex flex-col justify-between gap-1.5 p-2.5 rounded-xl border shadow-xs transition ${
+            isBkashActive ? 'bg-white border-emerald-200' : 'bg-gray-100 border-gray-200 opacity-70'
+          }`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <BkashLogo className="h-5 w-auto" />
+                <span className="text-xs font-bold text-gray-800">bKash</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => updatePaymentAccounts({ bkashEnabled: !isBkashActive })}
+                className={`px-2 py-0.5 text-[10px] font-black rounded-full cursor-pointer ${
+                  isBkashActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'
+                }`}
+              >
+                {isBkashActive ? 'সচল' : 'বন্ধ'}
+              </button>
             </div>
-            <span className="font-mono text-xs font-bold text-emerald-800">
-              {PAYMENT_ACCOUNTS_CONFIG.bKash.accountNumber}
+            <span className="font-mono text-[11px] font-bold text-emerald-800">
+              {paymentAccounts?.bkashNumber || PAYMENT_ACCOUNTS_CONFIG.bKash.accountNumber}
             </span>
           </div>
 
           {/* Nagad */}
-          <div className="flex items-center justify-between p-2.5 bg-white border border-emerald-100 rounded-xl shadow-xs">
-            <div className="flex items-center gap-2">
-              <NagadLogo className="h-5 w-auto" />
-              <span className="text-xs font-bold text-gray-800">Nagad</span>
+          <div className={`flex flex-col justify-between gap-1.5 p-2.5 rounded-xl border shadow-xs transition ${
+            isNagadActive ? 'bg-white border-emerald-200' : 'bg-gray-100 border-gray-200 opacity-70'
+          }`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <NagadLogo className="h-5 w-auto" />
+                <span className="text-xs font-bold text-gray-800">Nagad</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => updatePaymentAccounts({ nagadEnabled: !isNagadActive })}
+                className={`px-2 py-0.5 text-[10px] font-black rounded-full cursor-pointer ${
+                  isNagadActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'
+                }`}
+              >
+                {isNagadActive ? 'সচল' : 'বন্ধ'}
+              </button>
             </div>
-            <span className="font-mono text-xs font-bold text-emerald-800">
-              {PAYMENT_ACCOUNTS_CONFIG.Nagad.accountNumber}
+            <span className="font-mono text-[11px] font-bold text-emerald-800">
+              {paymentAccounts?.nagadNumber || PAYMENT_ACCOUNTS_CONFIG.Nagad.accountNumber}
             </span>
           </div>
 
           {/* Rocket */}
-          <div className="flex items-center justify-between p-2.5 bg-white border border-emerald-100 rounded-xl shadow-xs">
-            <div className="flex items-center gap-2">
-              <RocketLogo className="h-5 w-auto" />
-              <span className="text-xs font-bold text-gray-800">Rocket</span>
+          <div className={`flex flex-col justify-between gap-1.5 p-2.5 rounded-xl border shadow-xs transition ${
+            isRocketActive ? 'bg-white border-emerald-200' : 'bg-gray-100 border-gray-200 opacity-70'
+          }`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <RocketLogo className="h-5 w-auto" />
+                <span className="text-xs font-bold text-gray-800">Rocket</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => updatePaymentAccounts({ rocketEnabled: !isRocketActive })}
+                className={`px-2 py-0.5 text-[10px] font-black rounded-full cursor-pointer ${
+                  isRocketActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'
+                }`}
+              >
+                {isRocketActive ? 'সচল' : 'বন্ধ'}
+              </button>
             </div>
-            <span className="font-mono text-xs font-bold text-emerald-800">
-              {PAYMENT_ACCOUNTS_CONFIG.Rocket.accountNumber}
+            <span className="font-mono text-[11px] font-bold text-emerald-800">
+              {paymentAccounts?.rocketNumber || PAYMENT_ACCOUNTS_CONFIG.Rocket.accountNumber}
+            </span>
+          </div>
+
+          {/* Upay (Default Disabled - Admin can activate anytime) */}
+          <div className={`flex flex-col justify-between gap-1.5 p-2.5 rounded-xl border shadow-xs transition ${
+            isUpayActive ? 'bg-white border-emerald-200' : 'bg-gray-100 border-gray-200 opacity-75'
+          }`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-black text-indigo-700">upay (উপায়)</span>
+              <button
+                type="button"
+                onClick={() => updatePaymentAccounts({ upayEnabled: !isUpayActive })}
+                className={`px-2 py-0.5 text-[10px] font-black rounded-full cursor-pointer ${
+                  isUpayActive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {isUpayActive ? 'সচল' : 'বন্ধ (চালু করুন)'}
+              </button>
+            </div>
+            <span className="font-mono text-[11px] font-bold text-gray-600">
+              {paymentAccounts?.upayNumber || '01723230230'}
+            </span>
+          </div>
+
+          {/* Bank Transfer (Default Disabled - Admin can activate anytime) */}
+          <div className={`flex flex-col justify-between gap-1.5 p-2.5 rounded-xl border shadow-xs transition ${
+            isBankActive ? 'bg-white border-emerald-200' : 'bg-gray-100 border-gray-200 opacity-75'
+          }`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-black text-slate-800">Bank Deposit</span>
+              <button
+                type="button"
+                onClick={() =>
+                  updatePaymentAccounts({
+                    bankAccount: { ...paymentAccounts.bankAccount, isEnabled: !isBankActive },
+                  })
+                }
+                className={`px-2 py-0.5 text-[10px] font-black rounded-full cursor-pointer ${
+                  isBankActive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {isBankActive ? 'সচল' : 'বন্ধ (চালু করুন)'}
+              </button>
+            </div>
+            <span className="font-mono text-[11px] font-bold text-gray-600 truncate">
+              {paymentAccounts?.bankAccount?.accountNumber || '2050 3928 1000 9281'}
             </span>
           </div>
         </div>

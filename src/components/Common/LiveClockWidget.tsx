@@ -223,7 +223,9 @@ export const LiveClockWidget: React.FC = () => {
 
   const fontFamilyCss = getFontFamilyCss();
   const bgColor = clockSettings?.bgColor || '#090d16';
-  const borderColor = clockSettings?.borderColor && clockSettings.borderColor !== '#334155' ? clockSettings.borderColor : '#ef4444';
+  const borderColor = clockSettings?.borderColor && clockSettings.borderColor !== '#334155' && clockSettings.borderColor !== '#ef4444'
+    ? clockSettings.borderColor
+    : '#ffffff';
 
   // Fallback to sparkling ultra-bright neon green if empty or dull old default
   const rawColor = clockSettings?.textColor?.trim();
@@ -247,7 +249,7 @@ export const LiveClockWidget: React.FC = () => {
         borderColor: borderColor,
         boxShadow: `0 0 10px ${borderColor}44, inset 0 0 10px rgba(0,0,0,0.85)`
       }}
-      className="h-8 sm:h-8.5 px-2.5 sm:px-3 rounded-full border-2 ring-1 ring-red-500/50 flex items-center justify-center gap-1.5 shrink-0 select-none cursor-default shadow-md"
+      className="h-8 sm:h-8.5 px-2.5 sm:px-3 rounded-full border-2 ring-1 ring-white/50 flex items-center justify-center gap-1.5 shrink-0 select-none cursor-default shadow-md"
       title={language === 'bn' ? 'বাংলাদেশ সময় (লাইভ)' : 'Bangladesh Time (Live)'}
     >
       <div className="flex flex-col text-center sm:text-left leading-none justify-center gap-0.5 min-w-0">

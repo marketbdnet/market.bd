@@ -99,3 +99,60 @@ export function formatPostedAt(postedAt: string | number | Date, language: 'bn' 
   }
   return `${day} ${monthsEn[monthIdx]} ${year}, ${timeStrEn}`;
 }
+
+/**
+ * Formats an exact post date & time (e.g. "১৭ নভে ২০২৬, ০৭:১২ AM" / "17 Nov 2026, 07:12 AM")
+ * so every recent listing explicitly shows what date and time it was posted.
+ */
+export function formatPostDateTime(
+  postedAt: string | number | Date | undefined,
+  language: 'bn' | 'en' = 'bn'
+): string {
+  if (!postedAt) {
+    const now = new Date();
+    return formatExactDateAndTime(now, language);
+  }
+
+  let dateObj: Date;
+  if (typeof postedAt === 'number') {
+    dateObj = new Date(postedAt);
+  } else if (postedAt instanceof Date) {
+    dateObj = postedAt;
+  } else {
+    const cleaned = String(postedAt)
+      .replace(/\(Bikroy Live\)/gi, '')
+      .replace(/Bikroy Live/gi, '')
+      .trim();
+    dateObj = new Date(cleaned);
+  }
+
+  if (isNaN(dateObj.getTime())) {
+    const fallback = typeof postedAt === 'string' ? postedAt.trim() : '';
+    return fallback || (language === 'bn' ? 'এইমাত্র' : 'Just now');
+  }
+
+  return formatExactDateAndTime(dateObj, language);
+}
+
+function formatExactDateAndTime(dateObj: Date, language: 'bn' | 'en'): string {
+  const monthsEn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthsBnShort = ['জানু', 'ফেব', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগ', 'সেপ্ট', 'অক্টো', 'নভে', 'ডিসে'];
+
+  const day = dateObj.getDate();
+  const monthIdx = dateObj.getMonth();
+  const year = dateObj.getFullYear();
+
+  const hours = dateObj.getHours();
+  const minutes = dateObj.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const formattedHours = (hours % 12 || 12).toString().padStart(2, '0');
+
+  if (language === 'bn') {
+    const datePart = `${toBengaliNumber(day)} ${monthsBnShort[monthIdx]} ${toBengaliNumber(year)}`;
+    const timePart = `${toBengaliNumber(formattedHours)}:${toBengaliNumber(minutes)} ${ampm}`;
+    return `${datePart}, ${timePart}`;
+  }
+
+  return `${day} ${monthsEn[monthIdx]} ${year}, ${formattedHours}:${minutes} ${ampm}`;
+}
+
