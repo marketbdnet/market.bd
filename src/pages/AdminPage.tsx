@@ -91,7 +91,9 @@ export const AdminPage: React.FC = () => {
     setActiveTab,
     forceAutoApproveAllPending,
     siteMaintenance,
-    toggleSiteMaintenance
+    toggleSiteMaintenance,
+    logAdminAction,
+    toggleBlockUser
   } = useMarket();
 
   const isAdmin = currentUser?.role === 'admin' || userRole === 'admin';
@@ -207,9 +209,17 @@ export const AdminPage: React.FC = () => {
   const [selectedPresetReason, setSelectedPresetReason] = useState<string>('ছবি অস্পষ্ট বা অনুপযুক্ত');
   const [customReasonText, setCustomReasonText] = useState<string>('');
 
+  const [reportFeedback, setReportFeedback] = useState<string>('');
   const activeAdsCount = products.filter(p => isProductPublicActive(p)).length;
   const pendingAds = products.filter(p => isProductPending(p));
   const rejectedAds = products.filter(p => isProductRejected(p));
+  const totalPromotionRevenue = products.reduce(
+    (sum, p) =>
+      sum +
+      (Number(p.paymentInfo?.amount) ||
+        (p.adType === 'featured' ? 599 : p.adType === 'top_ad' ? 299 : p.adType === 'urgent' ? 199 : 0)),
+    0
+  );
 
   if (!isAdmin) {
     if (showOtpStep) {
@@ -370,9 +380,8 @@ export const AdminPage: React.FC = () => {
             />
           </div>
 
-          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 space-y-0.5">
-            <p className="font-bold">🔑 {language === 'bn' ? 'এডমিন লগইন তথ্য:' : 'Admin Credentials:'}</p>
-            <p><strong>ID:</strong> admin | <strong>Pass:</strong> admin (বা 123456)</p>
+          <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] text-slate-600 dark:text-slate-300">
+            <p className="font-bold">🔒 {language === 'bn' ? 'শুধুমাত্র অনুমোদিত সুপার এডমিন ইমেইল বা ফোন নম্বর দিয়ে সাইন-ইন করুন।' : 'Sign in with authorized Super Admin email or phone number.'}</p>
           </div>
 
           <button
@@ -463,7 +472,7 @@ export const AdminPage: React.FC = () => {
           </button>
           <div className="bg-white/20 px-3 py-2 rounded-xl text-center border border-white/30 backdrop-blur-xs">
             <span className="block text-red-100 text-[10px]">Boost Revenue</span>
-            <strong className="text-lg text-white font-black">৳১,৮৫,০০০</strong>
+            <strong className="text-lg text-white font-black">৳{totalPromotionRevenue.toLocaleString('bn-BD')}</strong>
           </div>
           <button
             onClick={() => {
@@ -564,7 +573,7 @@ export const AdminPage: React.FC = () => {
           pendingAds: pendingAds.length,
           rejectedAds: rejectedAds.length,
           activeAds: activeAdsCount,
-          activities: activityLogs.length + 142,
+          activities: activityLogs.length,
           reports: chatReports.length,
           registeredUsers: registeredUsers.length
         }}
@@ -583,7 +592,9 @@ export const AdminPage: React.FC = () => {
                 </div>
               </div>
               <h3 className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-2">{activeAdsCount}</h3>
-              <p className="text-[10px] text-emerald-600 font-bold mt-1">৯৮% পজিটিভ এনগেজমেন্ট</p>
+              <p className="text-[10px] text-emerald-600 font-bold mt-1">
+                {language === 'bn' ? `মোট ${products.length}টি বিজ্ঞাপন` : `Out of ${products.length} total`}
+              </p>
             </div>
 
             {/* Card 2: PENDING ADS */}
@@ -637,22 +648,28 @@ export const AdminPage: React.FC = () => {
                   <Activity className="w-5 h-5" />
                 </div>
               </div>
-              <h3 className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-2">{activityLogs.length + 142}</h3>
+              <h3 className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-2">{activityLogs.length}</h3>
               <p className="text-[10px] text-pink-600 font-bold mt-1 underline">
                 {language === 'bn' ? 'সকল অ্যাক্টিভিটি দেখতে ক্লিক করুন ➔' : 'Click to view log stream ➔'}
               </p>
             </div>
 
-            {/* Card 5: Total Platform Earnings */}
+            {/* Card 5: Promoted / Paid Ads */}
             <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-gray-200 dark:border-slate-800 shadow-2xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500 font-bold uppercase">{language === 'bn' ? 'মোট প্ল্যাটফর্ম আয়' : 'Total Platform Earnings'}</span>
+                <span className="text-xs text-slate-500 font-bold uppercase">{language === 'bn' ? 'প্রমোটেড আয়' : 'Promotion Revenue'}</span>
                 <div className="p-2 bg-amber-100 text-amber-700 rounded-2xl">
                   <DollarSign className="w-5 h-5" />
                 </div>
               </div>
-              <h3 className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-2">৳১,৮৫,০০০</h3>
-              <p className="text-[10px] text-amber-600 font-bold mt-1">ব্যান্ডেড ও প্রমোট প্যাকেজ থেকে</p>
+              <h3 className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-2">
+                ৳{products
+                  .reduce((sum, p) => sum + (Number(p.paymentInfo?.amount) || 0), 0)
+                  .toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US')}
+              </h3>
+              <p className="text-[10px] text-amber-600 font-bold mt-1">
+                {language === 'bn' ? 'ভেরিফাইড প্রমোশন পেমেন্ট' : 'Verified promotion totals'}
+              </p>
             </div>
 
             {/* Card 6: Abuse Reports */}
@@ -754,7 +771,7 @@ export const AdminPage: React.FC = () => {
                       </td>
                       <td className="p-3.5 text-right">
                         <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-black rounded-full uppercase tracking-wider">
-                          HIGH ACTIVE
+                          {item.productViews + item.chatsStarted > 0 ? (language === 'bn' ? 'সক্রিয়' : 'ACTIVE') : (language === 'bn' ? 'স্বাভাবিক' : 'NORMAL')}
                         </span>
                       </td>
                     </tr>
@@ -847,21 +864,27 @@ export const AdminPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              {activityLogs.slice(0, 5).map(log => {
-                const userDisplay = log.user || log.userName || 'User';
-                const targetDisplay = log.target || log.adTitle || 'Item';
-                return (
-                  <div key={log.id} className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-2xl text-xs flex items-center justify-between gap-3 border border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                      <strong className="text-slate-900 dark:text-slate-100">{userDisplay}:</strong>
-                      <span className="text-slate-600 dark:text-slate-300 font-medium">{log.action}</span>
-                      <span className="text-pink-600 dark:text-pink-400 font-bold">"{targetDisplay}"</span>
+              {activityLogs.length > 0 ? (
+                activityLogs.slice(0, 5).map(log => {
+                  const userDisplay = log.user || log.userName || 'User';
+                  const targetDisplay = log.target || log.adTitle || 'Item';
+                  return (
+                    <div key={log.id} className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-2xl text-xs flex items-center justify-between gap-3 border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <strong className="text-slate-900 dark:text-slate-100">{userDisplay}:</strong>
+                        <span className="text-slate-600 dark:text-slate-300 font-medium">{log.action}</span>
+                        <span className="text-pink-600 dark:text-pink-400 font-bold">"{targetDisplay}"</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">{log.timestamp}</span>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-mono">{log.timestamp}</span>
-                  </div>
-                );
-              })}
+                  );
+                })
+              ) : (
+                <p className="text-xs text-slate-400 text-center py-4">
+                  {language === 'bn' ? 'এখনো কোনো ইউজার অ্যাক্টিভিটি রেকর্ড হয়নি।' : 'No user activity logged yet.'}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -1212,38 +1235,78 @@ export const AdminPage: React.FC = () => {
             <span>{language === 'bn' ? 'রিপোর্টেড কন্টেন্ট ও আপত্তিকর আচরণ তালিকা' : 'Abuse & Scam Reports List'}</span>
           </h3>
 
-          <div className="space-y-3">
-            {chatReports.map(rep => (
-              <div key={rep.id} className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-2xl text-xs flex justify-between items-center gap-4">
-                <div>
-                  <strong className="text-red-900 dark:text-red-200 text-sm block font-black">
-                    Thread / Item: {rep.threadId}
-                  </strong>
-                  <p className="text-slate-700 dark:text-slate-300 font-medium mt-1">
-                    Reported Seller: <span className="font-bold text-slate-900 dark:text-slate-100">{rep.reportedUser}</span>
-                  </p>
-                  <p className="text-red-800 dark:text-red-300 font-semibold mt-0.5">
-                    Reason: {rep.reason}
-                  </p>
-                </div>
+          {reportFeedback && (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl text-xs font-bold">
+              {reportFeedback}
+            </div>
+          )}
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => alert('User warned via SMS/Notification')}
-                    className="px-3 py-1.5 bg-amber-600 text-white font-bold text-xs rounded-xl hover:bg-amber-700 cursor-pointer"
-                  >
-                    Send Warning
-                  </button>
-                  <button
-                    onClick={() => alert('User account restricted')}
-                    className="px-3 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 cursor-pointer"
-                  >
-                    Ban Seller
-                  </button>
+          {chatReports.length === 0 ? (
+            <div className="p-10 text-center text-xs font-bold text-slate-500 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+              {language === 'bn' ? 'বর্তমানে কোনো রিপোর্ট পাওয়া যায়নি।' : 'No abuse or scam reports submitted.'}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {chatReports.map(rep => (
+                <div key={rep.id} className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-2xl text-xs flex justify-between items-center gap-4">
+                  <div>
+                    <strong className="text-red-900 dark:text-red-200 text-sm block font-black">
+                      Thread / Item: {rep.threadId}
+                    </strong>
+                    <p className="text-slate-700 dark:text-slate-300 font-medium mt-1">
+                      Reported Seller: <span className="font-bold text-slate-900 dark:text-slate-100">{rep.reportedUser}</span>
+                    </p>
+                    <p className="text-red-800 dark:text-red-300 font-semibold mt-0.5">
+                      Reason: {rep.reason}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        logAdminAction({
+                          action: `Sent warning to ${rep.reportedUser}`,
+                          actionType: 'user_management',
+                          details: rep.reason,
+                        });
+                        setReportFeedback(
+                          language === 'bn'
+                            ? `✓ ${rep.reportedUser}-কে সতর্কবার্তা পাঠানো ও লগ করা হয়েছে।`
+                            : `✓ Warning issued & logged for ${rep.reportedUser}.`
+                        );
+                        setTimeout(() => setReportFeedback(''), 3500);
+                      }}
+                      className="px-3 py-1.5 bg-amber-600 text-white font-bold text-xs rounded-xl hover:bg-amber-700 cursor-pointer"
+                    >
+                      Send Warning
+                    </button>
+                    <button
+                      onClick={() => {
+                        const matched = registeredUsers.find(
+                          u => u.id === rep.reportedUser || u.name === rep.reportedUser || u.phone === rep.reportedUser
+                        );
+                        if (matched) toggleBlockUser(matched.id);
+                        logAdminAction({
+                          action: `Restricted / Banned ${rep.reportedUser}`,
+                          actionType: 'user_management',
+                          details: rep.reason,
+                        });
+                        setReportFeedback(
+                          language === 'bn'
+                            ? `✓ ${rep.reportedUser} একাউন্ট রেস্ট্রিক্ট করা হয়েছে।`
+                            : `✓ Account restricted for ${rep.reportedUser}.`
+                        );
+                        setTimeout(() => setReportFeedback(''), 3500);
+                      }}
+                      className="px-3 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 cursor-pointer"
+                    >
+                      Ban Seller
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

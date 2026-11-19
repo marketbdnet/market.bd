@@ -78,7 +78,7 @@ export const HomePage: React.FC = () => {
   // Smart Recent Posts interactive filter & pagination state
   const [recentCategory, setRecentCategory] = useState<string>('all');
   const [recentSort, setRecentSort] = useState<'newest' | 'price-asc' | 'price-desc'>('newest');
-  const [visibleRecentCount, setVisibleRecentCount] = useState<number>(10);
+  const [visibleRecentCount, setVisibleRecentCount] = useState<number>(16);
 
   // Filter Featured & Urgent Ads
   let featuredAds = products.filter(
@@ -94,8 +94,44 @@ export const HomePage: React.FC = () => {
   // Display first 5 Featured/Urgent items consistently without unexpected rotation
   const displayedFeatured = featuredAds.slice(0, 5);
 
-  // Active products for Recent Posts
-  const activeProducts = products.filter(p => isProductPublicActive(p));
+  // Active products for Recent Posts (respects selectedLocation if narrowed from All Bangladesh)
+  const isAllBangladesh =
+    !selectedLocation?.division ||
+    selectedLocation.division === 'All Bangladesh' ||
+    selectedLocation.division === 'all';
+
+  const matchesSelectedLocation = (p: typeof products[number]) => {
+    if (isAllBangladesh) return true;
+    const divObj = BANGLADESH_DIVISIONS.find(
+      d =>
+        d.id === selectedLocation.division ||
+        d.nameEn === selectedLocation.division ||
+        d.nameBn === selectedLocation.division
+    );
+    const pDiv = String(p.location?.division || '').toLowerCase();
+    const selDivId = String(divObj?.id || selectedLocation.division || '').toLowerCase();
+    const selDivEn = String(divObj?.nameEn || selectedLocation.division || '').toLowerCase();
+    if (pDiv && pDiv !== selDivId && pDiv !== selDivEn && !pDiv.includes(selDivId)) {
+      return false;
+    }
+    if (selectedLocation.district) {
+      const distObj = divObj?.districts.find(
+        d =>
+          d.id === selectedLocation.district ||
+          d.nameEn === selectedLocation.district ||
+          d.nameBn === selectedLocation.district
+      );
+      const pDist = String(p.location?.district || '').toLowerCase();
+      const selDistId = String(distObj?.id || selectedLocation.district || '').toLowerCase();
+      const selDistEn = String(distObj?.nameEn || selectedLocation.district || '').toLowerCase();
+      if (pDist && pDist !== selDistId && pDist !== selDistEn && !pDist.includes(selDistId)) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const activeProducts = products.filter(p => isProductPublicActive(p) && matchesSelectedLocation(p));
 
   // Filter Recent by category
   let filteredRecent = activeProducts.filter(p => {
@@ -379,7 +415,7 @@ export const HomePage: React.FC = () => {
               <button
                 onClick={() => {
                   setRecentCategory('all');
-                  setVisibleRecentCount(10);
+                  setVisibleRecentCount(16);
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 border tabular-nums ${
                   recentCategory === 'all'
@@ -400,7 +436,7 @@ export const HomePage: React.FC = () => {
                     key={cat.id}
                     onClick={() => {
                       setRecentCategory(cat.id);
-                      setVisibleRecentCount(10);
+                      setVisibleRecentCount(16);
                     }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer shrink-0 border flex items-center gap-1.5 ${
                       isSelected
@@ -433,7 +469,7 @@ export const HomePage: React.FC = () => {
               <div
                 className={
                   adViewMode === 'grid'
-                    ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4'
+                    ? 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5'
                     : 'flex flex-col gap-3 sm:gap-4'
                 }
               >
@@ -471,14 +507,14 @@ export const HomePage: React.FC = () => {
               <div className="flex items-center gap-2">
                 {hasMoreRecent && (
                   <button
-                    onClick={() => setVisibleRecentCount(prev => prev + 10)}
+                    onClick={() => setVisibleRecentCount(prev => prev + 16)}
                     className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-95 text-slate-800 dark:text-slate-200 text-xs font-bold px-4 py-2 rounded-lg transition border border-slate-300 dark:border-slate-600 cursor-pointer"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>
                       {language === 'bn'
-                        ? `আরও ${Math.min(10, filteredRecent.length - visibleRecentCount)} টি দেখুন`
-                        : `Load ${Math.min(10, filteredRecent.length - visibleRecentCount)} More`}
+                        ? `আরও ${Math.min(16, filteredRecent.length - visibleRecentCount)} টি দেখুন`
+                        : `Load ${Math.min(16, filteredRecent.length - visibleRecentCount)} More`}
                     </span>
                   </button>
                 )}

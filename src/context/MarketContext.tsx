@@ -21,6 +21,10 @@ import {
   mergeServerReactionCounts,
   type ProductReaction
 } from '../utils/reactionUtils';
+import {
+  isDummyChatThread,
+  filterUserChatThreads,
+} from '../utils/chatUtils';
 
 const CATEGORY_STORAGE_KEY = 'marketbd_categories_v3_bikroy17';
 
@@ -261,6 +265,8 @@ interface MarketContextType {
   activeChat: ChatThread | null;
   setActiveChat: (thread: ChatThread | null) => void;
   sendMessage: (threadId: string, text: string, offerAmount?: number, imageUrl?: string) => void;
+  markChatThreadRead: (threadId: string) => void;
+  deleteChatThread: (threadId: string) => void;
   isSellerTyping: boolean;
   notifications: AppNotification[];
   markNotificationRead: (id: string) => void;
@@ -537,12 +543,72 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const canonicalIdMap = React.useMemo(() => {
+    const m = new Map<string, Product>();
+    INITIAL_PRODUCTS.forEach((p) => {
+      if (p && p.id) m.set(p.id, p);
+    });
+    return m;
+  }, []);
+
+  const persistCompactProductsCache = (list: Product[]) => {
+    try {
+      storage.removeItem('marketbd_products_v4');
+      const customOrModified: Product[] = [];
+      const presentCanonicalIds = new Set<string>();
+      for (const p of list) {
+        if (!p || !p.id) continue;
+        const base = canonicalIdMap.get(p.id);
+        const isModified =
+          !base || p.status !== 'active' || p.title !== base.title || p.price !== base.price;
+        if (isModified) {
+          const compactImages = Array.isArray(p.images)
+            ? p.images.filter((img) => typeof img === 'string' && img.length < 32768)
+            : [];
+          customOrModified.push({
+            ...p,
+            images: compactImages.length > 0 ? compactImages : p.images?.slice(0, 1) || [],
+          });
+        }
+        if (base) {
+          presentCanonicalIds.add(p.id);
+        }
+      }
+      const deletedCanonicalIds: string[] = [];
+      canonicalIdMap.forEach((_v, id) => {
+        if (!presentCanonicalIds.has(id)) deletedCanonicalIds.push(id);
+      });
+      storage.setItem(
+        'marketbd_custom_products_v5',
+        JSON.stringify({ custom: customOrModified.slice(0, 80), deleted: deletedCanonicalIds })
+      );
+    } catch {
+      // Non-fatal if storage quota restricted
+    }
+  };
+
+  const areProductListsEquivalent = (a: Product[], b: Product[]) => {
+    if (a === b) return true;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (
+        a[i].id !== b[i].id ||
+        a[i].status !== b[i].status ||
+        a[i].updatedAt !== b[i].updatedAt ||
+        a[i].price !== b[i].price
+      ) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const [products, setProducts] = useState<Product[]>(() => {
     const map = new Map<string, Product>();
     const nowTime = Date.now();
     const oneYearLater = new Date(nowTime + 365 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Foundational 400 canonical listings - strictly preserved exactly as defined without dynamic mutations
+    // Foundational 400 canonical listings - strictly preserved without dynamic mutations
     INITIAL_PRODUCTS.forEach((p) => {
       if (p && p.id) {
         map.set(p.id, {
@@ -559,52 +625,61 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
-    const saved = storage.getItem('marketbd_products_v4');
-    if (saved) {
+    // Load compact custom/modified delta cache (and migrate once if legacy key existed)
+    const compactSaved = storage.getItem('marketbd_custom_products_v5');
+    if (compactSaved) {
       try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          parsed.forEach((p: Product) => {
+        const parsed = JSON.parse(compactSaved);
+        if (Array.isArray(parsed?.deleted)) {
+          parsed.deleted.forEach((id: string) => map.delete(id));
+        }
+        if (Array.isArray(parsed?.custom)) {
+          parsed.custom.forEach((p: Product) => {
             if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
               const existing = map.get(p.id);
-              const isPending = isProductPending(p);
-              const isRejected = isProductRejected(p);
-              const isSold = isProductSold(p);
-              const effectiveStatus = isPending ? 'pending' : isRejected ? 'rejected' : isSold ? 'sold' : (p.status || 'active');
-
-              const updatedP: Product = {
-                ...p,
-                status: effectiveStatus,
-                isApproved: effectiveStatus === 'active' ? (p.isApproved ?? true) : false,
-                isActive: effectiveStatus === 'active',
-                moderationStatus: effectiveStatus === 'pending' ? 'pending' : effectiveStatus === 'rejected' ? 'rejected' : 'approved',
-                postedAt: p.postedAt || existing?.postedAt || '2026-09-01T12:00:00.000Z',
-                createdAt: p.createdAt || p.postedAt || existing?.createdAt || '2026-09-01T12:00:00.000Z',
-                updatedAt: p.updatedAt || existing?.updatedAt || p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
-                expiresAt: p.expiresAt || existing?.expiresAt || oneYearLater,
-                expiryDate: undefined
-              };
-
-              if (existing) {
-                map.set(p.id, { ...existing, ...updatedP });
-              } else {
-                map.set(p.id, updatedP);
-              }
+              map.set(p.id, existing ? { ...existing, ...p } : p);
             }
           });
         }
       } catch (e) {
-        console.error('Error parsing stored products:', e);
+        storage.removeItem('marketbd_custom_products_v5');
+      }
+    } else {
+      const legacySaved = storage.getItem('marketbd_products_v4');
+      if (legacySaved) {
+        try {
+          const parsed = JSON.parse(legacySaved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            parsed.forEach((p: Product) => {
+              if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
+                const existing = map.get(p.id);
+                const isPending = isProductPending(p);
+                const isRejected = isProductRejected(p);
+                const isSold = isProductSold(p);
+                const effectiveStatus = isPending ? 'pending' : isRejected ? 'rejected' : isSold ? 'sold' : (p.status || 'active');
+                const updatedP: Product = {
+                  ...p,
+                  status: effectiveStatus,
+                  isApproved: effectiveStatus === 'active' ? (p.isApproved ?? true) : false,
+                  isActive: effectiveStatus === 'active',
+                  moderationStatus: effectiveStatus === 'pending' ? 'pending' : effectiveStatus === 'rejected' ? 'rejected' : 'approved',
+                  postedAt: p.postedAt || existing?.postedAt || '2026-09-01T12:00:00.000Z',
+                  createdAt: p.createdAt || p.postedAt || existing?.createdAt || '2026-09-01T12:00:00.000Z',
+                  updatedAt: p.updatedAt || existing?.updatedAt || p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
+                  expiresAt: p.expiresAt || existing?.expiresAt || oneYearLater,
+                  expiryDate: undefined
+                };
+                map.set(p.id, existing ? { ...existing, ...updatedP } : updatedP);
+              }
+            });
+          }
+        } catch (e) {
+          console.error('Error migrating legacy stored products:', e);
+        }
+        storage.removeItem('marketbd_products_v4');
       }
     }
-    const finalNormalized = normalizeProductsList(Array.from(map.values()));
-    // Defer writing heavy product cache to disk so the initial React render is instantaneous on mobile
-    setTimeout(() => {
-      try {
-        storage.setItem('marketbd_products_v4', JSON.stringify(finalNormalized));
-      } catch (e) {}
-    }, 1200);
-    return finalNormalized;
+    return normalizeProductsList(Array.from(map.values()));
   });
 
   // Registered Customer Database State (Synced with Firestore & Server)
@@ -669,10 +744,13 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Realtime Cloud State Synchronization Across Android App and Website
   useEffect(() => {
-    // 1. Initial hydration from server sync API
-    fetch('/api/sync/state')
+    // 1. Initial lightweight hydration from server sync API with 4s timeout guard
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const fetchTimer = controller ? setTimeout(() => controller.abort(), 4000) : null;
+    fetch('/api/sync/state?lite=1', controller ? { signal: controller.signal } : undefined)
       .then(res => res.json())
       .then(res => {
+        if (fetchTimer) clearTimeout(fetchTimer);
         if (res && res.success && res.data) {
           const d = res.data;
           if (d.adminActiveSession) {
@@ -789,7 +867,8 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
               );
               const merged = normalizeProductsList(rawMerged);
-              storage.setItem('marketbd_products_v4', JSON.stringify(merged));
+              if (areProductListsEquivalent(prev, merged)) return prev;
+              persistCompactProductsCache(merged);
               return merged;
             });
           }
@@ -931,20 +1010,22 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }, (err) => console.log('App release listener notice:', err));
       unsubs.push(unsubApp);
 
-      // One-time non-destructive legacy migration from settings/marketplace_products to products/{id}
-      getDoc(doc(db, 'settings', 'marketplace_products')).then(snap => {
-        if (snap.exists()) {
-          const legacyArr = snap.data()?.value;
-          if (Array.isArray(legacyArr) && legacyArr.length > 0) {
-            legacyArr.forEach((legacyItem: Product) => {
-              if (legacyItem && legacyItem.id && legacyItem.title) {
-                // Upsert to products collection safely if not present
-                safeFirestoreSetDoc(doc(db, 'products', legacyItem.id), legacyItem, { merge: true }).catch(() => {});
-              }
-            });
+      // One-time-per-session legacy migration check
+      if (typeof sessionStorage === 'undefined' || !sessionStorage.getItem('marketbd_legacy_products_checked')) {
+        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('marketbd_legacy_products_checked', '1');
+        getDoc(doc(db, 'settings', 'marketplace_products')).then(snap => {
+          if (snap.exists()) {
+            const legacyArr = snap.data()?.value;
+            if (Array.isArray(legacyArr) && legacyArr.length > 0 && legacyArr.length <= 30) {
+              legacyArr.forEach((legacyItem: Product) => {
+                if (legacyItem && legacyItem.id && legacyItem.title) {
+                  safeFirestoreSetDoc(doc(db, 'products', legacyItem.id), legacyItem, { merge: true }).catch(() => {});
+                }
+              });
+            }
           }
-        }
-      }).catch(() => {});
+        }).catch(() => {});
+      }
 
       // Authoritative Realtime listener for individual documents in 'products' Firestore collection (Direct Android & Web sync)
       const unsubProductsCol = onSnapshot(collection(db, 'products'), (snapshot) => {
@@ -1037,8 +1118,8 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
           );
           const merged = normalizeProductsList(rawMerged);
-          if (JSON.stringify(prev) === JSON.stringify(merged)) return prev;
-          storage.setItem('marketbd_products_v4', JSON.stringify(merged));
+          if (areProductListsEquivalent(prev, merged)) return prev;
+          persistCompactProductsCache(merged);
           return merged;
         });
       }, (err) => console.log('Products collection listener notice:', err));
@@ -1319,7 +1400,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           });
           const normalized = normalizeProductsList(Array.from(map.values()));
           setProducts(normalized);
-          storage.setItem('marketbd_products_v4', JSON.stringify(normalized));
+          persistCompactProductsCache(normalized);
         }
       }
     } catch (e) {
@@ -1327,36 +1408,20 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  // NOTE: an automatic call to refreshProducts() (which reads the legacy
-  // Express /api/products file-cache, server_sync_state.json) used to run
-  // here on every app start. Now that the Firestore onSnapshot listener
-  // above is fixed to be self-healing (see the products collection
-  // listener), Firestore is the single real-time source of truth for both
-  // web and Android, per the requested architecture: both post to the same
-  // Firestore doc, admin approves it once, and every client sees the same
-  // doc live. Auto-calling the separate Express cache here would risk
-  // overwriting the correct Firestore-driven state with a stale, separately
-  // -updated snapshot, so it's been removed. The manual "pull to refresh"
-  // button still calls refreshProducts() and remains harmless as a manual
-  // fallback.
-
-  // Sync products to Local Storage and Express REST API (avoiding repetitive Firestore loops)
+  // Persist compact custom-products delta cleanly without flooding /api/products/sync on mount
   useEffect(() => {
-    try {
-      storage.setItem('marketbd_products_v4', JSON.stringify(products));
-      fetch('/api/products/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products })
-      }).catch(() => {});
-    } catch (e) {
-      console.error('Error saving products:', e);
-    }
+    const t = setTimeout(() => {
+      persistCompactProductsCache(products);
+    }, 400);
+    return () => clearTimeout(t);
   }, [products]);
 
-  // Request Web Push Notification permission on app mount
+  // Defer Web Push Notification permission prompt so first paint on Android WebView is unblocked
   useEffect(() => {
-    requestWebPushPermission();
+    const t = setTimeout(() => {
+      requestWebPushPermission();
+    }, 4000);
+    return () => clearTimeout(t);
   }, []);
 
   // Automated Ad Expiry Check (Cron Job Simulation)
@@ -1433,7 +1498,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             });
           }
           try {
-            storage.setItem('marketbd_products_v4', JSON.stringify(updated));
+            persistCompactProductsCache(updated);
             // Safely sync ONLY newly approved ads to Firestore and REST API
             newlyApprovedProducts.forEach(p => {
               safeFirestoreSetDoc(doc(db, 'products', p.id), p, { merge: true }).catch(() => {});
@@ -1498,7 +1563,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           });
         });
         try {
-          storage.setItem('marketbd_products_v4', JSON.stringify(updated));
+          persistCompactProductsCache(updated);
           newlyApproved.forEach(p => {
             safeFirestoreSetDoc(doc(db, 'products', p.id), p, { merge: true }).catch(() => {});
             fetch('/api/products/' + p.id, {
@@ -1639,26 +1704,41 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  // Followed Sellers
-  const [followedSellers, setFollowedSellers] = useState<string[]>(['user-me', 'user-seller-1']);
+  // Followed Sellers (persisted, starts clean)
+  const [followedSellers, setFollowedSellers] = useState<string[]>(() => {
+    try {
+      const saved = storage.getItem('marketbd_followed_sellers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // Ignore storage parse issues
+    }
+    return [];
+  });
 
   const toggleFollowSeller = (sellerId: string) => {
-    setFollowedSellers(prev =>
-      prev.includes(sellerId) ? prev.filter(id => id !== sellerId) : [...prev, sellerId]
-    );
+    setFollowedSellers(prev => {
+      const next = prev.includes(sellerId) ? prev.filter(id => id !== sellerId) : [...prev, sellerId];
+      storage.setItem('marketbd_followed_sellers', JSON.stringify(next));
+      return next;
+    });
   };
 
-  // Seller Reviews
-  const [sellerReviews, setSellerReviews] = useState<SellerReview[]>([
-    {
-      id: 'rev-1',
-      sellerId: 'user-seller-1',
-      reviewerName: 'Kamal Hossain',
-      rating: 5,
-      comment: 'খুবই ভালো সেলার, পন্যের কোয়ালিটি সেরা ছিল!',
-      date: '28 Jul 2026'
+  // Seller Reviews (persisted, zero dummy reviews)
+  const [sellerReviews, setSellerReviews] = useState<SellerReview[]>(() => {
+    try {
+      const saved = storage.getItem('marketbd_seller_reviews');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // Ignore storage parse issues
     }
-  ]);
+    return [];
+  });
 
   const addSellerReview = (sellerId: string, rating: number, comment: string) => {
     const newRev: SellerReview = {
@@ -1669,14 +1749,26 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       comment,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     };
-    setSellerReviews(prev => [newRev, ...prev]);
+    setSellerReviews(prev => {
+      const next = [newRev, ...prev];
+      storage.setItem('marketbd_seller_reviews', JSON.stringify(next));
+      return next;
+    });
   };
 
-  // Saved Search Alerts
-  const [savedAlerts, setSavedAlerts] = useState<SavedAlert[]>([
-    { id: 'alert-1', query: 'iPhone 15 Pro', category: 'mobiles', createdAt: '28 Jul 2026' },
-    { id: 'alert-2', query: 'Yamaha R15', category: 'vehicles', createdAt: '29 Jul 2026' }
-  ]);
+  // Saved Search Alerts (persisted, zero dummy alerts)
+  const [savedAlerts, setSavedAlerts] = useState<SavedAlert[]>(() => {
+    try {
+      const saved = storage.getItem('marketbd_saved_alerts');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // Ignore storage parse issues
+    }
+    return [];
+  });
 
   const addSavedAlert = (query: string, category?: string) => {
     if (!query || !query.trim()) return;
@@ -1690,7 +1782,11 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       category,
       createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     };
-    setSavedAlerts(prev => [newAlert, ...prev]);
+    setSavedAlerts(prev => {
+      const next = [newAlert, ...prev];
+      storage.setItem('marketbd_saved_alerts', JSON.stringify(next));
+      return next;
+    });
     setNotifications(prev => [
       {
         id: 'notif-' + Date.now(),
@@ -1704,39 +1800,19 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     ]);
   };
 
-  // Activity Logs for Admin
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([
-    {
-      id: 'log-1',
-      timestamp: '28 Jul 2026, 10:45 AM',
-      userName: 'Kamal Hossain',
-      userPhone: '01712-345678',
-      action: 'Viewed Ad',
-      adTitle: 'iPhone 15 Pro Max 256GB Dual SIM',
-      adId: 'prod-1',
-      location: 'Dhanmondi, Dhaka'
-    },
-    {
-      id: 'log-2',
-      timestamp: '28 Jul 2026, 11:02 AM',
-      userName: 'Sabbir Ahmed',
-      userPhone: '01899-112233',
-      action: 'Revealed Phone',
-      adTitle: 'Yamaha R15 V4 Dual ABS 2024',
-      adId: 'prod-2',
-      location: 'Gulshan, Dhaka'
-    },
-    {
-      id: 'log-3',
-      timestamp: '28 Jul 2026, 11:20 AM',
-      userName: 'Mehedi Hasan',
-      userPhone: '01911-887766',
-      action: 'Started Chat',
-      adTitle: 'MacBook Air M2 16GB 512GB',
-      adId: 'prod-3',
-      location: 'Uttara, Dhaka'
+  // Activity Logs for Admin (persisted, zero dummy logs)
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => {
+    try {
+      const saved = storage.getItem('marketbd_activity_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // Ignore storage parse issues
     }
-  ]);
+    return [];
+  });
 
   const logUserActivity = (
     action: 'Viewed Ad' | 'Revealed Phone' | 'Started Chat' | 'Reported Ad',
@@ -1754,13 +1830,17 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         hour12: true
       }),
       userName: currentUser?.name || 'Guest User',
-      userPhone: currentUser?.phone || '01700-000000',
+      userPhone: currentUser?.phone || '',
       action,
       adTitle,
       adId,
       location: selectedLocation.thana || selectedLocation.district || selectedLocation.division
     };
-    setActivityLogs(prev => [newLog, ...prev]);
+    setActivityLogs(prev => {
+      const next = [newLog, ...prev];
+      storage.setItem('marketbd_activity_logs', JSON.stringify(next));
+      return next;
+    });
 
     // Automatically update date-wise analytics counters
     if (action === 'Viewed Ad') incrementDailyMetric('productViews');
@@ -1775,7 +1855,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.filter((l: any) => l && !String(l.timestamp || '').includes('28 Jul 2026') && !String(l.timestamp || '').includes('27 Jul 2026'));
         }
       }
     } catch (e) {
@@ -1854,7 +1934,6 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
     const device = isMobile ? 'Android / Mobile App' : 'Desktop / PC Browser';
-    const ip = '103.110.22.4';
 
     const newLog: AdminActivityLog = {
       id: 'adm-log-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
@@ -1868,7 +1947,6 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       details: entry.details,
       timestamp: formatAdminLogTimestamp(),
       createdAt: new Date().toISOString(),
-      ip,
       device,
       metadata: entry.metadata
     };
@@ -1894,21 +1972,31 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (e) {}
   };
 
-  // Live Online Users (Fluctuating realistically every few seconds)
-  const [onlineUsersCount, setOnlineUsersCount] = useState<number>(28);
+  // Real Active Users Count from server (no fake random jitter)
+  const [onlineUsersCount, setOnlineUsersCount] = useState<number>(1);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setOnlineUsersCount(prev => {
-        const delta = Math.floor(Math.random() * 5) - 2;
-        const updated = prev + delta;
-        return updated < 14 ? 18 : updated > 52 ? 42 : updated;
-      });
-    }, 5000);
-    return () => clearInterval(interval);
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+    const syncActiveCount = () => {
+      fetch('/api/health')
+        .then(res => (res.ok ? res.json() : null))
+        .then(data => {
+          if (!cancelled && data && typeof data.activeConnections === 'number') {
+            setOnlineUsersCount(Math.max(1, data.activeConnections));
+          }
+        })
+        .catch(() => {});
+    };
+    syncActiveCount();
+    const interval = setInterval(syncActiveCount, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
-  // Daily Date-Wise Traffic Analytics
+  // Daily Date-Wise Real Traffic Analytics (zero fake visitor numbers)
   const getTodayISO = () => {
     const today = new Date();
     const year = today.getFullYear();
@@ -1917,84 +2005,42 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return `${year}-${month}-${day}`;
   };
 
-  const initialDailySeed: DailyAnalytics[] = [
-    {
-      date: getTodayISO(),
-      dateFormattedBn: '০৪ আগস্ট ২০২৬',
-      dateFormattedEn: '04 Aug 2026',
-      visitors: 485,
-      productViews: 1340,
-      phoneReveals: 148,
-      chatsStarted: 72
-    },
-    {
-      date: '2026-08-03',
-      dateFormattedBn: '০৩ আগস্ট ২০২৬',
-      dateFormattedEn: '03 Aug 2026',
-      visitors: 620,
-      productViews: 1940,
-      phoneReveals: 195,
-      chatsStarted: 84
-    },
-    {
-      date: '2026-08-02',
-      dateFormattedBn: '০২ আগস্ট ২০২৬',
-      dateFormattedEn: '02 Aug 2026',
-      visitors: 590,
-      productViews: 1810,
-      phoneReveals: 178,
-      chatsStarted: 79
-    },
-    {
-      date: '2026-08-01',
-      dateFormattedBn: '০১ আগস্ট ২০২৬',
-      dateFormattedEn: '01 Aug 2026',
-      visitors: 710,
-      productViews: 2230,
-      phoneReveals: 240,
-      chatsStarted: 110
-    },
-    {
-      date: '2026-07-31',
-      dateFormattedBn: '৩১ জুলাই ২০২৬',
-      dateFormattedEn: '31 Jul 2026',
-      visitors: 640,
-      productViews: 1980,
-      phoneReveals: 185,
-      chatsStarted: 92
-    },
-    {
-      date: '2026-07-30',
-      dateFormattedBn: '৩০ জুলাই ২০২৬',
-      dateFormattedEn: '30 Jul 2026',
-      visitors: 580,
-      productViews: 1750,
-      phoneReveals: 160,
-      chatsStarted: 71
-    },
-    {
-      date: '2026-07-29',
-      dateFormattedBn: '২৯ জুলাই ২০২৬',
-      dateFormattedEn: '29 Jul 2026',
-      visitors: 510,
-      productViews: 1620,
-      phoneReveals: 145,
-      chatsStarted: 63
-    }
-  ];
+  const formatRealDateLabels = (dateObj = new Date()) => {
+    const monthsEn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthsBn = ['জানু', 'ফেব', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টে', 'অক্টো', 'নভে', 'ডিসে'];
+    const bnDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    const toBn = (s: string | number) => String(s).replace(/\d/g, d => bnDigits[Number(d)]);
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    const yyyy = String(dateObj.getFullYear());
+    return {
+      dateFormattedEn: `${dd} ${monthsEn[dateObj.getMonth()]} ${yyyy}`,
+      dateFormattedBn: `${toBn(dd)} ${monthsBn[dateObj.getMonth()]} ${toBn(yyyy)}`
+    };
+  };
+
+  const LEGACY_DUMMY_ANALYTICS_DATES = new Set([
+    '2026-07-29',
+    '2026-07-30',
+    '2026-07-31',
+    '2026-08-01',
+    '2026-08-02',
+    '2026-08-03'
+  ]);
 
   const [dailyAnalytics, setDailyAnalytics] = useState<DailyAnalytics[]>(() => {
+    const today = getTodayISO();
+    const labels = formatRealDateLabels(new Date());
     const saved = storage.getItem('marketbd_daily_analytics');
     if (saved) {
       try {
-        const parsed: DailyAnalytics[] = JSON.parse(saved);
-        const today = getTodayISO();
+        const parsed: DailyAnalytics[] = JSON.parse(saved).filter(
+          (d: DailyAnalytics) => d && !LEGACY_DUMMY_ANALYTICS_DATES.has(d.date)
+        );
         if (!parsed.some(d => d.date === today)) {
           return [
             {
               date: today,
-              dateFormattedBn: '০৪ আগস্ট ২০২৬',
-              dateFormattedEn: '04 Aug 2026',
+              ...labels,
               visitors: 1,
               productViews: 0,
               phoneReveals: 0,
@@ -2002,16 +2048,24 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             },
             ...parsed
           ];
-        } else {
-          return parsed.map(d =>
-            d.date === today ? { ...d, visitors: d.visitors + 1 } : d
-          );
         }
-      } catch (e) {
-        return initialDailySeed;
+        return parsed.map(d =>
+          d.date === today ? { ...d, ...labels, visitors: d.visitors + 1 } : d
+        );
+      } catch {
+        // Fallback below
       }
     }
-    return initialDailySeed;
+    return [
+      {
+        date: today,
+        ...labels,
+        visitors: 1,
+        productViews: 0,
+        phoneReveals: 0,
+        chatsStarted: 0
+      }
+    ];
   });
 
   useEffect(() => {
@@ -2197,7 +2251,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const filtered = prev.filter(p => p.id !== productId);
       remainingList = filtered;
       try {
-        storage.setItem('marketbd_products_v4', JSON.stringify(filtered));
+        persistCompactProductsCache(filtered);
       } catch (e) {}
       return filtered;
     });
@@ -2810,50 +2864,36 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  // Persistent Chat threads (Unlimited messaging with real-time sync)
-  const [chatThreads, setChatThreads] = useState<ChatThread[]>(() => {
+  // Clean Bikroy-style real-time chat state (server-authoritative via /api/chats + SSE, dummy threads purged)
+  const [rawChatThreads, setRawChatThreads] = useState<ChatThread[]>(() => {
     try {
       const saved = storage.getItem('marketbd_chat_threads');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed.filter(t => !isDummyChatThread(t));
+          if (cleaned.length !== parsed.length) {
+            storage.setItem('marketbd_chat_threads', JSON.stringify(cleaned));
+          }
+          return cleaned;
         }
       }
     } catch (e) {
       console.error('Error reading stored chat threads:', e);
     }
-    // NOTE: previously seeded a fake demo conversation here using
-    // INITIAL_PRODUCTS[0]'s seller ('Rahim Tech Gadgets') so every single
-    // user who opened Messages saw a stranger's fake chat. Removed -- a new
-    // user with no real conversations should simply see an empty inbox.
     return [];
   });
 
-  const [activeChat, setActiveChat] = useState<ChatThread | null>(() => {
-    return null;
-  });
-  const [isSellerTyping, setIsSellerTyping] = useState<boolean>(false);
+  const chatThreads = React.useMemo(
+    () => (isLoggedIn ? filterUserChatThreads(rawChatThreads, currentUser) : []),
+    [isLoggedIn, rawChatThreads, currentUser]
+  );
 
-  // Initial Notifications
-  const [notifications, setNotifications] = useState<AppNotification[]>([
-    {
-      id: 'notif-1',
-      title: 'নতুন অফার এসেছে! 🎉',
-      message: 'স্যামসাং গ্যালাক্সি এস২৪ আল্ট্রা বিজ্ঞাপনে একজন ক্রেতা ৳১,৩০,০০০ অফার পাঠিয়েছেন।',
-      time: '10 mins ago',
-      isRead: false,
-      type: 'offer'
-    },
-    {
-      id: 'notif-2',
-      title: 'বিজ্ঞাপন অনুমোদিত হয়েছে ✅',
-      message: 'আপনার "Yamaha R15 V4" বিজ্ঞাপনটি সফলভাবে ভেরিফাইড এবং লাইভ হয়েছে।',
-      time: '1 hour ago',
-      isRead: false,
-      type: 'approval'
-    }
-  ]);
+  const [activeChat, setActiveChat] = useState<ChatThread | null>(null);
+  const isSellerTyping = false;
+
+  // Real notifications only (start clean with no dummy seeded notifications)
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const resetFilters = () => {
     setFilters(defaultFilters);
@@ -2884,177 +2924,265 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCompareList([]);
   };
 
-  // Tracks which threads already fired a "new message" notification since
-  // they were last opened/viewed, so a customer sending 5 messages in a row
-  // triggers exactly ONE notification, not five. Cleared once the thread is
-  // opened again, so a genuinely new round of messages notifies once more.
-  const [notifiedThreadIds, setNotifiedThreadIds] = useState<Set<string>>(new Set());
-
+  // Sync chats from Express backend + subscribe to real-time SSE updates
   useEffect(() => {
-    if (activeChat) {
-      setNotifiedThreadIds(prev => {
-        if (!prev.has(activeChat.id)) return prev;
-        const next = new Set(prev);
-        next.delete(activeChat.id);
-        return next;
-      });
-    }
-  }, [activeChat?.id]);
+    if (typeof window === 'undefined' || !isLoggedIn || !currentUser) return;
 
-  const updateMessageStatus = (threadId: string, msgId: string, status: 'delivered' | 'seen') => {
-    setChatThreads(prev => {
-      const updated = prev.map(thread => {
-        if (thread.id === threadId) {
-          const updatedMsgs = thread.messages.map(m =>
-            m.id === msgId ? { ...m, status } : m
-          );
-          return { ...thread, messages: updatedMsgs };
+    let cancelled = false;
+    const params = new URLSearchParams();
+    if (currentUser.id) params.set('userId', currentUser.id);
+    if (currentUser.phone) params.set('phone', currentUser.phone);
+    if (currentUser.email) params.set('email', currentUser.email);
+
+    fetch(`/api/chats?${params.toString()}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(payload => {
+        if (cancelled || !payload || !Array.isArray(payload.data)) return;
+        const serverThreads: ChatThread[] = payload.data.filter((t: ChatThread) => !isDummyChatThread(t));
+        setRawChatThreads(prev => {
+          const mergedMap = new Map<string, ChatThread>();
+          for (const t of serverThreads) mergedMap.set(t.id, t);
+          for (const t of prev) {
+            if (isDummyChatThread(t)) continue;
+            const srv = mergedMap.get(t.id);
+            if (!srv || (t.messages?.length || 0) > (srv.messages?.length || 0)) {
+              mergedMap.set(t.id, t);
+            }
+          }
+          const next = Array.from(mergedMap.values());
+          storage.setItem('marketbd_chat_threads', JSON.stringify(next));
+          return next;
+        });
+      })
+      .catch(() => {});
+
+    if (typeof EventSource === 'undefined') {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const es = new EventSource('/api/chats/stream');
+    es.onmessage = evt => {
+      try {
+        const data = JSON.parse(evt.data);
+        if (!data || !data.type) return;
+
+        if (data.type === 'chat:updated' && data.thread && !isDummyChatThread(data.thread)) {
+          const incoming: ChatThread = data.thread;
+          setRawChatThreads(prev => {
+            const existsIdx = prev.findIndex(t => t.id === incoming.id);
+            const next =
+              existsIdx >= 0
+                ? [incoming, ...prev.filter(t => t.id !== incoming.id)]
+                : [incoming, ...prev];
+            storage.setItem('marketbd_chat_threads', JSON.stringify(next));
+            return next;
+          });
+          setActiveChat(curr => (curr && curr.id === incoming.id ? incoming : curr));
+        } else if (data.type === 'chat:deleted' && data.threadId) {
+          const deletedId = String(data.threadId);
+          setRawChatThreads(prev => {
+            const next = prev.filter(t => t.id !== deletedId);
+            storage.setItem('marketbd_chat_threads', JSON.stringify(next));
+            return next;
+          });
+          setActiveChat(curr => (curr && curr.id === deletedId ? null : curr));
         }
-        return thread;
+      } catch {
+        // Ignore malformed keepalive/event frames
+      }
+    };
+
+    return () => {
+      cancelled = true;
+      es.close();
+    };
+  }, [isLoggedIn, currentUser?.id, currentUser?.phone, currentUser?.email]);
+
+  const markChatThreadRead = (threadId: string) => {
+    if (!threadId) return;
+    const readerId = currentUser?.id || 'user-me';
+
+    setRawChatThreads(prev => {
+      const updated = prev.map(thread => {
+        if (thread.id !== threadId) return thread;
+        const updatedMsgs = (thread.messages || []).map(m =>
+          m.senderId !== readerId ? { ...m, status: 'seen' as const } : m
+        );
+        return { ...thread, unreadCount: 0, messages: updatedMsgs };
       });
       storage.setItem('marketbd_chat_threads', JSON.stringify(updated));
       return updated;
     });
 
     setActiveChat(curr => {
-      if (curr && curr.id === threadId) {
-        const updatedMsgs = curr.messages.map(m =>
-          m.id === msgId ? { ...m, status } : m
-        );
-        return { ...curr, messages: updatedMsgs };
-      }
-      return curr;
+      if (!curr || curr.id !== threadId) return curr;
+      const updatedMsgs = (curr.messages || []).map(m =>
+        m.senderId !== readerId ? { ...m, status: 'seen' as const } : m
+      );
+      return { ...curr, unreadCount: 0, messages: updatedMsgs };
     });
+
+    if (typeof fetch !== 'undefined') {
+      fetch('/api/chats/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadId, readerId })
+      }).catch(() => {});
+    }
   };
 
-  // Unlimited messaging engine with rich contextual seller replies, offline auto-reply & seller notifications
+  const deleteChatThread = (threadId: string) => {
+    if (!threadId) return;
+    setRawChatThreads(prev => {
+      const updated = prev.filter(t => t.id !== threadId);
+      storage.setItem('marketbd_chat_threads', JSON.stringify(updated));
+      return updated;
+    });
+    setActiveChat(curr => (curr && curr.id === threadId ? null : curr));
+
+    if (typeof fetch !== 'undefined') {
+      fetch(`/api/chats/${encodeURIComponent(threadId)}`, { method: 'DELETE' }).catch(() => {});
+    }
+    if (auth.currentUser) {
+      safeFirestoreDeleteDoc(doc(db, 'chats', threadId)).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    if (activeChat && activeChat.unreadCount > 0) {
+      markChatThreadRead(activeChat.id);
+    }
+  }, [activeChat?.id]);
+
+  // Real-time messaging (server-authoritative via /api/chats/message + SSE)
   const sendMessage = (threadId: string, text: string, offerAmount?: number, imageUrl?: string) => {
-    const msgId = 'msg-' + Date.now();
-    const displayMsg = text || (imageUrl ? (language === 'bn' ? '📷 [ছবি পাঠানো হয়েছে]' : '📷 [Photo Attached]') : '');
+    const trimmedText = (text || '').trim();
+    const displayMsg = trimmedText || (imageUrl ? (language === 'bn' ? '📷 [ছবি]' : '📷 [Photo]') : '');
+    if (!threadId || !displayMsg) return;
+
+    const msgId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const nowIso = new Date().toISOString();
+    const senderId = currentUser?.id || 'user-me';
+    const currentThread =
+      rawChatThreads.find(t => t.id === threadId) ||
+      (activeChat?.id === threadId ? activeChat : undefined);
+
     const newMessage: ChatMessage = {
       id: msgId,
-      senderId: 'user-me',
-      receiverId: 'seller',
-      productId: activeChat?.productId || '',
+      senderId,
+      receiverId: currentThread?.seller?.id || 'seller',
+      productId: currentThread?.productId || '',
       text: displayMsg,
       image: imageUrl,
-      timestamp: 'Just now',
+      timestamp: nowIso,
       isOffer: Boolean(offerAmount),
       offerAmount,
       offerStatus: offerAmount ? 'pending' : undefined,
       status: 'sent'
     };
 
-    setChatThreads(prev => {
-      const updated = prev.map(thread => {
-        if (thread.id === threadId) {
-          return {
-            ...thread,
-            lastMessage: displayMsg,
-            lastMessageTime: 'Just now',
-            messages: [...thread.messages, newMessage]
-          };
+    let updatedSnapshot: ChatThread | undefined = currentThread
+      ? {
+          ...currentThread,
+          lastMessage: displayMsg,
+          lastMessageTime: nowIso,
+          messages: [...(currentThread.messages || []), newMessage]
         }
-        return thread;
+      : undefined;
+
+    setRawChatThreads(prev => {
+      const updated = prev.map(thread => {
+        if (thread.id !== threadId) return thread;
+        const nextThread: ChatThread = {
+          ...thread,
+          lastMessage: displayMsg,
+          lastMessageTime: nowIso,
+          messages: [...(thread.messages || []), newMessage]
+        };
+        updatedSnapshot = nextThread;
+        return nextThread;
       });
       storage.setItem('marketbd_chat_threads', JSON.stringify(updated));
       return updated;
     });
 
     setActiveChat(curr => {
-      if (curr && curr.id === threadId) {
-        return {
-          ...curr,
-          lastMessage: displayMsg,
-          lastMessageTime: 'Just now',
-          messages: [...curr.messages, newMessage]
-        };
-      }
-      return curr;
+      if (!curr || curr.id !== threadId) return curr;
+      return {
+        ...curr,
+        lastMessage: displayMsg,
+        lastMessageTime: nowIso,
+        messages: [...(curr.messages || []), newMessage]
+      };
     });
 
-    // 🔔 Seller Notification: fire at most ONCE per thread per unread batch —
-    // not once for every message a customer sends. Re-enabled automatically
-    // once the thread is opened/viewed again (see notifiedThreadIds effect).
-    if (!notifiedThreadIds.has(threadId)) {
-      setNotifiedThreadIds(prev => new Set(prev).add(threadId));
-
-      const currentThread = chatThreads.find(t => t.id === threadId) || activeChat;
-      const prodTitle = currentThread?.productTitle || 'বিজ্ঞাপন';
-      const notifId = 'notif-msg-' + Date.now();
-      const sellerNotifTitle = language === 'bn' ? 'একজন ক্রেতা আপনাকে মেসেজ করেছেন।' : 'You have a new message from a customer.';
-      const sellerNotifMsg = language === 'bn'
-        ? `"${prodTitle}" বিজ্ঞাপনে ক্রেতার নতুন বার্তা: "${displayMsg.slice(0, 50)}"`
-        : `A customer sent you a message on "${prodTitle}": "${displayMsg.slice(0, 50)}"`;
-
-      setNotifications(prev => [
-        {
-          id: notifId,
-          title: sellerNotifTitle,
-          message: sellerNotifMsg,
-          time: 'Just now',
-          isRead: false,
-          type: 'message'
-        },
-        ...prev
-      ]);
-
-      sendLocalBrowserPushNotification({
-        title: sellerNotifTitle,
-        body: sellerNotifMsg
-      });
+    if (typeof fetch !== 'undefined') {
+      fetch('/api/chats/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          threadId,
+          message: newMessage,
+          threadSnapshot: currentThread
+        })
+      })
+        .then(res => (res.ok ? res.json() : null))
+        .then(payload => {
+          if (!payload || !payload.data) return;
+          const serverThread: ChatThread = { ...payload.data, unreadCount: 0 };
+          setRawChatThreads(prev => {
+            const next = prev.map(t => (t.id === threadId ? serverThread : t));
+            storage.setItem('marketbd_chat_threads', JSON.stringify(next));
+            return next;
+          });
+          setActiveChat(curr => (curr && curr.id === threadId ? serverThread : curr));
+        })
+        .catch(() => {});
     }
 
-    // 1. Mark as delivered after short realistic delay
-    setTimeout(() => {
-      updateMessageStatus(threadId, msgId, 'delivered');
-    }, 500);
+    if (auth.currentUser && updatedSnapshot) {
+      safeFirestoreSetDoc(doc(db, 'chats', threadId), updatedSnapshot, { merge: true }).catch(() => {});
+    }
   };
 
   const openChatForProduct = (product: Product): string => {
-    // Messaging a seller now requires being logged in.
     if (!isLoggedIn) {
       openAuthModal('chat');
       return '';
     }
 
-    let existing = chatThreads.find(t => t.productId === product.id);
+    const buyerId = currentUser?.id || 'user-me';
+    const existing = chatThreads.find(t => t.productId === product.id);
     if (existing) {
       setActiveChat(existing);
       setActiveTab('chat');
+      if (existing.unreadCount > 0) {
+        markChatThreadRead(existing.id);
+      }
       return existing.id;
     }
 
-    const initMsgId = 'msg-init-' + Date.now();
-    const threadId = 'thread-' + Date.now();
-    const initialText = 'আসসালামু আলাইকুম, এটি কি এখনো এভেইলএবল আছে?';
+    const threadId = `thread-${product.id}-${buyerId}`;
+    const nowIso = new Date().toISOString();
     const newThread: ChatThread = {
       id: threadId,
       productId: product.id,
-      productTitle: product.title,
-      productImage: product.images[0] || '',
+      productTitle: language === 'bn' && product.titleBn ? product.titleBn : product.title,
+      productImage: product.images?.[0] || '',
       productPrice: product.price,
       seller: product.seller,
-      buyerId: 'user-me',
-      buyerName: 'CurrentUser',
-      lastMessage: initialText,
-      lastMessageTime: 'Just now',
+      buyerId,
+      buyerName: currentUser?.name || (language === 'bn' ? 'ক্রেতা' : 'Buyer'),
+      lastMessage: '',
+      lastMessageTime: nowIso,
       unreadCount: 0,
-      messages: [
-        {
-          id: initMsgId,
-          senderId: 'user-me',
-          receiverId: product.seller.id,
-          productId: product.id,
-          text: initialText,
-          timestamp: 'Just now',
-          status: 'sent'
-        }
-      ]
+      messages: []
     };
 
-    setChatThreads(prev => {
-      const updated = [newThread, ...prev.filter(t => t.id !== threadId)];
+    setRawChatThreads(prev => {
+      const updated = [newThread, ...prev.filter(t => t.id !== threadId && !isDummyChatThread(t))];
       storage.setItem('marketbd_chat_threads', JSON.stringify(updated));
       return updated;
     });
@@ -3062,33 +3190,17 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setActiveChat(newThread);
     setActiveTab('chat');
 
-    // 🔔 Seller Notification for the first message of a brand-new conversation.
-    setNotifiedThreadIds(prev => new Set(prev).add(threadId));
-    const notifId = 'notif-msg-' + Date.now();
-    const sellerNotifTitle = language === 'bn' ? 'একজন ক্রেতা আপনাকে মেসেজ করেছেন।' : 'You have a new message from a customer.';
-    const sellerNotifMsg = language === 'bn'
-      ? `"${product.title}" বিজ্ঞাপনে ক্রেতার নতুন বার্তা: "${initialText}"`
-      : `A customer messaged you on "${product.title}": "${initialText}"`;
+    if (typeof fetch !== 'undefined') {
+      fetch('/api/chats/thread', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thread: newThread })
+      }).catch(() => {});
+    }
 
-    setNotifications(prev => [
-      {
-        id: notifId,
-        title: sellerNotifTitle,
-        message: sellerNotifMsg,
-        time: 'Just now',
-        isRead: false,
-        type: 'message'
-      },
-      ...prev
-    ]);
-
-    sendLocalBrowserPushNotification({
-      title: sellerNotifTitle,
-      body: sellerNotifMsg
-    });
-
-    // Trigger delivery status after a short network delay
-    setTimeout(() => updateMessageStatus(threadId, initMsgId, 'delivered'), 600);
+    if (auth.currentUser) {
+      safeFirestoreSetDoc(doc(db, 'chats', threadId), newThread, { merge: true }).catch(() => {});
+    }
 
     return threadId;
   };
@@ -3169,7 +3281,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setProducts(prev => {
       const updated = [newProduct, ...prev];
       try {
-        storage.setItem('marketbd_products_v4', JSON.stringify(updated));
+        persistCompactProductsCache(updated);
       } catch (e) {
         console.error('Error persisting new ad:', e);
       }
@@ -3302,7 +3414,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       fullUpdatedList = updated;
       try {
-        storage.setItem('marketbd_products_v4', JSON.stringify(updated));
+        persistCompactProductsCache(updated);
       } catch (e) {
         console.error('Error persisting products on status update:', e);
       }
@@ -3473,7 +3585,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       mergedList = updated;
       try {
-        storage.setItem('marketbd_products_v4', JSON.stringify(updated));
+        persistCompactProductsCache(updated);
       } catch (e) {}
       return updated;
     });
@@ -3943,6 +4055,8 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         activeChat,
         setActiveChat,
         sendMessage,
+        markChatThreadRead,
+        deleteChatThread,
         isSellerTyping,
         notifications,
         markNotificationRead,

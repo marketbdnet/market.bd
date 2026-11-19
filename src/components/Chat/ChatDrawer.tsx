@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { isPhoneVisibleToBuyers } from '../../utils/phoneUtils';
+import { formatChatTimestamp, isOwnChatMessage } from '../../utils/chatUtils';
 import {
   Send,
   Image as ImageIcon,
@@ -8,13 +9,14 @@ import {
   Phone,
   Check,
   CheckCheck,
-  Mic,
   X,
   Trash2,
-  AlertOctagon,
   ArrowLeft,
   Maximize2,
-  Download
+  Download,
+  Search,
+  MessageSquare,
+  ExternalLink
 } from 'lucide-react';
 
 export const ChatDrawer: React.FC = () => {
@@ -24,13 +26,27 @@ export const ChatDrawer: React.FC = () => {
     activeChat,
     setActiveChat,
     sendMessage,
-    isSellerTyping,
-    spamThreads,
-    toggleSpamThread,
+    markChatThreadRead,
+    deleteChatThread,
     products,
     setSelectedProduct,
-    setActiveTab
+    setActiveTab,
+    currentUser
   } = useMarket();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterTab, setFilterTab] = useState<'all' | 'unread'>('all');
+  const [messageInput, setMessageInput] = useState('');
+  const [offerInput, setOfferInput] = useState('');
+  const [showOfferBox, setShowOfferBox] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // Image attachment & lightbox
+  const [attachedImage, setAttachedImage] = useState<string>('');
+  const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const userScrolledUpRef = useRef<boolean>(false);
 
   const handleViewAd = () => {
     if (!activeChat) return;
@@ -41,46 +57,71 @@ export const ChatDrawer: React.FC = () => {
     }
   };
 
-  const [messageInput, setMessageInput] = useState('');
-  const [offerInput, setOfferInput] = useState('');
-  const [showOfferBox, setShowOfferBox] = useState(false);
-  const [filterTab, setFilterTab] = useState<'all' | 'unread' | 'read' | 'spam'>('all');
-  
-  // Image & Attachment state
-  const [attachedImage, setAttachedImage] = useState<string>('');
-  const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
-  const chatFileInputRef = useRef<HTMLInputElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const userScrolledUpRef = useRef<boolean>(false);
-
-  const [deletedThreadIds, setDeletedThreadIds] = useState<string[]>([]);
-
   const handleContainerScroll = () => {
     if (!messagesContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-    userScrolledUpRef.current = !isNearBottom;
+    userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight >= 80;
   };
 
-  // Scroll ONLY the chat inner container to bottom when messages update (unless user is reading older messages)
   useEffect(() => {
     if (messagesContainerRef.current && !userScrolledUpRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
-  }, [activeChat?.messages]);
+  }, [activeChat?.messages?.length]);
 
-  // When switching thread, scroll to bottom of that thread
   useEffect(() => {
     userScrolledUpRef.current = false;
+    setConfirmDeleteId(null);
+    if (activeChat?.id && activeChat.unreadCount > 0) {
+      markChatThreadRead(activeChat.id);
+    }
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [activeChat?.id]);
 
+  const getCounterpartName = (thread: typeof chatThreads[number]) => {
+    const isViewerSeller =
+      Boolean(currentUser?.id && thread.seller?.id === currentUser.id) ||
+      Boolean(
+        currentUser?.phone &&
+          thread.seller?.phone &&
+          currentUser.phone.replace(/\D/g, '') === thread.seller.phone.replace(/\D/g, '')
+      );
+    if (isViewerSeller) {
+      return thread.buyerName || (language === 'bn' ? 'ক্রেতা' : 'Buyer');
+    }
+    return thread.seller?.name || (language === 'bn' ? 'বিক্রেতা' : 'Seller');
+  };
+
+  const visibleThreads = chatThreads.filter(thread => {
+    if (filterTab === 'unread' && (!thread.unreadCount || thread.unreadCount <= 0)) {
+      return false;
+    }
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const counterpart = getCounterpartName(thread).toLowerCase();
+    return (
+      counterpart.includes(q) ||
+      (thread.productTitle || '').toLowerCase().includes(q) ||
+      (thread.lastMessage || '').toLowerCase().includes(q)
+    );
+  });
+
+  useEffect(() => {
+    if (!activeChat && visibleThreads.length > 0) {
+      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+        setActiveChat(visibleThreads[0]);
+      }
+    }
+  }, [activeChat, visibleThreads.length]);
+
+  const unreadTotal = chatThreads.filter(t => t.unreadCount > 0).length;
+
   const processImageFile = (file: File) => {
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      reader.onload = evt => {
         if (evt.target?.result) {
           setAttachedImage(evt.target.result as string);
         }
@@ -91,256 +132,205 @@ export const ChatDrawer: React.FC = () => {
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      processImageFile(file);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      processImageFile(file);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
+    if (file) processImageFile(file);
   };
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if ((!messageInput.trim() && !attachedImage) || !activeChat) return;
 
-    sendMessage(
-      activeChat.id,
-      messageInput.trim(),
-      undefined,
-      attachedImage || undefined
-    );
+    sendMessage(activeChat.id, messageInput.trim(), undefined, attachedImage || undefined);
     setMessageInput('');
     setAttachedImage('');
     userScrolledUpRef.current = false;
-    setTimeout(() => {
-      if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-      }
-    }, 10);
-  };
-
-  const handleSendVoiceNote = () => {
-    if (!activeChat) return;
-    sendMessage(
-      activeChat.id,
-      language === 'bn' ? '🎙️ [ভয়েস মেসেজ - ০:১৫]' : '🎙️ [Voice Message - 0:15]'
-    );
-    userScrolledUpRef.current = false;
-    setTimeout(() => {
-      if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-      }
-    }, 10);
   };
 
   const handleSendOffer = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!offerInput || !activeChat) return;
-
     const amount = Number(offerInput);
+    if (!amount || amount <= 0 || !activeChat) return;
+
     sendMessage(
       activeChat.id,
-      `${language === 'bn' ? 'প্রাইস অফার:' : 'Price Offer:'} ৳${amount.toLocaleString()}`,
+      `${language === 'bn' ? 'দাম অফার:' : 'Price Offer:'} ৳${amount.toLocaleString()}`,
       amount
     );
     setOfferInput('');
     setShowOfferBox(false);
     userScrolledUpRef.current = false;
-    setTimeout(() => {
-      if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-      }
-    }, 10);
   };
 
-  const handleDeleteThread = (threadId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm(language === 'bn' ? 'আপনি কি এই চ্যাটটি থ্রেড তালিকা থেকে রিমুভ করতে চান?' : 'Remove this chat thread?')) {
-      setDeletedThreadIds(prev => [...prev, threadId]);
-      if (activeChat?.id === threadId) {
-        setActiveChat(null);
-      }
-    }
-  };
-
-  // Filter threads
-  const visibleThreads = chatThreads.filter(t => {
-    if (deletedThreadIds.includes(t.id)) return false;
-    const isSpam = spamThreads.includes(t.id);
-
-    if (filterTab === 'spam') return isSpam;
-    if (isSpam) return false;
-
-    if (filterTab === 'unread') return t.unreadCount && t.unreadCount > 0;
-    if (filterTab === 'read') return !t.unreadCount || t.unreadCount === 0;
-    return true; // 'all'
-  });
-
-  // Auto-select first thread if activeChat is null on desktop/tablet so chat input is always open
-  useEffect(() => {
-    if (!activeChat && visibleThreads.length > 0) {
-      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-        setActiveChat(visibleThreads[0]);
-      }
-    }
-  }, [activeChat, visibleThreads.length]);
+  const quickChips = [
+    { bn: 'এটি কি এখনো আছে?', en: 'Is this still available?' },
+    { bn: 'শেষ দাম কত?', en: 'What is the last price?' },
+    { bn: 'লোকেশন কোথায়?', en: 'Where is the location?' },
+    { bn: 'কুরিয়ার করা যাবে?', en: 'Can you deliver via courier?' }
+  ];
 
   return (
-    <div className="max-w-5xl mx-auto py-3 sm:py-6 px-2 sm:px-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-gray-200 dark:border-slate-800 shadow-xl overflow-hidden grid grid-cols-1 md:grid-cols-3 h-[82vh] max-h-[780px] min-h-[500px]">
-        {/* Left Side: Threads List */}
-        <div className={`border-r border-gray-200 dark:border-slate-800 flex flex-col min-h-0 bg-gray-50 dark:bg-slate-950 ${activeChat ? 'hidden md:flex' : 'flex'}`}>
-          <div className="p-3.5 sm:p-4 bg-emerald-700 dark:bg-emerald-800 text-white font-bold flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-black">
-                {language === 'bn' ? 'মেসেজ ও ইনবক্স' : 'Messages & Inbox'}
-              </span>
+    <div className="max-w-5xl mx-auto py-3 sm:py-5 px-2 sm:px-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-lg overflow-hidden grid grid-cols-1 md:grid-cols-3 h-[80vh] max-h-[760px] min-h-[480px]">
+        {/* Left Pane: Simple Bikroy-style Inbox */}
+        <div
+          className={`border-r border-slate-200 dark:border-slate-800 flex flex-col min-h-0 bg-slate-50/70 dark:bg-slate-950 ${
+            activeChat ? 'hidden md:flex' : 'flex'
+          }`}
+        >
+          <div className="p-3.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-[#FF0000]" />
+                <span>{language === 'bn' ? 'আমার চ্যাট' : 'My Chats'}</span>
+              </h2>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setFilterTab('all')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                    filterTab === 'all'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  {language === 'bn' ? `সব (${chatThreads.length})` : `All (${chatThreads.length})`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterTab('unread')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                    filterTab === 'unread'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  {language === 'bn' ? `অপঠিত (${unreadTotal})` : `Unread (${unreadTotal})`}
+                </button>
+              </div>
             </div>
-            <span className="text-xs bg-emerald-950 px-2.5 py-0.5 rounded-full font-extrabold border border-emerald-500/30">
-              {visibleThreads.length}
-            </span>
+
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder={language === 'bn' ? 'নাম বা বিজ্ঞাপন খুঁজুন...' : 'Search by name or ad...'}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
           </div>
 
-          {/* Inbox Filter Tabs: All, Unread, Read, Spam */}
-          <div className="p-2 bg-slate-200/80 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 flex items-center gap-1 overflow-x-auto text-[11px] font-bold shrink-0">
-            <button
-              onClick={() => setFilterTab('all')}
-              className={`px-2.5 py-1 rounded-lg transition shrink-0 cursor-pointer ${
-                filterTab === 'all'
-                  ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-              }`}
-            >
-              {language === 'bn' ? 'সব (All)' : 'All'}
-            </button>
-
-            <button
-              onClick={() => setFilterTab('unread')}
-              className={`px-2.5 py-1 rounded-lg transition shrink-0 cursor-pointer ${
-                filterTab === 'unread'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-              }`}
-            >
-              {language === 'bn' ? 'আনরিড (Unread)' : 'Unread'}
-            </button>
-
-            <button
-              onClick={() => setFilterTab('read')}
-              className={`px-2.5 py-1 rounded-lg transition shrink-0 cursor-pointer ${
-                filterTab === 'read'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-              }`}
-            >
-              {language === 'bn' ? 'রিড (Read)' : 'Read'}
-            </button>
-
-            <button
-              onClick={() => setFilterTab('spam')}
-              className={`px-2.5 py-1 rounded-lg transition shrink-0 cursor-pointer ${
-                filterTab === 'spam'
-                  ? 'bg-red-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-              }`}
-            >
-              {language === 'bn' ? 'স্পাম (Spam)' : 'Spam'}
-            </button>
-          </div>
-
-          <div className="overflow-y-auto flex-1 divide-y divide-gray-100 dark:divide-slate-800">
+          <div className="overflow-y-auto flex-1 divide-y divide-slate-100 dark:divide-slate-800">
             {visibleThreads.length > 0 ? (
               visibleThreads.map(thread => {
                 const isActive = activeChat?.id === thread.id;
-                const isSpam = spamThreads.includes(thread.id);
+                const counterpartName = getCounterpartName(thread);
+                const isUnread = thread.unreadCount > 0;
+
                 return (
                   <div
                     key={thread.id}
                     onClick={() => setActiveChat(thread)}
-                    className={`p-3 cursor-pointer transition flex items-center gap-3 relative group ${
-                      isActive ? 'bg-emerald-100/80 dark:bg-slate-800 border-l-4 border-emerald-600' : 'hover:bg-gray-100 dark:hover:bg-slate-900'
+                    className={`p-3 cursor-pointer transition flex items-center gap-3 ${
+                      isActive
+                        ? 'bg-emerald-50 dark:bg-slate-800 border-l-4 border-emerald-600'
+                        : 'bg-white dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900'
                     }`}
                   >
-                    <img
-                      src={thread.productImage}
-                      alt=""
-                      className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200 dark:border-slate-700"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-baseline">
-                        <h4 className="font-bold text-xs text-gray-900 dark:text-slate-100 truncate">
-                          {thread.seller.name}
-                        </h4>
-                        <span className="text-[10px] text-gray-400 shrink-0">
-                          {thread.lastMessageTime}
+                    <div className="relative shrink-0">
+                      <img
+                        src={thread.productImage}
+                        alt={thread.productTitle}
+                        className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-slate-700 bg-slate-100"
+                      />
+                      {isUnread && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#FF0000] text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                          {thread.unreadCount}
                         </span>
-                      </div>
-                      <p className="text-[11px] text-gray-500 dark:text-slate-400 truncate mt-0.5">
-                        {thread.productTitle}
-                      </p>
-                      <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 truncate mt-0.5 flex items-center gap-1">
-                        <span>{thread.lastMessage}</span>
-                      </p>
+                      )}
                     </div>
 
-                    {/* Quick Thread Action Hover Menu (Spam & Delete) */}
-                    <div className="hidden group-hover:flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          toggleSpamThread(thread.id);
-                        }}
-                        className={`p-1 rounded text-[10px] ${
-                          isSpam ? 'bg-red-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-red-500 hover:text-white'
-                        }`}
-                        title={isSpam ? 'Unmark Spam' : 'Mark Spam'}
-                      >
-                        <AlertOctagon className="w-3.5 h-3.5" />
-                      </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-baseline gap-1">
+                        <h4
+                          className={`text-xs truncate ${
+                            isUnread
+                              ? 'font-black text-slate-950 dark:text-white'
+                              : 'font-bold text-slate-800 dark:text-slate-200'
+                          }`}
+                        >
+                          {counterpartName}
+                        </h4>
+                        <span className="text-[10px] text-slate-400 shrink-0">
+                          {formatChatTimestamp(thread.lastMessageTime, language)}
+                        </span>
+                      </div>
 
-                      <button
-                        onClick={e => handleDeleteThread(thread.id, e)}
-                        className="p-1 bg-slate-200 dark:bg-slate-800 hover:bg-red-600 text-slate-700 hover:text-white rounded transition text-[10px]"
-                        title="Delete Thread"
+                      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        {thread.productTitle} • ৳{(thread.productPrice || 0).toLocaleString()}
+                      </p>
+
+                      <p
+                        className={`text-xs truncate mt-0.5 ${
+                          isUnread
+                            ? 'font-bold text-emerald-700 dark:text-emerald-400'
+                            : 'text-slate-600 dark:text-slate-300'
+                        }`}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        {thread.lastMessage ||
+                          (language === 'bn' ? 'নতুন চ্যাট — মেসেজ পাঠান' : 'New chat — say hello')}
+                      </p>
                     </div>
                   </div>
                 );
               })
             ) : (
-              <div className="p-8 text-center text-xs text-slate-400 italic">
-                {language === 'bn' ? 'কোনো মেসেজ পাওয়া যায়নি' : 'No messages in this folder'}
+              <div className="p-8 text-center space-y-3">
+                <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                  {language === 'bn' ? 'এখনো কোনো মেসেজ নেই' : 'No conversations yet'}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  {language === 'bn'
+                    ? 'যেকোনো বিজ্ঞাপনে গিয়ে "চ্যাট করুন" বাটনে ক্লিক করলে এখানে কথোপকথন শুরু হবে।'
+                    : 'Open any ad and tap Chat to message the seller directly.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('home')}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+                >
+                  {language === 'bn' ? 'বিজ্ঞাপন দেখুন' : 'Browse Ads'}
+                </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* Right Side: Active Chat Panel */}
+        {/* Right Pane: Active Conversation */}
         <div
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          className={`md:col-span-2 flex flex-col h-full min-h-0 bg-white dark:bg-slate-900 ${!activeChat ? 'hidden md:flex' : 'flex'}`}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => {
+            e.preventDefault();
+            const file = e.dataTransfer.files?.[0];
+            if (file) processImageFile(file);
+          }}
+          className={`md:col-span-2 flex flex-col h-full min-h-0 bg-white dark:bg-slate-900 ${
+            !activeChat ? 'hidden md:flex' : 'flex'
+          }`}
         >
           {activeChat ? (
             <>
-              {/* Product Info Bar at Top of Chat */}
-              <div className="p-2.5 sm:p-3 bg-gray-50 dark:bg-slate-950 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between gap-2 shrink-0">
-                <div className="flex items-center gap-2 min-w-0">
+              {/* Clean Bikroy-style Conversation Header */}
+              <div className="p-3 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <button
+                    type="button"
                     onClick={() => setActiveChat(null)}
-                    className="md:hidden p-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-emerald-600 hover:text-white rounded-xl text-slate-700 dark:text-slate-300 transition shrink-0 cursor-pointer"
-                    title={language === 'bn' ? 'ইনবক্স তালিকা' : 'Back to Inbox'}
+                    className="md:hidden p-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 shrink-0 cursor-pointer"
+                    title={language === 'bn' ? 'ইনবক্স' : 'Back to Inbox'}
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
@@ -349,248 +339,241 @@ export const ChatDrawer: React.FC = () => {
                     src={activeChat.productImage}
                     alt=""
                     onClick={handleViewAd}
-                    title={language === 'bn' ? 'বিজ্ঞাপনটি দেখুন' : 'View this ad'}
-                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover shrink-0 border border-slate-200 dark:border-slate-700 cursor-pointer hover:opacity-80 transition"
+                    className="w-10 h-10 rounded-xl object-cover shrink-0 border border-slate-200 dark:border-slate-700 cursor-pointer"
                   />
+
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <h4
-                        onClick={handleViewAd}
-                        title={language === 'bn' ? 'বিজ্ঞাপনটি দেখুন' : 'View this ad'}
-                        className="font-bold text-xs text-gray-900 dark:text-slate-100 truncate cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400 transition"
-                      >
-                        {activeChat.productTitle}
-                      </h4>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="text-xs font-black text-emerald-700 dark:text-emerald-400">
-                        ৳{activeChat.productPrice.toLocaleString()}
+                    <h4
+                      onClick={handleViewAd}
+                      className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate cursor-pointer hover:text-emerald-600 flex items-center gap-1"
+                    >
+                      <span className="truncate">{activeChat.productTitle}</span>
+                      <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
+                    </h4>
+                    <div className="flex items-center gap-2 text-[11px] mt-0.5">
+                      <span className="font-black text-emerald-700 dark:text-emerald-400">
+                        ৳{(activeChat.productPrice || 0).toLocaleString()}
                       </span>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                        • {activeChat.seller.name}
+                      <span className="text-slate-400">•</span>
+                      <span className="font-semibold text-slate-600 dark:text-slate-300 truncate">
+                        {getCounterpartName(activeChat)}
                       </span>
-                      {activeChat.seller?.isOnline === false ? (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">
-                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                          {language === 'bn' ? 'অফলাইন' : 'Offline'}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-md">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          {language === 'bn' ? 'অনলাইন' : 'Online'}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
-                    onClick={handleViewAd}
-                    className="bg-slate-200 dark:bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-700 dark:text-slate-300 text-[11px] sm:text-xs font-bold px-2.5 py-1.5 rounded-xl shadow-xs transition cursor-pointer shrink-0 flex items-center gap-1"
-                    title={language === 'bn' ? 'বিজ্ঞাপনে ফিরে যান' : 'Back to Ad'}
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">{language === 'bn' ? 'বিজ্ঞাপনে ফিরুন' : 'Back to Ad'}</span>
-                  </button>
-                  <button
+                    type="button"
                     onClick={() => setShowOfferBox(!showOfferBox)}
-                    className="bg-yellow-400 hover:bg-yellow-300 text-emerald-950 text-[11px] sm:text-xs font-bold px-2.5 py-1.5 rounded-xl shadow transition cursor-pointer shrink-0 flex items-center gap-1"
+                    className="bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1"
                   >
                     <DollarSign className="w-3.5 h-3.5" />
-                    <span>{language === 'bn' ? 'অফার পাঠান' : 'Send Offer'}</span>
+                    <span>{language === 'bn' ? 'দাম অফার' : 'Offer'}</span>
                   </button>
+
                   {isPhoneVisibleToBuyers(activeChat.seller) && activeChat.seller?.phone && (
                     <a
                       href={`tel:${activeChat.seller.phone.replace(/[^\d+]/g, '')}`}
-                      className="bg-emerald-700 text-white p-2 rounded-xl hover:bg-emerald-800 transition shrink-0"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1"
                       title={activeChat.seller.phone}
                     >
-                      <Phone className="w-4 h-4" />
+                      <Phone className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">{language === 'bn' ? 'কল' : 'Call'}</span>
                     </a>
+                  )}
+
+                  {confirmDeleteId === activeChat.id ? (
+                    <div className="flex items-center gap-1 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 px-2 py-1 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          deleteChatThread(activeChat.id);
+                          setConfirmDeleteId(null);
+                        }}
+                        className="text-[10px] font-black text-red-600 hover:underline cursor-pointer"
+                      >
+                        {language === 'bn' ? 'হ্যাঁ, মুছুন' : 'Confirm'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="text-[10px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer ml-1"
+                      >
+                        {language === 'bn' ? 'না' : 'Cancel'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(activeChat.id)}
+                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition cursor-pointer"
+                      title={language === 'bn' ? 'চ্যাট মুছুন' : 'Delete conversation'}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   )}
                 </div>
               </div>
 
-              {/* Offer Box Drawer */}
+              {/* Price Offer Inline Bar */}
               {showOfferBox && (
                 <form
                   onSubmit={handleSendOffer}
-                  className="p-2.5 sm:p-3 bg-amber-50 dark:bg-amber-950/80 border-b border-amber-200 dark:border-amber-800 flex items-center gap-2 shrink-0"
+                  className="p-2.5 bg-amber-50 dark:bg-amber-950/60 border-b border-amber-200 dark:border-amber-800 flex items-center gap-2 shrink-0"
                 >
                   <span className="text-xs font-bold text-amber-900 dark:text-amber-200 shrink-0">
-                    {language === 'bn' ? 'অফার প্রাইস ৳:' : 'Offer Price ৳:'}
+                    {language === 'bn' ? 'আপনার দাম (৳):' : 'Your Offer (৳):'}
                   </span>
                   <input
                     type="number"
+                    min="1"
                     value={offerInput}
                     onChange={e => setOfferInput(e.target.value)}
-                    placeholder="e.g. 130000"
-                    className="px-2.5 py-1.5 border border-amber-300 dark:border-amber-700 rounded-lg text-xs font-bold w-32 sm:w-36 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                    placeholder="e.g. 12000"
+                    className="px-2.5 py-1.5 border border-amber-300 dark:border-amber-700 rounded-lg text-xs font-bold w-32 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                     required
                   />
                   <button
                     type="submit"
-                    className="bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-800 cursor-pointer shrink-0"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer"
                   >
-                    {language === 'bn' ? 'কনফার্ম' : 'Send'}
+                    {language === 'bn' ? 'অফার পাঠান' : 'Send Offer'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowOfferBox(false)}
+                    className="ml-auto text-slate-500 hover:text-slate-800 p-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
                   </button>
                 </form>
               )}
 
-              {/* Messages History with Full Date & Time and min-h-0 */}
-              <div 
+              {/* Messages Feed */}
+              <div
                 ref={messagesContainerRef}
                 onScroll={handleContainerScroll}
-                className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 bg-emerald-50/20 dark:bg-slate-950/50"
+                className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-2.5 bg-slate-50 dark:bg-slate-950/40"
               >
-                {activeChat.messages.map(msg => {
-                  const isMe = msg.senderId === 'user-me';
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                    >
+                {activeChat.messages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2">
+                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      {language === 'bn'
+                        ? `"${activeChat.productTitle}" নিয়ে আলোচনা শুরু করুন`
+                        : `Start chatting about "${activeChat.productTitle}"`}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {language === 'bn'
+                        ? 'নিচের যেকোনো প্রশ্ন ট্যাপ করুন অথবা নিজের মেসেজ লিখে পাঠান।'
+                        : 'Tap a quick question below or type your own message.'}
+                    </p>
+                  </div>
+                ) : (
+                  activeChat.messages.map(msg => {
+                    const isMe = isOwnChatMessage(msg, activeChat, currentUser);
+                    return (
                       <div
-                        className={`max-w-[85%] sm:max-w-md p-3 rounded-2xl text-xs shadow-xs ${
-                          isMe
-                            ? 'bg-emerald-700 text-white rounded-br-none'
-                            : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-100 rounded-bl-none'
-                        }`}
+                        key={msg.id}
+                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                       >
-                        {msg.isOffer && (
-                          <div className="mb-1 pb-1 border-b border-white/20 font-bold text-yellow-300">
-                            ⚡ Price Offer: ৳{msg.offerAmount?.toLocaleString()}
-                          </div>
-                        )}
-                        {msg.image && (
-                          <div className="mb-2 overflow-hidden rounded-xl border border-white/20 max-w-xs shadow-md relative group">
-                            <img
-                              src={msg.image}
-                              alt="Chat attachment"
-                              className="w-full max-h-60 object-cover cursor-pointer hover:opacity-90 transition"
-                              onClick={() => setEnlargedImage(msg.image!)}
-                            />
-                            <div className="absolute top-2 right-2 bg-black/60 text-white p-1 rounded-lg text-[10px] opacity-0 group-hover:opacity-100 transition pointer-events-none flex items-center gap-1">
-                              <Maximize2 className="w-3.5 h-3.5" />
-                              <span>Zoom</span>
+                        <div
+                          className={`max-w-[85%] sm:max-w-md px-3.5 py-2.5 rounded-2xl text-xs shadow-2xs ${
+                            isMe
+                              ? 'bg-emerald-600 text-white rounded-br-none'
+                              : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-bl-none'
+                          }`}
+                        >
+                          {msg.isOffer && msg.offerAmount && (
+                            <div
+                              className={`mb-1 pb-1 border-b font-bold text-[11px] ${
+                                isMe
+                                  ? 'border-white/20 text-amber-200'
+                                  : 'border-slate-200 dark:border-slate-700 text-amber-600 dark:text-amber-400'
+                              }`}
+                            >
+                              {language === 'bn' ? 'দাম অফার:' : 'Price Offer:'} ৳
+                              {msg.offerAmount.toLocaleString()}
                             </div>
-                          </div>
-                        )}
-                        <p className="leading-relaxed">{msg.text}</p>
-                        
-                        {/* Full Timestamp Date & Time */}
-                        <div className={`text-[9px] mt-1.5 flex items-center justify-end gap-1 font-mono ${isMe ? 'text-emerald-200' : 'text-gray-400 dark:text-slate-400'}`}>
-                          <span>28 Jul 2026, {msg.timestamp}</span>
-                          {isMe && (
-                            msg.status === 'seen' ? (
-                              <span className="flex items-center text-pink-400 font-bold gap-0.5 bg-white/10 px-1 rounded-full border border-pink-400/30" title={language === 'bn' ? 'দেখা হয়েছে (Seen)' : 'Seen'}>
-                                <CheckCheck className="w-3.5 h-3.5 stroke-[2.5]" />
-                                <span className="text-[8px] font-extrabold uppercase tracking-tight">{language === 'bn' ? 'সিন' : 'Seen'}</span>
-                              </span>
-                            ) : msg.status === 'delivered' ? (
-                              <span title={language === 'bn' ? 'পৌঁছেছে (Delivered)' : 'Delivered'}>
-                                <CheckCheck className="w-3.5 h-3.5 text-emerald-200" />
-                              </span>
-                            ) : (
-                              <span title={language === 'bn' ? 'পাঠানো হয়েছে (Sent)' : 'Sent'}>
-                                <Check className="w-3.5 h-3.5 text-emerald-200/80" />
-                              </span>
-                            )
                           )}
+
+                          {msg.image && (
+                            <div className="mb-1.5 overflow-hidden rounded-xl max-w-xs relative group">
+                              <img
+                                src={msg.image}
+                                alt="Attachment"
+                                className="w-full max-h-56 object-cover cursor-pointer"
+                                onClick={() => setEnlargedImage(msg.image!)}
+                              />
+                              <div className="absolute top-1.5 right-1.5 bg-black/60 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition pointer-events-none">
+                                <Maximize2 className="w-3 h-3" />
+                              </div>
+                            </div>
+                          )}
+
+                          <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+
+                          <div
+                            className={`text-[9.5px] mt-1 flex items-center justify-end gap-1 ${
+                              isMe ? 'text-emerald-100' : 'text-slate-400'
+                            }`}
+                          >
+                            <span>{formatChatTimestamp(msg.timestamp, language)}</span>
+                            {isMe &&
+                              (msg.status === 'seen' ? (
+                                <CheckCheck className="w-3.5 h-3.5 text-sky-200" />
+                              ) : msg.status === 'delivered' ? (
+                                <CheckCheck className="w-3.5 h-3.5 text-emerald-100" />
+                              ) : (
+                                <Check className="w-3.5 h-3.5 text-emerald-100/80" />
+                              ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-
-                {/* Live Seller Typing Indicator */}
-                {isSellerTyping && (
-                  <div className="flex items-start">
-                    <div className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl rounded-bl-none shadow-xs flex items-center gap-2">
-                      <div className="flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]"></span>
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]"></span>
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce"></span>
-                      </div>
-                      <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
-                        {language === 'bn' ? 'সেলার টাইপ করছেন...' : 'Seller is typing...'}
-                      </span>
-                    </div>
-                  </div>
+                    );
+                  })
                 )}
               </div>
 
-              {/* Preset Quick Questions Chips for Buyers (Direct Send on Tap, No Bot/AI Auto-Reply) */}
-              <div className="bg-slate-50 dark:bg-slate-950 px-2.5 py-2 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
-                  <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 shrink-0 select-none">
-                    {language === 'bn' ? 'সাধারণ প্রশ্ন:' : 'Common Questions:'}
-                  </span>
-                  {[
-                    { bn: '👋 পণ্যটি কি এখনো পাওয়া যাবে?', en: '👋 Is this available?' },
-                    { bn: '💰 দাম কিছুটা কমানো সম্ভব কি?', en: '💰 Is price negotiable?' },
-                    { bn: '📍 আপনার লোকেশন কোথায়?', en: '📍 Where is your location?' },
-                    { bn: '📦 মেমো ও বক্স সাথে আছে কি?', en: '📦 Memo & box included?' },
-                    { bn: '🚚 কুরিয়ার বা ক্যাশ অন ডেলিভারি হবে?', en: '🚚 Courier COD available?' },
-                    { bn: '🕒 কখন সরাসরি দেখা করা সম্ভব?', en: '🕒 When can we meet?' },
-                    { bn: '📞 কথা বলার জন্য মোবাইল নম্বর দেওয়া যাবে?', en: '📞 Can you share phone number?' }
-                  ].map((q, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        if (activeChat) {
-                          const questionText = language === 'bn' ? q.bn : q.en;
-                          sendMessage(activeChat.id, questionText);
-                          userScrolledUpRef.current = false;
-                          setTimeout(() => {
-                            if (messagesContainerRef.current) {
-                              messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-                            }
-                          }, 50);
-                        }
-                      }}
-                      className="px-2.5 sm:px-3 py-1 bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 text-slate-800 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 text-[10.5px] sm:text-[11px] font-bold rounded-full border border-slate-200 dark:border-slate-700 hover:border-emerald-500 transition shrink-0 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
-                    >
-                      {language === 'bn' ? q.bn : q.en}
-                    </button>
-                  ))}
-                </div>
+              {/* Compact 4 Quick Questions */}
+              <div className="bg-slate-50 dark:bg-slate-950 px-3 py-1.5 border-t border-slate-200 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
+                {quickChips.map((q, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => sendMessage(activeChat.id, language === 'bn' ? q.bn : q.en)}
+                    className="px-2.5 py-1 bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 text-slate-700 dark:text-slate-200 text-[11px] font-semibold rounded-full border border-slate-200 dark:border-slate-700 transition shrink-0 cursor-pointer whitespace-nowrap"
+                  >
+                    {language === 'bn' ? q.bn : q.en}
+                  </button>
+                ))}
               </div>
 
-              {/* Input Form - Optimized for Android App & Mobile (Send button always 100% visible) */}
-              <div className="bg-white dark:bg-slate-900 border-t-2 border-emerald-500/80 shrink-0">
-                {/* Image Preview Thumbnail if attached */}
+              {/* Message Input Footer */}
+              <div className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0">
                 {attachedImage && (
-                  <div className="p-2 bg-emerald-50 dark:bg-slate-800 border-b border-emerald-200 dark:border-slate-700 flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0">
+                  <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
                       <img
                         src={attachedImage}
                         alt="Preview"
-                        className="w-10 h-10 object-cover rounded-xl border border-emerald-400 shadow-xs shrink-0"
+                        className="w-9 h-9 object-cover rounded-lg border border-slate-300"
                       />
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-emerald-900 dark:text-emerald-300 truncate">
-                          {language === 'bn' ? 'ছবি সংযুক্ত করা হয়েছে 📷' : 'Image attached 📷'}
-                        </p>
-                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                        {language === 'bn' ? 'ছবি সংযুক্ত করা হয়েছে' : 'Photo attached'}
+                      </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setAttachedImage('')}
-                      className="p-1 text-red-500 hover:text-red-700 bg-white dark:bg-slate-900 rounded-full shadow-xs cursor-pointer shrink-0"
-                      title={language === 'bn' ? 'ছবি সরান' : 'Remove image'}
+                      className="p-1 text-red-500 hover:bg-red-50 rounded-full cursor-pointer"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 )}
 
-                <form
-                  onSubmit={handleSend}
-                  className="p-2 sm:p-3 flex items-center gap-1.5 sm:gap-2 w-full min-w-0"
-                >
+                <form onSubmit={handleSend} className="p-2.5 flex items-center gap-2">
                   <input
                     type="file"
                     ref={chatFileInputRef}
@@ -599,99 +582,76 @@ export const ChatDrawer: React.FC = () => {
                     className="hidden"
                   />
 
-                  {/* Photo Upload Button */}
                   <button
                     type="button"
                     onClick={() => chatFileInputRef.current?.click()}
-                    className="p-2 sm:p-2.5 text-slate-600 hover:text-emerald-600 bg-slate-100 dark:bg-slate-800 rounded-xl transition cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-950/50 flex items-center justify-center shrink-0"
+                    className="p-2 text-slate-600 hover:text-emerald-600 bg-slate-100 dark:bg-slate-800 rounded-xl transition cursor-pointer shrink-0"
                     title={language === 'bn' ? 'ছবি পাঠান' : 'Attach photo'}
                   >
-                    <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <ImageIcon className="w-4 h-4" />
                   </button>
 
-                  {/* Voice Note Button */}
-                  <button
-                    type="button"
-                    onClick={handleSendVoiceNote}
-                    className="p-2 sm:p-2.5 text-slate-600 hover:text-emerald-600 bg-slate-100 dark:bg-slate-800 rounded-xl transition cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-950/50 flex items-center justify-center shrink-0"
-                    title={language === 'bn' ? 'ভয়েস বার্তা' : 'Send voice note'}
-                  >
-                    <Mic className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                  </button>
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={e => setMessageInput(e.target.value)}
+                    placeholder={language === 'bn' ? 'মেসেজ লিখুন...' : 'Write a message...'}
+                    className="flex-1 min-w-0 px-3.5 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-emerald-600 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none"
+                  />
 
-                  {/* Text Input Field: Flex-1 and Min-w-0 to prevent overflowing the send button */}
-                  <div className="flex-1 min-w-0">
-                    <input
-                      type="text"
-                      value={messageInput}
-                      onChange={e => setMessageInput(e.target.value)}
-                      placeholder={
-                        language === 'bn'
-                          ? 'মেসেজ লিখুন...'
-                          : 'Type message...'
-                      }
-                      className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 border-emerald-500 focus:border-emerald-600 bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl text-xs text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
-                    />
-                  </div>
-
-                  {/* Send Arrow Button: Shrink-0, Always fully visible on screen */}
                   <button
                     type="submit"
                     disabled={!messageInput.trim() && !attachedImage}
-                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-extrabold rounded-xl sm:rounded-2xl transition shadow-md cursor-pointer flex items-center justify-center gap-1.5 shrink-0 text-xs active:scale-95"
-                    title={language === 'bn' ? 'পাঠান' : 'Send'}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 shrink-0 text-xs"
                   >
                     <span className="hidden sm:inline">{language === 'bn' ? 'পাঠান' : 'Send'}</span>
-                    <Send className="w-4 h-4 shrink-0" />
+                    <Send className="w-3.5 h-3.5" />
                   </button>
                 </form>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-gray-400 dark:text-slate-500">
-              <p className="text-sm">
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-400">
+              <MessageSquare className="w-8 h-8 mb-2 opacity-40" />
+              <p className="text-xs font-semibold">
                 {language === 'bn'
-                  ? 'চ্যাট শুরু করতে বামপাশের যেকোনো থ্রেড বেছে নিন'
-                  : 'Select a conversation from the left to start chatting'}
+                  ? 'কথোপকথন দেখতে বামপাশ থেকে একটি চ্যাট বেছে নিন'
+                  : 'Select a chat from the left to view messages'}
               </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Enlarged Image Lightbox Modal */}
+      {/* Image Lightbox Modal */}
       {enlargedImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
           onClick={() => setEnlargedImage(null)}
         >
-          <div
-            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
-            onClick={e => e.stopPropagation()}
-          >
+          <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center" onClick={e => e.stopPropagation()}>
             <button
+              type="button"
               onClick={() => setEnlargedImage(null)}
-              className="absolute -top-12 right-0 p-2 text-white bg-white/20 hover:bg-white/40 rounded-full transition cursor-pointer"
+              className="absolute -top-10 right-0 p-1.5 text-white bg-white/20 hover:bg-white/40 rounded-full cursor-pointer"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             </button>
             <img
               src={enlargedImage}
-              alt="Enlarged preview"
-              className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-white/20"
+              alt="Enlarged"
+              className="max-w-full max-h-[80vh] object-contain rounded-xl"
             />
-            <div className="mt-4 flex items-center gap-3">
-              <a
-                href={enlargedImage}
-                download="chat-image.jpg"
-                target="_blank"
-                rel="noreferrer"
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 cursor-pointer shadow-md"
-              >
-                <Download className="w-4 h-4" />
-                <span>{language === 'bn' ? 'ছবি ডাউনলোড করুন' : 'Download Photo'}</span>
-              </a>
-            </div>
+            <a
+              href={enlargedImage}
+              download="chat-image.jpg"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              <span>{language === 'bn' ? 'ডাউনলোড' : 'Download'}</span>
+            </a>
           </div>
         </div>
       )}

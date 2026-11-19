@@ -2,89 +2,108 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
     function isSignedIn() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == "admin@marketbd.net" ||
-        request.auth.token.email == "official.marketbd@gmail.com" ||
-        request.auth.token.email == "official.marketsbd@gmail.com" ||
-        request.auth.token.email == "graphicsdesign23@gmail.com" ||
+        (request.auth.token.email_verified == true && (
+          request.auth.token.email == "admin@marketbd.net" ||
+          request.auth.token.email == "official.marketbd@gmail.com" ||
+          request.auth.token.email == "official.marketsbd@gmail.com" ||
+          request.auth.token.email == "graphicsdesign23@gmail.com"
+        )) ||
         request.auth.token.admin == true
       );
     }
 
+    // Connection test probe used on startup
+    match /test/connection {
+      allow get: if true;
+    }
+
     // Products / Classified Ads - Unified Web & Android Realtime Sync
-    // NOTE: the app currently posts ads without a Firebase Auth session (no
-    // signInAnonymously / uid-based ownership), so create/update cannot yet be
-    // locked to isOwner() without breaking guest posting. This is flagged in
-    // the audit as a required follow-up (move writes through the existing
-    // Express server with server-side validation, or add Firebase Anonymous
-    // Auth so products can carry a real ownerId). Until then we at least stop
-    // arbitrary public deletion of listings.
     match /products/{productId} {
-      allow read, create, update: if true;
-      allow delete: if isAdmin();
+      allow list: if true;
+      allow get: if isValidId(productId);
+      allow create, update: if isValidId(productId)
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 200;
+      allow delete: if isValidId(productId) && isAdmin();
     }
 
-    // User Profiles - Owner or Admin management
+    // User Profiles - Owner or Admin write protection
     match /users/{userId} {
-      allow read: if true;
-      allow create: if isSignedIn() || request.resource.data.phone != null;
-      allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isAdmin();
+      allow read: if isValidId(userId);
+      allow create: if isValidId(userId)
+        && (isSignedIn() || request.resource.data.phone != null)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 100
+        && (!('role' in request.resource.data) || request.resource.data.role in ['buyer', 'seller'] || isAdmin());
+      allow update: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow delete: if isValidId(userId) && isAdmin();
     }
 
-    // Chat System & Direct Messages
-    // FIX: previous rule was "allow read, write: if true" with no auth check
-    // at all, letting anyone on the internet read or write any user's private
-    // conversations. Now requires a signed-in Firebase Auth session.
+    // Chat System & Direct Messages (Requires authenticated Firebase session)
     match /chats/{chatId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow create, update: if isValidId(chatId) && isSignedIn();
+      allow delete: if isValidId(chatId) && (isAdmin() || (isSignedIn() && resource.data.buyerId == request.auth.uid));
 
       match /messages/{messageId} {
-        allow read, write: if isSignedIn();
+        allow read: if isSignedIn();
+        allow write: if isValidId(chatId) && isValidId(messageId) && isSignedIn();
       }
+    }
+
+    // User Notifications
+    match /user_notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow create, update: if isValidId(notificationId) && isSignedIn();
+      allow delete: if isValidId(notificationId) && isAdmin();
     }
 
     // Customer Care & System Activity Logs
     match /activities/{activityId} {
       allow read: if isSignedIn() || isAdmin();
-      allow create: if true;
-      allow update, delete: if isAdmin();
+      allow create: if isValidId(activityId);
+      allow update, delete: if isValidId(activityId) && isAdmin();
     }
 
     // Admin Activity & Audit Trail Logs
     match /admin_logs/{logId} {
       allow read: if isAdmin();
-      allow create: if true;
-      allow update, delete: if isAdmin();
+      allow create: if isValidId(logId) && isSignedIn();
+      allow update, delete: if isValidId(logId) && isAdmin();
     }
 
-    // System Settings & Site Configuration (Maintenance, Notice, Payment Accounts, etc.)
-    // FIX: previous rule was "isAdmin() || true", which made the admin check a
-    // no-op and let anyone flip maintenance mode / payment numbers / branding.
+    // System Settings & Site Configuration
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isValidId(settingId) && isAdmin();
     }
 
     // Manual Payment Verification System
-    // FIX: previous rule was "isAdmin() || true" on update/delete, letting
-    // anyone mark a payment verified/deleted without admin review.
     match /payments/{paymentId} {
       allow read: if true;
-      allow create: if request.resource.data.status == 'pending_verification';
-      allow update, delete: if isAdmin();
+      allow create: if isValidId(paymentId) && request.resource.data.status == 'pending_verification';
+      allow update, delete: if isValidId(paymentId) && isAdmin();
     }
   }
 }
-

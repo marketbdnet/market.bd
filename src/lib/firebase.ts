@@ -19,8 +19,10 @@ import {
 } from 'firebase/auth';
 import {
   getFirestore,
+  initializeFirestore,
   setDoc,
   getDoc,
+  getDocFromServer,
   doc,
   deleteDoc,
   collection,
@@ -59,13 +61,92 @@ setPersistence(auth, browserLocalPersistence).catch((err) => {
   console.warn('[Firebase Auth] Persistence initialization notice:', err);
 });
 
-export const db = getFirestore(app, firebaseConfigData.firestoreDatabaseId || undefined);
+// Auto-detect long polling prevents 2-4 minute WebChannel hangs on flaky mobile carrier NATs & Android WebView
+let firestoreInstance;
+try {
+  firestoreInstance = initializeFirestore(
+    app,
+    { experimentalAutoDetectLongPolling: true },
+    firebaseConfigData.firestoreDatabaseId || undefined
+  );
+} catch {
+  firestoreInstance = getFirestore(app, firebaseConfigData.firestoreDatabaseId || undefined);
+}
+export const db = firestoreInstance;
 
 // Circuit breaker for Firestore free tier quota exhaustion
 let firestoreQuotaExceededUntil = 0;
 
 export function isFirestoreQuotaExceeded(): boolean {
   return Date.now() < firestoreQuotaExceededUntil;
+}
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid ?? null,
+      email: auth.currentUser?.email ?? null,
+      emailVerified: auth.currentUser?.emailVerified ?? null,
+      isAnonymous: auth.currentUser?.isAnonymous ?? null,
+      tenantId: auth.currentUser?.tenantId ?? null,
+      providerInfo:
+        auth.currentUser?.providerData?.map(provider => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+async function testConnection() {
+  if (typeof window === 'undefined') return;
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration.');
+    }
+  }
+}
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    testConnection();
+  }, 1500);
 }
 
 // Recursively remove any undefined properties so Firestore never throws unsupported field value errors

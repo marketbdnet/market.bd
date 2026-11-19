@@ -13,6 +13,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDocs, collection, deleteDoc, onSnapshot, setLogLevel } from 'firebase/firestore';
 import adminAuthHandler from './api/admin-auth';
 import smsHandler from './api/sms';
+import paymentGatewayHandler from './api/payment-gateway';
 
 try {
   setLogLevel('error');
@@ -187,49 +188,12 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
         status: 'Active',
         mfaEnabled: true,
         lastLogin: new Date().toISOString(),
-        lastLoginIp: '103.110.22.4',
-        createdAt: '2025-01-01T00:00:00.000Z',
+        lastLoginIp: '',
+        createdAt: new Date().toISOString(),
         createdBy: 'System Root'
-      },
-      {
-        id: 'staff-sec-01',
-        name: 'Chief Security Officer',
-        email: 'security@marketbd.net',
-        phone: '+8801634025151',
-        role: 'Security Admin',
-        status: 'Active',
-        mfaEnabled: true,
-        lastLogin: new Date().toISOString(),
-        lastLoginIp: '103.110.22.18',
-        createdAt: '2025-02-15T00:00:00.000Z',
-        createdBy: 'official.marketbd@gmail.com'
-      },
-      {
-        id: 'staff-fin-01',
-        name: 'Payment Verification Officer',
-        email: 'payments@marketbd.net',
-        phone: '+8801533830784',
-        role: 'Payment Admin',
-        status: 'Active',
-        mfaEnabled: true,
-        lastLogin: new Date().toISOString(),
-        lastLoginIp: '103.110.22.35',
-        createdAt: '2025-03-01T00:00:00.000Z',
-        createdBy: 'official.marketbd@gmail.com'
       }
     ],
-    securityEvents: [
-      {
-        id: 'sec-ev-1',
-        type: 'login_success',
-        adminEmail: 'official.marketbd@gmail.com',
-        ip: '103.110.22.4',
-        device: 'Desktop / PC Browser',
-        details: 'Super Admin successfully authenticated with 2-Step OTP Verification',
-        timestamp: new Date().toISOString(),
-        severity: 'low'
-      }
-    ],
+    securityEvents: [],
     updatedAt: new Date().toISOString(),
     ...(savedFileState || {})
   };
@@ -295,7 +259,14 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   }
 
   // Synchronized state endpoints for live syncing between Android App and Website
-  app.get('/api/sync/state', (_req, res) => {
+  app.get('/api/sync/state', (req, res) => {
+    if (req.query.lite === '1') {
+      const { products: _dupProducts, marketplace_products: _heavyProducts, ...rest } = sharedSyncState;
+      return res.json({
+        success: true,
+        data: rest
+      });
+    }
     res.json({ success: true, data: sharedSyncState });
   });
 
@@ -967,10 +938,15 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   // Mount Vercel-compatible API routes in Express so they work identically in AI Studio / Node.js
   app.all('/api/admin-auth', (req, res) => adminAuthHandler(req, res));
   app.all('/api/sms', (req, res) => smsHandler(req, res));
+  app.all('/api/payment-gateway', (req, res) => paymentGatewayHandler(req, res));
 
   // Health check
   app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', name: 'MarketBD.Net Enterprise API' });
+    res.json({
+      status: 'ok',
+      name: 'MarketBD.Net Enterprise API',
+      activeConnections: Math.max(1, chatSseClients.size)
+    });
   });
 
   // Dedicated APK Download Endpoint: forces attachment download with correct MIME type

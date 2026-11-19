@@ -11,14 +11,17 @@ export default function handler(req: VercelRequest | any, res: VercelResponse | 
   }
 
   try {
-    const canonicalValid = CANONICAL_400_PRODUCTS.filter(
-      p => p && p.id && p.title && p.title.trim() !== ''
-    ).map(p => ({
-      ...p,
-      status: p.status || 'active',
-      isApproved: true,
-      isActive: true
-    }));
+    const isLite = req.query?.lite === '1' || String(req.url || '').includes('lite=1');
+    const canonicalValid = isLite
+      ? []
+      : CANONICAL_400_PRODUCTS.filter(
+          p => p && p.id && p.title && p.title.trim() !== ''
+        ).map(p => ({
+          ...p,
+          status: p.status || 'active',
+          isApproved: true,
+          isActive: true
+        }));
 
     const responseState = {
       siteMaintenance: {
@@ -53,7 +56,7 @@ export default function handler(req: VercelRequest | any, res: VercelResponse | 
       branding: null,
       appRelease: null,
       marketplace_products: canonicalValid,
-      products: canonicalValid,
+      ...(isLite ? {} : { products: canonicalValid }),
       adminActiveSession: null,
       updatedAt: new Date().toISOString()
     };

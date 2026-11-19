@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import {
   CheckCircle2,
@@ -19,7 +19,7 @@ import {
   Save,
   Check
 } from 'lucide-react';
-import { sendRealSmsOtp, sendEmailPasswordReset } from '../../services/smsService';
+import { sendRealSmsOtp, sendEmailPasswordReset, fetchUnifiedSmsConfig, UnifiedSmsGatewayConfig } from '../../services/smsService';
 
 import { storage } from '../../utils/storage';
 
@@ -39,12 +39,19 @@ export const LiveProductionStatusPanel: React.FC = () => {
     storage.getItem('marketbd_gsc_token') || 'MARKETBD_GSC_VERIFICATION_2026'
   );
 
-  // Test states
+  // Test & live SMS gateway status
   const [testPhone, setTestPhone] = useState<string>('01723230230');
   const [testEmail, setTestEmail] = useState<string>('official.marketbd@gmail.com');
   const [testSmsStatus, setTestSmsStatus] = useState<string | null>(null);
   const [testEmailStatus, setTestEmailStatus] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
+  const [smsGatewayInfo, setSmsGatewayInfo] = useState<UnifiedSmsGatewayConfig | null>(null);
+
+  useEffect(() => {
+    fetchUnifiedSmsConfig().then(res => {
+      if (res.ok && res.config) setSmsGatewayInfo(res.config);
+    });
+  }, []);
 
   const handleSaveSettings = () => {
     storage.setItem('marketbd_live_mode', isLiveMode ? 'true' : 'false');
@@ -242,7 +249,19 @@ export const LiveProductionStatusPanel: React.FC = () => {
               {language === 'bn' ? '১. একক SMS OTP গেটওয়ে স্ট্যাটাস' : '1. Unified SMS OTP Gateway Status'}
             </h4>
 
-            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-1.5 text-xs text-slate-300">
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2 text-xs text-slate-300">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-200">{language === 'bn' ? 'প্রোভাইডার কোম্পানি:' : 'SMS Provider:'}</span>
+                <span className="font-bold text-white">{smsGatewayInfo?.providerName || 'BulkSMS Dhaka'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-200">{language === 'bn' ? 'API Key স্ট্যাটাস:' : 'API Key Status:'}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  smsGatewayInfo?.hasApiKey ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                }`}>
+                  {smsGatewayInfo?.hasApiKey ? `Configured (${smsGatewayInfo.maskedApiKey})` : (language === 'bn' ? 'সেট করা নেই' : 'Not Set')}
+                </span>
+              </div>
               <div className="flex items-center justify-between">
                 <span className="font-bold text-slate-200">{language === 'bn' ? 'গেটওয়ে মোড:' : 'Gateway Mode:'}</span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
@@ -251,10 +270,10 @@ export const LiveProductionStatusPanel: React.FC = () => {
                   {isLiveMode ? 'LIVE' : 'SANDBOX'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-[11px] text-slate-400 leading-relaxed pt-1 border-t border-slate-800">
                 {language === 'bn'
-                  ? 'সকল ওটিপি এবং কাস্টমার এসএমএস একটি একক নিরাপদ সার্ভার গেটওয়ের মাধ্যমে পরিচালিত হচ্ছে। পূর্ণ কনফিগারেশন গেটওয়ে ট্যাবে রয়েছে।'
-                  : 'All OTP and customer SMS traffic uses one unified secure gateway configured in System Gateways.'}
+                  ? 'কোম্পানির নাম, API Key ও ওটিপি টেমপ্লেট পরিবর্তন করতে গেটওয়ে (Gateways) ট্যাব ব্যবহার করুন।'
+                  : 'Use the Gateways tab to configure SMS provider company, API key & OTP template.'}
               </p>
             </div>
 

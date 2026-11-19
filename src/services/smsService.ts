@@ -2,10 +2,54 @@ import { auth, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } fr
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { storage } from '../utils/storage';
 
+export type SmsProviderId =
+  | 'bulksmsdhaka'
+  | 'bulksmsbd'
+  | 'greenweb'
+  | 'alphasms'
+  | 'sslwireless'
+  | 'elitbuzz'
+  | 'muthofun'
+  | 'custom';
+
+export interface SmsProviderPresetInfo {
+  id: SmsProviderId;
+  companyName: string;
+  defaultApiUrl: string;
+  supportsBalance: boolean;
+  requiresSid?: boolean;
+}
+
+export const SMS_PROVIDER_OPTIONS: SmsProviderPresetInfo[] = [
+  { id: 'bulksmsdhaka', companyName: 'BulkSMS Dhaka (bulksmsdhaka.net)', defaultApiUrl: 'https://bulksmsdhaka.net/api', supportsBalance: true },
+  { id: 'bulksmsbd', companyName: 'BulkSMS BD (bulksmsbd.net)', defaultApiUrl: 'https://bulksmsbd.net/api', supportsBalance: true },
+  { id: 'greenweb', companyName: 'GreenWeb BD (greenweb.com.bd)', defaultApiUrl: 'https://api.greenweb.com.bd/api.php', supportsBalance: false },
+  { id: 'alphasms', companyName: 'Alpha SMS (sms.net.bd)', defaultApiUrl: 'https://api.sms.net.bd', supportsBalance: true },
+  { id: 'sslwireless', companyName: 'SSL Wireless (sslwireless.com)', defaultApiUrl: 'https://smsplus.sslwireless.com/api/v3/send-sms', supportsBalance: false, requiresSid: true },
+  { id: 'elitbuzz', companyName: 'Elitbuzz / MIMSMS (elitbuzz-bd.com)', defaultApiUrl: 'https://msg.elitbuzz-bd.com/smsapi', supportsBalance: true },
+  { id: 'muthofun', companyName: 'MuthoFun (muthofun.com)', defaultApiUrl: 'https://sysadmin.muthobarta.com/api/v1/send-sms', supportsBalance: false },
+  { id: 'custom', companyName: 'Custom SMS Provider (অন্যান্য কোম্পানি)', defaultApiUrl: '', supportsBalance: false },
+];
+
 export interface SMSConfig {
   isLiveMode: boolean;
   maskingEnabled?: boolean;
   senderId?: string;
+}
+
+export interface UnifiedSmsGatewayConfig {
+  providerId: SmsProviderId;
+  providerName: string;
+  apiUrl: string;
+  senderId: string;
+  sid?: string;
+  maskingEnabled: boolean;
+  isLiveMode: boolean;
+  otpTemplate: string;
+  hasApiKey: boolean;
+  maskedApiKey: string;
+  hasAdminSecret: boolean;
+  presets?: SmsProviderPresetInfo[];
 }
 
 export interface UnifiedSmsOtpResult {
@@ -14,12 +58,15 @@ export interface UnifiedSmsOtpResult {
   exp?: number;
   code?: string;
   error?: string;
+  providerName?: string;
+  mode?: string;
 }
 
 export interface UnifiedSmsTextResult {
   ok: boolean;
   status: number;
   usedCaller?: string;
+  providerName?: string;
   hint?: string;
   error?: string;
   gateway?: any;
@@ -51,6 +98,75 @@ async function postUnifiedSmsApi(
 }
 
 /**
+ * Fetch safe/masked unified SMS gateway configuration from server.
+ */
+export async function fetchUnifiedSmsConfig(): Promise<{
+  ok: boolean;
+  config?: UnifiedSmsGatewayConfig;
+  error?: string;
+}> {
+  try {
+    const { ok, data } = await postUnifiedSmsApi({ action: 'get_config' });
+    if (!ok || !data?.config) {
+      return { ok: false, error: data?.error || 'Could not load SMS gateway config' };
+    }
+    return { ok: true, config: data.config };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'Network error loading SMS config' };
+  }
+}
+
+/**
+ * Save SMS Provider Company, API URL, API Key, Sender ID & OTP Template securely on server.
+ */
+export async function saveUnifiedSmsConfig(params: {
+  providerId: SmsProviderId;
+  providerName: string;
+  apiUrl: string;
+  apiKey?: string;
+  clearApiKey?: boolean;
+  senderId: string;
+  sid?: string;
+  maskingEnabled: boolean;
+  isLiveMode: boolean;
+  otpTemplate: string;
+  adminSecret?: string;
+  newAdminSecret?: string;
+}): Promise<{
+  ok: boolean;
+  status: number;
+  config?: UnifiedSmsGatewayConfig;
+  error?: string;
+}> {
+  try {
+    const secret =
+      params.adminSecret !== undefined
+        ? params.adminSecret
+        : storage.getItem('marketbd_sms_admin_secret') || '';
+    const { status, ok, data } = await postUnifiedSmsApi(
+      {
+        action: 'save_config',
+        providerId: params.providerId,
+        providerName: params.providerName,
+        apiUrl: params.apiUrl,
+        ...(params.apiKey ? { apiKey: params.apiKey } : {}),
+        ...(params.clearApiKey ? { clearApiKey: true } : {}),
+        senderId: params.senderId,
+        sid: params.sid || '',
+        maskingEnabled: params.maskingEnabled,
+        isLiveMode: params.isLiveMode,
+        otpTemplate: params.otpTemplate,
+        ...(params.newAdminSecret ? { newAdminSecret: params.newAdminSecret } : {}),
+      },
+      secret
+    );
+    return { ok, status, config: data?.config, error: data?.error };
+  } catch (err: any) {
+    return { ok: false, status: 0, error: err?.message || 'Failed to save SMS gateway config' };
+  }
+}
+
+/**
  * Single Unified Function: Send OTP SMS securely via /api/sms.
  */
 export async function sendUnifiedSmsOtp(phone: string): Promise<UnifiedSmsOtpResult> {
@@ -70,6 +186,8 @@ export async function sendUnifiedSmsOtp(phone: string): Promise<UnifiedSmsOtpRes
       ok: true,
       token: data.token,
       exp: data.exp,
+      providerName: data.providerName,
+      mode: data.mode,
     };
   } catch (err: any) {
     return {
@@ -135,6 +253,7 @@ export async function sendUnifiedSmsText(params: {
       ok,
       status,
       usedCaller: data?.usedCaller,
+      providerName: data?.providerName,
       hint: data?.hint,
       error: data?.error,
       gateway: data?.gateway,
@@ -206,7 +325,7 @@ export async function sendRealSmsOtp(
     if (res.ok) {
       return {
         success: true,
-        message: `SMS Sent via Unified Gateway (Caller: ${res.usedCaller || 'default'})`,
+        message: `SMS Sent via ${res.providerName || 'Unified Gateway'} (Sender: ${res.usedCaller || 'default'})`,
         gatewayResponse: res.gateway,
       };
     }
@@ -220,7 +339,9 @@ export async function sendRealSmsOtp(
   const otpRes = await sendUnifiedSmsOtp(phone);
   return {
     success: otpRes.ok,
-    message: otpRes.ok ? `Unified OTP SMS dispatched to ${cleanPhone}` : (otpRes.error || 'Failed to dispatch SMS'),
+    message: otpRes.ok
+      ? `Unified OTP SMS dispatched to ${cleanPhone} (${otpRes.providerName || 'Gateway'})`
+      : (otpRes.error || 'Failed to dispatch SMS'),
     gatewayResponse: otpRes,
   };
 }

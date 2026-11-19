@@ -7,6 +7,8 @@ import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.Uri;
@@ -14,7 +16,12 @@ import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
@@ -22,15 +29,21 @@ import android.webkit.PermissionRequest;
 import android.webkit.SslErrorHandler;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
@@ -50,16 +63,23 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TARGET_URL = "https://marketbd.net/";
     private static final String APP_USER_AGENT_SUFFIX = " MarketBDAndroidApp/2.5.0";
+    private static final long LOAD_WATCHDOG_TIMEOUT_MS = 15000L; // 15s max wait before showing retry UI
+    private static final long RESUME_RELOAD_THRESHOLD_MS = 10 * 60 * 1000L; // 10 minutes
 
     private WebView webView;
     private SwipeRefreshLayout swipeRefreshLayout;
+    private FrameLayout loadingOverlay;
+    private TextView loadingStatusText;
+    private Button retryButton;
+    private ProgressBar loadingSpinner;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Runnable loadWatchdogRunnable;
+    private boolean pageRenderedSuccessfully = false;
+
     private ValueCallback<Uri[]> filePathCallback;
     private Uri cameraImageUri;
     private long pausedAtMs = 0;
-    // If the app sat in the background longer than this, treat it like a
-    // fresh launch and re-validate against the live server instead of
-    // silently showing whatever was already loaded in memory.
-    private static final long RESUME_RELOAD_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
     // Modern AndroidX ActivityResultLauncher for Camera/Gallery file selection
     private final ActivityResultLauncher<Intent> fileChooserLauncher = registerForActivityResult(
@@ -73,7 +93,6 @@ public class MainActivity extends AppCompatActivity {
                 if (result.getResultCode() == Activity.RESULT_OK) {
                     Intent data = result.getData();
                     if (data != null) {
-                        // Check for multiple selected files (ClipData)
                         ClipData clipData = data.getClipData();
                         if (clipData != null && clipData.getItemCount() > 0) {
                             List<Uri> uriList = new ArrayList<>();
@@ -87,12 +106,10 @@ public class MainActivity extends AppCompatActivity {
                                 results = uriList.toArray(new Uri[0]);
                             }
                         } else if (data.getData() != null) {
-                            // Single selected file
                             results = new Uri[]{data.getData()};
                         }
                     }
 
-                    // If no gallery data returned, check if user captured photo via Camera
                     if (results == null && cameraImageUri != null) {
                         File cameraFile = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "captured_image.jpg");
                         if (cameraFile.exists() && cameraFile.length() > 0) {
@@ -111,6 +128,13 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Root FrameLayout holds SwipeRefreshLayout(WebView) + fast native splash/retry overlay
+        FrameLayout rootContainer = new FrameLayout(this);
+        rootContainer.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
         // 1. Setup Pull-To-Refresh Layout
         swipeRefreshLayout = new SwipeRefreshLayout(this);
         swipeRefreshLayout.setLayoutParams(new ViewGroup.LayoutParams(
@@ -118,20 +142,25 @@ public class MainActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        // 2. Setup High-Performance WebView
+        // 2. Setup High-Performance Hardware-Accelerated WebView
         webView = new WebView(this);
         webView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
         swipeRefreshLayout.addView(webView);
-        setContentView(swipeRefreshLayout);
+        rootContainer.addView(swipeRefreshLayout);
 
-        // Pull-to-refresh listener: forcefully revalidates latest page version from server
+        // Build Native Splash / Loading Overlay (shown only during initial cold load)
+        buildLoadingOverlay(rootContainer);
+        setContentView(rootContainer);
+
+        // Pull-to-refresh listener: force fresh revalidation only when user manually swipes down
         swipeRefreshLayout.setOnRefreshListener(() -> {
             String currentUrl = (webView != null && webView.getUrl() != null) ? webView.getUrl() : TARGET_URL;
-            loadFreshPage(currentUrl);
+            loadPage(currentUrl, true);
         });
 
         // Prevent pull-to-refresh conflict while scrolling inner page content
@@ -141,22 +170,20 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 3. Configure Secure & Optimized WebSettings with NO_CACHE for live updates
+        // 3. Configure Fast & Secure WebSettings (Allow HTTP Cache for hashed JS/CSS/Image bundles)
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
-        webSettings.setDomStorageEnabled(true);    // Preserves localStorage & React states for logged-in users
-        webSettings.setDatabaseEnabled(true);      // Preserves IndexedDB & offline database
+        webSettings.setDomStorageEnabled(true);
+        webSettings.setDatabaseEnabled(true);
         webSettings.setGeolocationEnabled(true);
 
-        // Optimized Cache Mode: Uses HTTP cache for fast loading while validating HTML updates
         if (isNetworkAvailable()) {
             webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
         } else {
-            // Offline fallback to prevent blank screens when internet is disconnected
             webSettings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
         }
 
-        // Security Hardening: Restrict local file schemes and force strict HTTPS
+        // Security Hardening
         webSettings.setAllowFileAccess(false);
         webSettings.setAllowContentAccess(true);
         webSettings.setAllowFileAccessFromFileURLs(false);
@@ -175,17 +202,14 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setMediaPlaybackRequiresUserGesture(false);
 
-        // Append custom user agent for Android client identification
         String defaultUa = webSettings.getUserAgentString();
         webSettings.setUserAgentString(defaultUa + APP_USER_AGENT_SUFFIX);
 
-        // Cookie & Session Persistence (Ensures user login/auth is permanently retained)
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(webView, true);
-        cookieManager.flush();
 
-        // 4. Setup Custom WebViewClient
+        // 4. Setup WebViewClient with fast error recovery and watchdog cancellation
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -207,41 +231,61 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                pageRenderedSuccessfully = true;
+                cancelLoadWatchdog();
+                hideLoadingOverlay();
                 if (swipeRefreshLayout != null && swipeRefreshLayout.isRefreshing()) {
                     swipeRefreshLayout.setRefreshing(false);
                 }
-                // Persist session cookies to disk so login survives app restarts
                 CookieManager.getInstance().flush();
             }
 
             @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                if (request != null && request.isForMainFrame()) {
+                    handleMainFrameLoadFailure();
+                }
+            }
+
+            @SuppressWarnings("deprecation")
+            @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                 super.onReceivedError(view, errorCode, description, failingUrl);
-                if (swipeRefreshLayout != null && swipeRefreshLayout.isRefreshing()) {
-                    swipeRefreshLayout.setRefreshing(false);
+                if (failingUrl != null && failingUrl.equals(view.getUrl())) {
+                    handleMainFrameLoadFailure();
                 }
-                // If initial network request had a glitch or timeout, reload gracefully
-                if (isNetworkAvailable()) {
-                    view.postDelayed(() -> {
-                        if (view != null && (view.getUrl() == null || view.getUrl().equals("about:blank"))) {
-                            loadFreshPage(TARGET_URL);
-                        }
-                    }, 1000);
+            }
+
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
+                super.onReceivedHttpError(view, request, errorResponse);
+                if (request != null && request.isForMainFrame() && errorResponse != null && errorResponse.getStatusCode() >= 500) {
+                    handleMainFrameLoadFailure();
                 }
             }
 
             @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                // Strict Security: Cancel and prevent insecure SSL connections
                 handler.cancel();
+                handleMainFrameLoadFailure();
             }
         });
 
-        // 5. Setup Custom WebChromeClient with Modern File Chooser & Permissions
+        // 5. Setup WebChromeClient with Progress-driven splash dismissal & File Chooser
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
+            public void onProgressChanged(WebView view, int newProgress) {
+                super.onProgressChanged(view, newProgress);
+                if (newProgress >= 75) {
+                    pageRenderedSuccessfully = true;
+                    cancelLoadWatchdog();
+                    hideLoadingOverlay();
+                }
+            }
+
+            @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
-                // Cancel any previous pending callback
                 if (MainActivity.this.filePathCallback != null) {
                     MainActivity.this.filePathCallback.onReceiveValue(null);
                 }
@@ -259,7 +303,6 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                // Security Check: Only grant geolocation automatically for trusted MarketBD domain
                 if (origin != null && (origin.startsWith("https://marketbd.net") || origin.startsWith("http://localhost") || origin.startsWith("https://localhost"))) {
                     callback.invoke(origin, true, false);
                 } else {
@@ -269,14 +312,13 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
-                // Grant runtime camera & microphone permissions requested by web application
                 if (request != null) {
                     runOnUiThread(() -> request.grant(request.getResources()));
                 }
             }
         });
 
-        // 6. Modern AndroidX Back Navigation (Deprecated onBackPressed Replacement)
+        // 6. Modern AndroidX Back Navigation
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -289,16 +331,146 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 7. Request Android 13+ Notification Permission if needed
+        // 7. Request Android 13+ Notification Permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
             }
         }
 
-        // 8. Initial Page Load with HTTP Cache Revalidation Headers
+        // 8. Initial Page Load using standard HTTP cache (instant open on repeat launches)
         if (savedInstanceState == null) {
-            loadFreshPage(TARGET_URL);
+            loadPage(TARGET_URL, false);
+        } else {
+            webView.restoreState(savedInstanceState);
+            hideLoadingOverlay();
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (webView != null) {
+            webView.saveState(outState);
+        }
+    }
+
+    private void buildLoadingOverlay(FrameLayout parent) {
+        loadingOverlay = new FrameLayout(this);
+        loadingOverlay.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        loadingOverlay.setBackgroundColor(Color.WHITE);
+
+        LinearLayout centerBox = new LinearLayout(this);
+        centerBox.setOrientation(LinearLayout.VERTICAL);
+        centerBox.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams boxParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+        );
+        int pad = dpToPx(24);
+        centerBox.setPadding(pad, pad, pad, pad);
+
+        TextView brandTitle = new TextView(this);
+        brandTitle.setText("MarketBD.Net");
+        brandTitle.setTextColor(Color.parseColor("#B91C1C"));
+        brandTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
+        brandTitle.setTypeface(null, Typeface.BOLD);
+        brandTitle.setGravity(Gravity.CENTER);
+
+        loadingSpinner = new ProgressBar(this);
+        LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
+                dpToPx(36), dpToPx(36)
+        );
+        spinnerParams.topMargin = dpToPx(16);
+        spinnerParams.bottomMargin = dpToPx(12);
+        loadingSpinner.setLayoutParams(spinnerParams);
+
+        loadingStatusText = new TextView(this);
+        loadingStatusText.setText("অ্যাপ লোড হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন");
+        loadingStatusText.setTextColor(Color.parseColor("#475569"));
+        loadingStatusText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        loadingStatusText.setGravity(Gravity.CENTER);
+
+        retryButton = new Button(this);
+        retryButton.setText("পুনরায় চেষ্টা করুন (Retry)");
+        retryButton.setVisibility(View.GONE);
+        retryButton.setBackgroundColor(Color.parseColor("#DC2626"));
+        retryButton.setTextColor(Color.WHITE);
+        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        btnParams.topMargin = dpToPx(16);
+        retryButton.setLayoutParams(btnParams);
+        retryButton.setOnClickListener(v -> loadPage(TARGET_URL, true));
+
+        centerBox.addView(brandTitle);
+        centerBox.addView(loadingSpinner);
+        centerBox.addView(loadingStatusText);
+        centerBox.addView(retryButton);
+        loadingOverlay.addView(centerBox, boxParams);
+        parent.addView(loadingOverlay);
+    }
+
+    private int dpToPx(int dp) {
+        return Math.round(TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                dp,
+                getResources().getDisplayMetrics()
+        ));
+    }
+
+    private void showLoadingState() {
+        if (loadingOverlay == null) return;
+        loadingOverlay.setVisibility(View.VISIBLE);
+        if (loadingSpinner != null) loadingSpinner.setVisibility(View.VISIBLE);
+        if (retryButton != null) retryButton.setVisibility(View.GONE);
+        if (loadingStatusText != null) {
+            loadingStatusText.setText("অ্যাপ লোড হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন");
+        }
+    }
+
+    private void hideLoadingOverlay() {
+        if (loadingOverlay != null && loadingOverlay.getVisibility() == View.VISIBLE) {
+            loadingOverlay.setVisibility(View.GONE);
+        }
+    }
+
+    private void handleMainFrameLoadFailure() {
+        cancelLoadWatchdog();
+        if (swipeRefreshLayout != null && swipeRefreshLayout.isRefreshing()) {
+            swipeRefreshLayout.setRefreshing(false);
+        }
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisibility(View.VISIBLE);
+        }
+        if (loadingSpinner != null) loadingSpinner.setVisibility(View.GONE);
+        if (retryButton != null) retryButton.setVisibility(View.VISIBLE);
+        if (loadingStatusText != null) {
+            loadingStatusText.setText(isNetworkAvailable()
+                    ? "সার্ভারের সাথে সংযোগ হতে সময় লাগছে। দয়া করে Retry চাপুন।"
+                    : "ইন্টারনেট সংযোগ নেই। ওয়াইফাই বা মোবাইল ডাটা চালু করে Retry চাপুন।");
+        }
+    }
+
+    private void startLoadWatchdog() {
+        cancelLoadWatchdog();
+        loadWatchdogRunnable = () -> {
+            if (!pageRenderedSuccessfully) {
+                handleMainFrameLoadFailure();
+            }
+        };
+        mainHandler.postDelayed(loadWatchdogRunnable, LOAD_WATCHDOG_TIMEOUT_MS);
+    }
+
+    private void cancelLoadWatchdog() {
+        if (loadWatchdogRunnable != null) {
+            mainHandler.removeCallbacks(loadWatchdogRunnable);
+            loadWatchdogRunnable = null;
         }
     }
 
@@ -330,18 +502,30 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Loads fresh HTML shell with forced revalidation headers to guarantee the latest production build from marketbd.net
+     * Loads target URL efficiently. Uses WebView disk cache for fast startup;
+     * forces cache revalidation only when explicitly requested (pull-to-refresh or retry).
      */
-    private void loadFreshPage(String url) {
+    private void loadPage(String url, boolean forceFresh) {
         if (webView == null || url == null) return;
+        pageRenderedSuccessfully = false;
+        if (!forceFresh || loadingOverlay.getVisibility() == View.VISIBLE) {
+            showLoadingState();
+        }
+        startLoadWatchdog();
 
-        Map<String, String> extraHeaders = new HashMap<>();
-        // Enforces strict revalidation for HTML document without wiping out cookies or localStorage
-        extraHeaders.put("Cache-Control", "no-cache, no-store, must-revalidate");
-        extraHeaders.put("Pragma", "no-cache");
-        extraHeaders.put("Expires", "0");
+        if (isNetworkAvailable()) {
+            webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
+        } else {
+            webView.getSettings().setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+        }
 
-        webView.loadUrl(url, extraHeaders);
+        if (forceFresh) {
+            Map<String, String> extraHeaders = new HashMap<>();
+            extraHeaders.put("Cache-Control", "no-cache");
+            webView.loadUrl(url, extraHeaders);
+        } else {
+            webView.loadUrl(url);
+        }
     }
 
     /**
@@ -353,7 +537,6 @@ public class MainActivity extends AppCompatActivity {
         String scheme = uri.getScheme();
         String host = uri.getHost();
 
-        // 1. External URI Schemes (tel:, mailto:, sms:, whatsapp:, intent:)
         if ("tel".equalsIgnoreCase(scheme) || "mailto".equalsIgnoreCase(scheme) ||
                 "sms".equalsIgnoreCase(scheme) || "whatsapp".equalsIgnoreCase(scheme)) {
             try {
@@ -375,20 +558,17 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 2. Strict Host Guard: If any legacy link points to vercel.app, seamlessly redirect to marketbd.net
         if (host != null && host.contains("vercel.app")) {
             String path = uri.getPath() != null ? uri.getPath() : "";
             String query = uri.getQuery() != null ? "?" + uri.getQuery() : "";
-            loadFreshPage("https://marketbd.net" + path + query);
+            loadPage("https://marketbd.net" + path + query, false);
             return true;
         }
 
-        // 3. MarketBD Internal Domain & Subpaths -> Load inside WebView
         if (host != null && (host.equalsIgnoreCase("marketbd.net") || host.endsWith(".marketbd.net"))) {
-            return false; // Load inside WebView
+            return false;
         }
 
-        // 4. External Websites (Social Media, Third-Party Blogs, External Payment Gateways)
         try {
             Intent browserIntent = new Intent(Intent.ACTION_VIEW, uri);
             startActivity(browserIntent);
@@ -404,7 +584,6 @@ public class MainActivity extends AppCompatActivity {
     private Intent createFileChooserIntent(WebChromeClient.FileChooserParams fileChooserParams) {
         Intent takePictureIntent = null;
 
-        // Camera Intent preparation
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
@@ -428,7 +607,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // Gallery / Documents Content Intent
         Intent contentSelectionIntent = new Intent(Intent.ACTION_GET_CONTENT);
         contentSelectionIntent.addCategory(Intent.CATEGORY_OPENABLE);
         contentSelectionIntent.setType("image/*");
@@ -463,15 +641,9 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         if (webView != null) {
             webView.onResume();
-
-            // FIX: previously onResume() only resumed WebView timers, never
-            // re-checked the server. If a new version was deployed while the
-            // app sat in the background, the user would keep seeing the old
-            // in-memory page indefinitely, even after multiple minutes or
-            // manual navigation, until they force-cleared app storage.
             if (pausedAtMs > 0 && (System.currentTimeMillis() - pausedAtMs) > RESUME_RELOAD_THRESHOLD_MS) {
                 String currentUrl = webView.getUrl() != null ? webView.getUrl() : TARGET_URL;
-                loadFreshPage(currentUrl);
+                loadPage(currentUrl, false);
             }
             pausedAtMs = 0;
         }
@@ -488,6 +660,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        cancelLoadWatchdog();
         if (webView != null) {
             webView.destroy();
         }

@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import {
   ShieldAlert,
   ShieldCheck,
-  Lock,
   Globe,
   Plus,
   Trash2,
@@ -12,110 +11,75 @@ import {
   Smartphone,
   Laptop,
   LogOut,
-  RefreshCw,
-  AlertTriangle,
-  UserCheck,
-  FileText,
   Activity,
-  Sliders,
   Radio,
   Zap
 } from 'lucide-react';
 import { AdminSessionRecord, SecurityEventRecord } from '../../types/adminAuth';
 import { SensitiveActionModal } from './SensitiveActionModal';
+import { storage } from '../../utils/storage';
 
 export const SecurityLogsAdminPanel: React.FC = () => {
-  const { language, adminActiveSession, terminateOtherAdminSessions, currentUser, logAdminAction } = useMarket();
+  const { language, adminActiveSession, terminateOtherAdminSessions, currentUser, logAdminAction, activityLogs } = useMarket();
 
   const [activeTab, setActiveTab] = useState<'sessions' | 'events' | 'firewall' | 'mfa'>('sessions');
 
-  const [blockedIps, setBlockedIps] = useState<string[]>([
-    '103.245.192.11',
-    '180.211.230.45',
-    '45.112.180.9'
-  ]);
+  const [blockedIps, setBlockedIps] = useState<string[]>(() => {
+    try {
+      const saved = storage.getItem('marketbd_blocked_ips');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [newIpInput, setNewIpInput] = useState('');
 
-  // Active Sessions
-  const [activeSessions, setActiveSessions] = useState<AdminSessionRecord[]>([
-    {
-      id: 'sess-1',
-      sessionToken: 'tok-curr-master',
-      adminId: 'admin-master',
-      adminEmail: currentUser?.email || 'official.marketbd@gmail.com',
-      adminName: currentUser?.name || 'Official Super Admin',
+  // Real Active Session from Admin Session + Current User
+  const [revokedOtherSessions, setRevokedOtherSessions] = useState(false);
+  const activeSessions: AdminSessionRecord[] = useMemo(() => {
+    if (revokedOtherSessions && !adminActiveSession && !currentUser) return [];
+    const session: AdminSessionRecord = {
+      id: adminActiveSession?.sessionToken || 'sess-current',
+      sessionToken: adminActiveSession?.sessionToken || 'active-session',
+      adminId: currentUser?.id || 'admin-master',
+      adminEmail: adminActiveSession?.userEmail || currentUser?.email || 'official.marketsbd@gmail.com',
+      adminName: currentUser?.name || 'MarketBD.Net Admin',
       adminRole: 'Super Admin',
-      deviceName: adminActiveSession?.deviceName || 'Desktop / PC Browser (Chrome Windows)',
-      ip: adminActiveSession?.ip || '103.110.22.4',
-      location: 'Dhaka, Bangladesh',
-      loginTime: 'Active now',
-      lastActiveTime: 'Just now',
-      isCurrent: true
-    },
-    {
-      id: 'sess-2',
-      sessionToken: 'tok-mobile-app',
-      adminId: 'staff-sec-01',
-      adminEmail: 'security@marketbd.net',
-      adminName: 'Chief Security Officer',
-      adminRole: 'Security Admin',
-      deviceName: 'Android App / WebView (Samsung Galaxy)',
-      ip: '103.110.22.18',
-      location: 'Chattogram, Bangladesh',
-      loginTime: '45 mins ago',
-      lastActiveTime: '2 mins ago',
-      isCurrent: false
-    }
-  ]);
+      deviceName: adminActiveSession?.deviceName || (typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 48) : 'Web Browser'),
+      ip: adminActiveSession?.ip || 'Current Session',
+      location: 'Bangladesh',
+      loginTime: adminActiveSession?.loginTime || new Date().toLocaleTimeString(),
+      lastActiveTime: 'Active now',
+      isCurrent: true,
+    };
+    return [session];
+  }, [adminActiveSession, currentUser, revokedOtherSessions]);
 
-  // Security Events
-  const [securityEvents, setSecurityEvents] = useState<SecurityEventRecord[]>([
-    {
-      id: 'ev-1',
-      type: 'login_success',
-      adminEmail: currentUser?.email || 'official.marketbd@gmail.com',
-      ip: '103.110.22.4',
-      device: 'Desktop / PC Browser',
-      details: 'Super Admin authenticated via 2-Step OTP Verification',
-      timestamp: 'Active Session',
-      severity: 'low'
-    },
-    {
-      id: 'ev-2',
-      type: 'login_failed',
-      adminEmail: 'unknown_attacker@bot.net',
-      ip: '180.211.230.45',
-      device: 'Python-requests / Bot',
-      details: 'Failed admin credentials. Auto-blocked by WAF Shield',
-      timestamp: '1 hour ago',
-      severity: 'high'
-    },
-    {
-      id: 'ev-3',
-      type: 'sensitive_action_performed',
-      adminEmail: 'payments@marketbd.net',
-      ip: '103.110.22.35',
-      device: 'Chrome / Windows',
-      details: 'Manual payment verified (bKash ৳1,200) with 2FA token',
-      timestamp: '2 hours ago',
-      severity: 'medium'
-    },
-    {
-      id: 'ev-4',
-      type: 'mfa_verified',
-      adminEmail: 'official.marketbd@gmail.com',
-      ip: '103.110.22.4',
-      device: 'Desktop',
-      details: '2FA security challenge passed successfully',
-      timestamp: '3 hours ago',
-      severity: 'low'
-    }
-  ]);
+  // Real Security Events derived from activityLogs
+  const securityEvents: SecurityEventRecord[] = useMemo(() => {
+    return activityLogs
+      .filter(l => l.type === 'security' || l.type === 'system' || /admin|login|otp|block|firewall/i.test(l.action || ''))
+      .slice(0, 30)
+      .map(l => {
+        const extra = l.target || l.adTitle;
+        return {
+          id: l.id,
+          type: 'sensitive_action_performed' as const,
+          adminEmail: l.userName || l.user || currentUser?.email || 'Admin',
+          ip: l.ip || '—',
+          device: 'Web / App',
+          details: `${l.action}${extra ? ` — ${extra}` : ''}`,
+          timestamp: l.timestamp,
+          severity: /block|failed|alert|lock/i.test(l.action || '') ? ('high' as const) : ('low' as const),
+        };
+      });
+  }, [activityLogs, currentUser?.email]);
 
-  const [is2faEnforced, setIs2faEnforced] = useState(true);
+  const [is2faEnforced, setIs2faEnforced] = useState<boolean>(
+    () => storage.getItem('marketbd_admin_2fa_enforced') !== 'false'
+  );
   const [toastMsg, setToastMsg] = useState('');
 
-  // 2FA Sensitive Action Modal
   const [sensitiveModal, setSensitiveModal] = useState<{
     isOpen: boolean;
     type: 'terminate_session' | 'toggle_2fa' | 'claim_exclusive';
@@ -136,19 +100,23 @@ export const SecurityLogsAdminPanel: React.FC = () => {
     if (!newIpInput.trim()) return;
     const ip = newIpInput.trim();
     if (!blockedIps.includes(ip)) {
-      setBlockedIps(prev => [...prev, ip]);
-      showToast(language === 'bn' ? `✓ IP ${ip} সফলভাবে ফায়ারওয়ালে ব্লক করা হয়েছে!` : `✓ IP ${ip} added to firewall blacklist!`);
+      const next = [...blockedIps, ip];
+      setBlockedIps(next);
+      storage.setItem('marketbd_blocked_ips', JSON.stringify(next));
+      showToast(language === 'bn' ? `✓ IP ${ip} ফায়ারওয়ালে ব্লক করা হয়েছে!` : `✓ IP ${ip} added to firewall blacklist!`);
       logAdminAction({
         action: `Firewall: Blocked IP Address ${ip}`,
         actionType: 'security',
-        details: 'Added malicious IP to blacklist'
+        details: 'Added IP to blacklist'
       });
     }
     setNewIpInput('');
   };
 
   const handleRemoveBlockedIp = (ip: string) => {
-    setBlockedIps(prev => prev.filter(i => i !== ip));
+    const next = blockedIps.filter(i => i !== ip);
+    setBlockedIps(next);
+    storage.setItem('marketbd_blocked_ips', JSON.stringify(next));
     showToast(language === 'bn' ? `✓ IP ${ip} আনব্লক করা হয়েছে!` : `✓ IP ${ip} unblocked!`);
     logAdminAction({
       action: `Firewall: Unblocked IP ${ip}`,
@@ -160,25 +128,17 @@ export const SecurityLogsAdminPanel: React.FC = () => {
   const handleConfirmSensitiveAction = (adminNote?: string) => {
     if (sensitiveModal.type === 'claim_exclusive') {
       terminateOtherAdminSessions();
-      setActiveSessions(prev => prev.filter(s => s.isCurrent));
+      setRevokedOtherSessions(true);
       logAdminAction({
         action: 'Claimed Exclusive Single-Device Session',
         actionType: 'security',
-        details: adminNote || 'All other admin sessions forcibly revoked'
+        details: adminNote || 'All other admin sessions revoked'
       });
-      showToast(language === 'bn' ? '✓ এই ডিভাইসের জন্য একক এক্সেস কার্যকর হয়েছে! অন্য সকল সেশন বাতিল করা হয়েছে।' : '✓ Single-device session claimed! All other sessions terminated.');
-    } else if (sensitiveModal.type === 'terminate_session' && sensitiveModal.targetId) {
-      const id = sensitiveModal.targetId;
-      setActiveSessions(prev => prev.filter(s => s.id !== id));
-      logAdminAction({
-        action: `Revoked Admin Session: ${id}`,
-        actionType: 'security',
-        details: adminNote || 'Session revoked by admin'
-      });
-      showToast(language === 'bn' ? '✓ সেশনটি সফলভাবে বাতিল করা হয়েছে।' : '✓ Admin session terminated.');
+      showToast(language === 'bn' ? '✓ এই ডিভাইসের জন্য একক এক্সেস কার্যকর হয়েছে!' : '✓ Single-device session claimed!');
     } else if (sensitiveModal.type === 'toggle_2fa') {
       const nextVal = !is2faEnforced;
       setIs2faEnforced(nextVal);
+      storage.setItem('marketbd_admin_2fa_enforced', String(nextVal));
       logAdminAction({
         action: `${nextVal ? 'Enforced' : 'Disabled'} Platform-wide 2FA Requirement`,
         actionType: 'security',
@@ -207,7 +167,7 @@ export const SecurityLogsAdminPanel: React.FC = () => {
           <p className="text-xs text-red-200 max-w-xl">
             {language === 'bn'
               ? 'সুপার এডমিন একক ডিভাইস লক, দ্বি-স্তর বিশিষ্ট সুরক্ষা (২FA), সক্রিয় সেশন নজরদারি এবং অনুপ্রবেশ প্রতিরোধ ব্যবস্থা।'
-              : 'Super Admin single-device concurrency lock, 2-Factor Authentication, live session monitoring, and real-time IP intrusion protection.'}
+              : 'Super Admin single-device concurrency lock, 2-Factor Authentication, live session monitoring, and IP protection.'}
           </p>
         </div>
 
@@ -244,7 +204,7 @@ export const SecurityLogsAdminPanel: React.FC = () => {
             <Smartphone className="w-4 h-4" />
             <span>Single Device</span>
           </div>
-          <span className="text-[10px] text-slate-500 font-mono">1 Active Device</span>
+          <span className="text-[10px] text-slate-500 font-mono">{activeSessions.length} Active Session</span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
@@ -257,7 +217,7 @@ export const SecurityLogsAdminPanel: React.FC = () => {
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
-          <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">Blocked Malicious IPs</span>
+          <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">Blocked IPs</span>
           <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 font-black text-sm">
             <Globe className="w-4 h-4" />
             <span>{blockedIps.length} IPs Blocked</span>
@@ -266,17 +226,17 @@ export const SecurityLogsAdminPanel: React.FC = () => {
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
-          <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">Security Incidents</span>
+          <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">Logged Security Events</span>
           <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-black text-sm">
             <Activity className="w-4 h-4" />
-            <span>0 Breaches</span>
+            <span>{securityEvents.length} Events</span>
           </div>
-          <span className="text-[10px] text-slate-500 font-mono">Realtime Bot Defense</span>
+          <span className="text-[10px] text-slate-500 font-mono">Live Audit Stream</span>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 flex-wrap">
         <button
           type="button"
           onClick={() => setActiveTab('sessions')}
@@ -300,7 +260,7 @@ export const SecurityLogsAdminPanel: React.FC = () => {
           }`}
         >
           <Activity className="w-4 h-4" />
-          <span>{language === 'bn' ? 'সিকিউরিটি ইভেন্টস ও লগইন ট্রেইল' : 'Security Events & Logs'} ({securityEvents.length})</span>
+          <span>{language === 'bn' ? 'সিকিউরিটি ইভেন্টস ও লগইন ট্রেইল' : 'Security Events'} ({securityEvents.length})</span>
         </button>
 
         <button
@@ -341,8 +301,8 @@ export const SecurityLogsAdminPanel: React.FC = () => {
               </h3>
               <p className="text-xs text-slate-500">
                 {language === 'bn'
-                  ? 'বর্তমান অনুমোদিত সেশনসমূহ। কোনো অননুমোদিত ডিভাইস দেখলে তৎক্ষণাৎ সেশন বাতিল করুন।'
-                  : 'Currently authenticated admin sessions. Terminate any unrecognized devices immediately.'}
+                  ? 'বর্তমান অনুমোদিত সেশনসমূহ।'
+                  : 'Currently authenticated admin session.'}
               </p>
             </div>
           </div>
@@ -351,59 +311,31 @@ export const SecurityLogsAdminPanel: React.FC = () => {
             {activeSessions.map(sess => (
               <div key={sess.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
-                    sess.isCurrent
-                      ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
-                  }`}>
-                    {sess.deviceName.toLowerCase().includes('mobile') || sess.deviceName.toLowerCase().includes('android') ? (
-                      <Smartphone className="w-5 h-5" />
-                    ) : (
-                      <Laptop className="w-5 h-5" />
-                    )}
+                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600">
+                    <Laptop className="w-5 h-5" />
                   </div>
 
                   <div>
                     <div className="flex items-center gap-2 font-black text-sm text-slate-900 dark:text-white">
                       <span>{sess.deviceName}</span>
-                      {sess.isCurrent && (
-                        <span className="text-[9px] px-2 py-0.5 bg-emerald-600 text-white rounded-full font-black uppercase">
-                          Current Device
-                        </span>
-                      )}
+                      <span className="text-[9px] px-2 py-0.5 bg-emerald-600 text-white rounded-full font-black uppercase">
+                        Current Device
+                      </span>
                     </div>
                     <div className="text-xs text-slate-500 font-mono mt-0.5">
                       {sess.adminEmail} • <span className="text-slate-700 dark:text-slate-300 font-bold">{sess.adminRole}</span>
                     </div>
                     <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                      IP: {sess.ip} • {sess.location} • Active: {sess.lastActiveTime}
+                      {sess.location} • Active: {sess.lastActiveTime}
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  {sess.isCurrent ? (
-                    <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>{language === 'bn' ? 'সক্রিয় প্রাইমারি' : 'Active Primary'}</span>
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSensitiveModal({
-                          isOpen: true,
-                          type: 'terminate_session',
-                          targetId: sess.id,
-                          detailsDisplay: `Revoke session on ${sess.deviceName} (${sess.ip})`
-                        })
-                      }
-                      className="px-3 py-1.5 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 text-red-600 dark:text-red-400 text-xs font-black rounded-xl transition cursor-pointer flex items-center gap-1"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>{language === 'bn' ? 'সেশন বাতিল' : 'Revoke Session'}</span>
-                    </button>
-                  )}
+                  <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>{language === 'bn' ? 'সক্রিয় প্রাইমারি' : 'Active Primary'}</span>
+                  </span>
                 </div>
               </div>
             ))}
@@ -421,51 +353,40 @@ export const SecurityLogsAdminPanel: React.FC = () => {
             </h3>
           </div>
 
-          <div className="space-y-2">
-            {securityEvents.map(ev => {
-              const isDanger = ev.severity === 'high' || ev.type === 'login_failed';
-              const isSuccess = ev.severity === 'low' || ev.type === 'login_success';
-
-              return (
-                <div
-                  key={ev.id}
-                  className={`p-3.5 rounded-2xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
-                    isDanger
-                      ? 'bg-red-50/70 dark:bg-red-950/40 border-red-200 dark:border-red-900/60 text-red-900 dark:text-red-200'
-                      : isSuccess
-                      ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60 text-emerald-900 dark:text-emerald-200'
-                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className="mt-0.5 shrink-0">
-                      {isDanger ? (
-                        <ShieldAlert className="w-4 h-4 text-red-600" />
-                      ) : (
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="font-black text-xs flex items-center gap-2">
-                        <span>{ev.details}</span>
-                        <span className="text-[9px] uppercase px-1.5 py-0.2 rounded font-mono font-bold bg-white/60 dark:bg-black/40">
-                          {ev.severity}
-                        </span>
+          {securityEvents.length === 0 ? (
+            <div className="py-10 text-center text-xs text-slate-500 font-bold">
+              {language === 'bn' ? 'কোনো সিকিউরিটি ইভেন্ট এখনো লগ হয়নি।' : 'No security events logged yet.'}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {securityEvents.map(ev => {
+                const isDanger = ev.severity === 'high';
+                return (
+                  <div
+                    key={ev.id}
+                    className={`p-3.5 rounded-2xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                      isDanger
+                        ? 'bg-red-50/70 dark:bg-red-950/40 border-red-200 dark:border-red-900/60 text-red-900 dark:text-red-200'
+                        : 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60 text-emerald-900 dark:text-emerald-200'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className="mt-0.5 shrink-0">
+                        {isDanger ? <ShieldAlert className="w-4 h-4 text-red-600" /> : <ShieldCheck className="w-4 h-4 text-emerald-600" />}
                       </div>
-                      <div className="text-[11px] opacity-75 font-mono mt-0.5">
-                        {ev.adminEmail && <span>Target: {ev.adminEmail} • </span>}
-                        <span>IP: {ev.ip} • Device: {ev.device}</span>
+                      <div>
+                        <div className="font-black text-xs">{ev.details}</div>
+                        <div className="text-[11px] opacity-75 font-mono mt-0.5">
+                          {ev.adminEmail} • IP: {ev.ip}
+                        </div>
                       </div>
                     </div>
+                    <span className="text-[10px] font-mono shrink-0 opacity-70">{ev.timestamp}</span>
                   </div>
-
-                  <span className="text-[10px] font-mono shrink-0 opacity-70">
-                    {ev.timestamp}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -495,12 +416,6 @@ export const SecurityLogsAdminPanel: React.FC = () => {
                 <span>{language === 'bn' ? 'ব্লকলিস্টে যোগ করুন' : 'Add to Firewall Blacklist'}</span>
               </button>
             </form>
-
-            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs text-slate-500">
-              {language === 'bn'
-                ? 'ব্লক করা আইপি থেকে কোনো ইউজার বা রোবট ওয়েবসাইট বা এডমিন প্যানেলে প্রবেশ করতে পারবে না।'
-                : 'Traffic originating from blocked IPs is unconditionally rejected at the gateway.'}
-            </div>
           </div>
 
           <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-xl space-y-3">
@@ -511,27 +426,33 @@ export const SecurityLogsAdminPanel: React.FC = () => {
               </span>
             </h3>
 
-            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-              {blockedIps.map(ip => (
-                <div
-                  key={ip}
-                  className="p-3 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900/80 rounded-xl flex items-center justify-between text-xs font-mono font-bold text-red-700 dark:text-red-300"
-                >
-                  <div className="flex items-center gap-2">
-                    <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
-                    <span>{ip}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveBlockedIp(ip)}
-                    className="p-1 text-slate-400 hover:text-red-600 cursor-pointer"
-                    title="Remove from Blacklist"
+            {blockedIps.length === 0 ? (
+              <p className="py-8 text-center text-xs text-slate-500 font-bold">
+                {language === 'bn' ? 'কোনো আইপি বর্তমানে ব্লক করা নেই।' : 'No blocked IPs in blacklist.'}
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                {blockedIps.map(ip => (
+                  <div
+                    key={ip}
+                    className="p-3 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900/80 rounded-xl flex items-center justify-between text-xs font-mono font-bold text-red-700 dark:text-red-300"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
+                      <span>{ip}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveBlockedIp(ip)}
+                      className="p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                      title="Remove from Blacklist"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -548,7 +469,7 @@ export const SecurityLogsAdminPanel: React.FC = () => {
               <p className="text-xs text-slate-500">
                 {language === 'bn'
                   ? 'সকল এডমিন ও স্টাফদের লগইনকালে ওটিপি কোড বাধ্যতামূলক করতে পলিসি সক্রিয় করুন।'
-                  : 'Mandate SMS or email OTP on all administrator and moderator sign-ins.'}
+                  : 'Mandate SMS or email OTP on all administrator sign-ins.'}
               </p>
             </div>
 
@@ -578,7 +499,7 @@ export const SecurityLogsAdminPanel: React.FC = () => {
                 <span>Super Admin Single-Device Policy</span>
               </h4>
               <p className="text-slate-500 leading-relaxed">
-                Super Admin credential sharing is prohibited. Authenticating on a secondary device automatically issues a token revocation payload to previous devices.
+                Authenticating on a secondary device automatically issues a token revocation payload to previous devices.
               </p>
             </div>
 
@@ -588,7 +509,7 @@ export const SecurityLogsAdminPanel: React.FC = () => {
                 <span>Sensitive Action Challenge</span>
               </h4>
               <p className="text-slate-500 leading-relaxed">
-                Financial approvals, payment verification, account deletion, and system maintenance switches require a re-authentication security challenge before execution.
+                Financial approvals, payment verification, account deletion, and system maintenance switches require a re-authentication security challenge.
               </p>
             </div>
           </div>

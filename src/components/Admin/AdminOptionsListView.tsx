@@ -397,7 +397,7 @@ export const AdminOptionsListView: React.FC<AdminOptionsListViewProps> = ({
       groupBn: 'অতিরিক্ত সিস্টেম টুলস',
       groupEn: 'Additional Tools',
       icon: TrendingUp,
-      badge: '৳১.৮৫L'
+      badge: 'BILLING'
     },
     {
       id: 'clock',

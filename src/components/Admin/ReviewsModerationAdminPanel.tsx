@@ -1,72 +1,65 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import {
   Star,
   ShieldAlert,
   CheckCircle,
-  XCircle,
   Trash2,
-  Search,
   User,
-  MessageSquare,
-  ThumbsUp
 } from 'lucide-react';
+import { storage } from '../../utils/storage';
 
-interface SellerReview {
-  id: string;
-  sellerName: string;
-  reviewerName: string;
-  rating: number;
-  comment: string;
-  status: 'Approved' | 'Pending' | 'Flagged';
-  date: string;
-  flagReason?: string;
-}
+type ReviewStatus = 'Approved' | 'Pending' | 'Flagged';
 
 export const ReviewsModerationAdminPanel: React.FC = () => {
-  const { language } = useMarket();
+  const { language, sellerReviews, registeredUsers } = useMarket();
 
-  const [reviews, setReviews] = useState<SellerReview[]>([
-    {
-      id: 'rev-1',
-      sellerName: 'M/S Dhaka Electronics',
-      reviewerName: 'Jahir Raihan',
-      rating: 5,
-      comment: 'Very honest seller! Delivered original iPhone 15 Pro with authentic warranty card.',
-      status: 'Approved',
-      date: '2025-03-20'
-    },
-    {
-      id: 'rev-2',
-      sellerName: 'Bikrampur Furniture Mart',
-      reviewerName: 'Anonymous User',
-      rating: 1,
-      comment: 'Scammer! Product condition was totally broken upon delivery.',
-      status: 'Flagged',
-      flagReason: 'Reported by seller for abusive language without proof.',
-      date: '2025-03-24'
-    },
-    {
-      id: 'rev-3',
-      sellerName: 'Chittagong Auto Garage',
-      reviewerName: 'Rashed Khan',
-      rating: 4,
-      comment: 'Good communication, car condition matched description.',
-      status: 'Pending',
-      date: '2025-03-28'
+  const [statusMap, setStatusMap] = useState<Record<string, ReviewStatus>>(() => {
+    try {
+      const saved = storage.getItem('marketbd_review_moderation_map');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
     }
-  ]);
+  });
+  const [deletedIds, setDeletedIds] = useState<string[]>(() => {
+    try {
+      const saved = storage.getItem('marketbd_deleted_review_ids');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [filter, setFilter] = useState<'All' | 'Approved' | 'Flagged' | 'Pending'>('All');
 
-  const updateReviewStatus = (id: string, newStatus: SellerReview['status']) => {
-    setReviews(prev =>
-      prev.map(r => (r.id === id ? { ...r, status: newStatus } : r))
-    );
+  const reviews = useMemo(() => {
+    return sellerReviews
+      .filter(r => !deletedIds.includes(r.id))
+      .map(r => {
+        const seller = registeredUsers.find(u => u.id === r.sellerId);
+        return {
+          id: r.id,
+          sellerName: seller?.name || r.sellerId,
+          reviewerName: r.reviewerName,
+          rating: r.rating,
+          comment: r.comment,
+          status: statusMap[r.id] || 'Approved',
+          date: r.date,
+        };
+      });
+  }, [sellerReviews, registeredUsers, statusMap, deletedIds]);
+
+  const updateReviewStatus = (id: string, newStatus: ReviewStatus) => {
+    const next = { ...statusMap, [id]: newStatus };
+    setStatusMap(next);
+    storage.setItem('marketbd_review_moderation_map', JSON.stringify(next));
   };
 
   const deleteReview = (id: string) => {
-    setReviews(prev => prev.filter(r => r.id !== id));
+    const next = [...deletedIds, id];
+    setDeletedIds(next);
+    storage.setItem('marketbd_deleted_review_ids', JSON.stringify(next));
   };
 
   const filtered = reviews.filter(r => filter === 'All' || r.status === filter);
@@ -86,8 +79,8 @@ export const ReviewsModerationAdminPanel: React.FC = () => {
           </div>
           <p className="text-xs text-amber-200 max-w-xl">
             {language === 'bn'
-              ? 'বিক্রেতাদের প্রতি কাস্টমারদের রিভিউ নিরীক্ষা করুন, স্প্যাম/আপত্তিকর মন্তব্য মডারেট করুন।'
-              : 'Approve, moderate, or remove reported user feedback and star ratings.'}
+              ? 'বিক্রেতাদের প্রতি কাস্টমারদের আসল রিভিউ নিরীক্ষা করুন এবং স্প্যাম/আপত্তিকর মন্তব্য মডারেট করুন।'
+              : 'Approve, moderate, or remove real buyer feedback and star ratings.'}
           </p>
         </div>
 
@@ -98,7 +91,7 @@ export const ReviewsModerationAdminPanel: React.FC = () => {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800">
+      <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 flex-wrap">
         {(['All', 'Approved', 'Flagged', 'Pending'] as const).map(tab => (
           <button
             key={tab}
@@ -116,74 +109,84 @@ export const ReviewsModerationAdminPanel: React.FC = () => {
       </div>
 
       {/* Reviews Cards List */}
-      <div className="space-y-3">
-        {filtered.map((rev) => (
-          <div
-            key={rev.id}
-            className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4"
-          >
-            <div className="space-y-2 max-w-2xl">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1 bg-amber-100 dark:bg-amber-950/80 px-2.5 py-1 rounded-xl text-amber-800 dark:text-amber-200 font-mono text-xs font-black">
-                  <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                  <span>{rev.rating}.0 / 5</span>
+      {filtered.length === 0 ? (
+        <div className="p-12 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 text-center space-y-1.5">
+          <p className="text-sm font-black text-slate-700 dark:text-slate-200">
+            {language === 'bn' ? 'এখনো কোনো কাস্টমার রিভিউ পাওয়া যায়নি' : 'No seller reviews submitted yet'}
+          </p>
+          <p className="text-xs text-slate-500">
+            {language === 'bn'
+              ? 'ক্রেতারা বিক্রেতার প্রোফাইলে রিভিউ দিলে তা এখানে মডারেশনের জন্য দেখাবে।'
+              : 'Real customer reviews will appear here once submitted.'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((rev) => (
+            <div
+              key={rev.id}
+              className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4"
+            >
+              <div className="space-y-2 max-w-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1 bg-amber-100 dark:bg-amber-950/80 px-2.5 py-1 rounded-xl text-amber-800 dark:text-amber-200 font-mono text-xs font-black">
+                    <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                    <span>{rev.rating}.0 / 5</span>
+                  </div>
+
+                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">
+                    Seller: <span className="text-blue-600 dark:text-blue-400">{rev.sellerName}</span>
+                  </div>
+
+                  <span className="text-[11px] text-slate-400 font-mono">• {rev.date}</span>
                 </div>
 
-                <div className="text-xs font-extrabold text-slate-900 dark:text-white">
-                  Seller: <span className="text-blue-600 dark:text-blue-400">{rev.sellerName}</span>
-                </div>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  "{rev.comment}"
+                </p>
 
-                <span className="text-[11px] text-slate-400 font-mono">• {rev.date}</span>
+                <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-sky-500" />
+                  <span>Reviewed by: {rev.reviewerName}</span>
+                </div>
               </div>
 
-              <p className="text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
-                "{rev.comment}"
-              </p>
-
-              <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-sky-500" />
-                <span>Reviewed by: {rev.reviewerName}</span>
-                {rev.flagReason && (
-                  <span className="text-red-500 font-bold ml-2">⚠️ {rev.flagReason}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {rev.status !== 'Approved' && (
+                  <button
+                    type="button"
+                    onClick={() => updateReviewStatus(rev.id, 'Approved')}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-sm flex items-center gap-1"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>Approve</span>
+                  </button>
                 )}
+
+                {rev.status !== 'Flagged' && (
+                  <button
+                    type="button"
+                    onClick={() => updateReviewStatus(rev.id, 'Flagged')}
+                    className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-sm flex items-center gap-1"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    <span>Flag</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => deleteReview(rev.id)}
+                  className="px-3 py-2 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 hover:bg-red-100 rounded-xl text-xs font-bold cursor-pointer transition flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
               </div>
             </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              {rev.status !== 'Approved' && (
-                <button
-                  type="button"
-                  onClick={() => updateReviewStatus(rev.id, 'Approved')}
-                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-sm flex items-center gap-1"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  <span>Approve</span>
-                </button>
-              )}
-
-              {rev.status !== 'Flagged' && (
-                <button
-                  type="button"
-                  onClick={() => updateReviewStatus(rev.id, 'Flagged')}
-                  className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-sm flex items-center gap-1"
-                >
-                  <ShieldAlert className="w-3.5 h-3.5" />
-                  <span>Flag</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => deleteReview(rev.id)}
-                className="px-3 py-2 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 hover:bg-red-100 rounded-xl text-xs font-bold cursor-pointer transition flex items-center gap-1"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete</span>
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -10,12 +10,28 @@ import {
   RefreshCw,
   Send,
   Save,
-  Wallet
+  Wallet,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Building2,
+  AlertTriangle
 } from 'lucide-react';
 import { db, doc, getDoc, safeFirestoreSetDoc } from '../../lib/firebase';
 import { requestWebPushPermission, sendLocalBrowserPushNotification } from '../../services/pushNotificationService';
 import { checkAndExpireAds } from '../../utils/adExpiryEngine';
-import { fetchUnifiedSmsBalance, sendUnifiedSmsText } from '../../services/smsService';
+import {
+  SMS_PROVIDER_OPTIONS,
+  SmsProviderId,
+  fetchUnifiedSmsBalance,
+  fetchUnifiedSmsConfig,
+  saveUnifiedSmsConfig,
+  sendUnifiedSmsText,
+} from '../../services/smsService';
+import {
+  fetchPaymentGatewayConfig,
+  savePaymentGatewayConfig,
+} from '../../services/paymentGateway';
 import { storage } from '../../utils/storage';
 
 const DEFAULT_OTP_TEMPLATE = 'Your MarketBD.Net OTP is {otp}';
@@ -24,14 +40,33 @@ export const GatewaysAdminPanel: React.FC = () => {
   const { language, products } = useMarket();
   const bn = language === 'bn';
 
-  // Single Unified SMS & OTP Gateway Config State
+  // 1. Unified SMS Provider & OTP Gateway State
+  const [providerId, setProviderId] = useState<SmsProviderId>(
+    (storage.getItem('marketbd_sms_provider_id') as SmsProviderId) || 'bulksmsdhaka'
+  );
+  const [providerName, setProviderName] = useState(
+    storage.getItem('marketbd_sms_provider_name') || 'BulkSMS Dhaka (bulksmsdhaka.net)'
+  );
+  const [smsApiUrl, setSmsApiUrl] = useState(
+    storage.getItem('marketbd_sms_api_url') || 'https://bulksmsdhaka.net/api'
+  );
+  const [smsApiKey, setSmsApiKey] = useState('');
+  const [showSmsApiKey, setShowSmsApiKey] = useState(false);
+  const [hasServerApiKey, setHasServerApiKey] = useState(false);
+  const [maskedServerApiKey, setMaskedServerApiKey] = useState('');
+  const [smsSenderId, setSmsSenderId] = useState(
+    storage.getItem('marketbd_sms_sender_id') || 'MarketBD.Net'
+  );
+  const [smsSid, setSmsSid] = useState(storage.getItem('marketbd_sms_sid') || '');
   const [smsMaskingEnabled, setSmsMaskingEnabled] = useState(
     storage.getItem('marketbd_sms_masking_enabled') !== 'false'
   );
   const [smsIsLive, setSmsIsLive] = useState(storage.getItem('marketbd_live_mode') !== 'false');
   const [adminSecret, setAdminSecret] = useState(storage.getItem('marketbd_sms_admin_secret') || '');
+  const [showAdminSecret, setShowAdminSecret] = useState(false);
   const [otpTemplate, setOtpTemplate] = useState(DEFAULT_OTP_TEMPLATE);
   const [smsStatusMsg, setSmsStatusMsg] = useState('');
+  const [smsSaving, setSmsSaving] = useState(false);
 
   // Balance & Recharge State
   const [balance, setBalance] = useState<number | null>(null);
@@ -44,42 +79,123 @@ export const GatewaysAdminPanel: React.FC = () => {
   const [smsTargetMessage, setSmsTargetMessage] = useState('Test SMS from MarketBD.Net');
   const [sendMsg, setSendMsg] = useState('');
 
-  // Payment Gateway Config State
-  const [paymentLiveMode] = useState(storage.getItem('marketbd_payment_live_mode') !== 'false');
+  // 2. Payment Gateway API Config State
+  const [paymentLiveMode, setPaymentLiveMode] = useState(
+    storage.getItem('marketbd_payment_live_mode') === 'true'
+  );
   const [autoSettle, setAutoSettle] = useState(storage.getItem('marketbd_payment_auto_settle') !== 'false');
-  const [bkashAppKey, setBkashAppKey] = useState(storage.getItem('marketbd_bkash_app_key') || '');
-  const [nagadMerchantId, setNagadMerchantId] = useState(storage.getItem('marketbd_nagad_merchant_id') || '');
   const [sslStoreId, setSslStoreId] = useState(storage.getItem('marketbd_ssl_store_id') || '');
-  const [paymentMsg, setPaymentMsg] = useState('');
+  const [sslStorePassword, setSslStorePassword] = useState('');
+  const [hasSslPass, setHasSslPass] = useState(false);
+  const [maskedSslPass, setMaskedSslPass] = useState('');
 
-  // Web Push State
+  const [bkashAppKey, setBkashAppKey] = useState(storage.getItem('marketbd_bkash_app_key') || '');
+  const [bkashAppSecret, setBkashAppSecret] = useState('');
+  const [hasBkashSecret, setHasBkashSecret] = useState(false);
+  const [maskedBkashSecret, setMaskedBkashSecret] = useState('');
+  const [bkashUsername, setBkashUsername] = useState(storage.getItem('marketbd_bkash_username') || '');
+
+  const [nagadMerchantId, setNagadMerchantId] = useState(storage.getItem('marketbd_nagad_merchant_id') || '');
+  const [nagadMerchantKey, setNagadMerchantKey] = useState('');
+  const [hasNagadKey, setHasNagadKey] = useState(false);
+  const [maskedNagadKey, setMaskedNagadKey] = useState('');
+
+  const [rocketMerchantId, setRocketMerchantId] = useState(storage.getItem('marketbd_rocket_merchant_id') || '');
+  const [rocketApiKey, setRocketApiKey] = useState('');
+  const [hasRocketKey, setHasRocketKey] = useState(false);
+  const [maskedRocketKey, setMaskedRocketKey] = useState('');
+
+  const [showPaySecrets, setShowPaySecrets] = useState(false);
+  const [paymentMsg, setPaymentMsg] = useState('');
+  const [paymentSaving, setPaymentSaving] = useState(false);
+
+  // 3. Web Push State
   const [pushEnabled, setPushEnabled] = useState(
     'Notification' in window && Notification.permission === 'granted'
   );
   const [pushStatusMsg, setPushStatusMsg] = useState('');
 
-  // Expiry Run State
+  // 4. Expiry Run State
   const [expirySummary, setExpirySummary] = useState('');
 
-  // Load OTP template & masking config from Firestore
+  // Load initial configuration from server API + Firestore non-secret mirror
   useEffect(() => {
+    fetchUnifiedSmsConfig().then(res => {
+      if (res.ok && res.config) {
+        const c = res.config;
+        setProviderId(c.providerId);
+        setProviderName(c.providerName);
+        setSmsApiUrl(c.apiUrl);
+        setSmsSenderId(c.senderId);
+        setSmsSid(c.sid || '');
+        setSmsMaskingEnabled(c.maskingEnabled);
+        setSmsIsLive(c.isLiveMode);
+        setOtpTemplate(c.otpTemplate || DEFAULT_OTP_TEMPLATE);
+        setHasServerApiKey(c.hasApiKey);
+        setMaskedServerApiKey(c.maskedApiKey || '');
+      }
+    });
+
+    fetchPaymentGatewayConfig().then(res => {
+      if (res.ok && res.config) {
+        const p = res.config;
+        setPaymentLiveMode(p.isLiveMode);
+        setAutoSettle(p.autoSettle);
+        if (p.bkashAppKey) setBkashAppKey(p.bkashAppKey);
+        if (p.bkashUsername) setBkashUsername(p.bkashUsername);
+        setHasBkashSecret(p.hasBkashSecret);
+        setMaskedBkashSecret(p.maskedBkashSecret);
+        if (p.nagadMerchantId) setNagadMerchantId(p.nagadMerchantId);
+        setHasNagadKey(p.hasNagadKey);
+        setMaskedNagadKey(p.maskedNagadKey);
+        if (p.rocketMerchantId) setRocketMerchantId(p.rocketMerchantId);
+        setHasRocketKey(p.hasRocketKey);
+        setMaskedRocketKey(p.maskedRocketKey);
+        if (p.sslcommerzStoreId) setSslStoreId(p.sslcommerzStoreId);
+        setHasSslPass(p.hasSslPassword);
+        setMaskedSslPass(p.maskedSslPassword);
+      }
+    });
+
     getDoc(doc(db, 'settings', 'sms_config'))
       .then(snap => {
         const d = snap.data();
         if (d?.otpTemplate) setOtpTemplate(String(d.otpTemplate));
         if (typeof d?.maskingEnabled === 'boolean') setSmsMaskingEnabled(d.maskingEnabled);
+        if (d?.providerName) setProviderName(String(d.providerName));
+        if (d?.senderId) setSmsSenderId(String(d.senderId));
       })
       .catch(() => {});
   }, []);
+
+  const handleProviderSelect = (nextId: SmsProviderId) => {
+    setProviderId(nextId);
+    const preset = SMS_PROVIDER_OPTIONS.find(p => p.id === nextId);
+    if (preset) {
+      if (nextId !== 'custom') {
+        setProviderName(preset.companyName);
+        setSmsApiUrl(preset.defaultApiUrl);
+      } else {
+        setProviderName('');
+      }
+    }
+  };
 
   const handleSaveSecret = (value: string) => {
     setAdminSecret(value);
     storage.setItem('marketbd_sms_admin_secret', value);
   };
 
-  // Single Unified Save Handler (Masking + Live Mode + OTP Template -> Firestore)
+  // Single Unified Save Handler (Provider + API Key + Masking + Live Mode + OTP Template)
   const handleSaveUnifiedSmsConfig = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!providerName.trim()) {
+      setSmsStatusMsg(
+        bn ? '❌ অনুগ্রহ করে এসএমএস প্রোভাইডার কোম্পানির নাম লিখুন।' : '❌ Enter SMS provider company name.'
+      );
+      return;
+    }
 
     if (!/\{otp\}/i.test(otpTemplate)) {
       setSmsStatusMsg(
@@ -100,29 +216,85 @@ export const GatewaysAdminPanel: React.FC = () => {
       return;
     }
 
+    setSmsSaving(true);
+    const resolvedSenderId = smsMaskingEnabled ? (smsSenderId.trim() || 'MarketBD.Net') : '1234';
+
+    const serverRes = await saveUnifiedSmsConfig({
+      providerId,
+      providerName: providerName.trim(),
+      apiUrl: smsApiUrl.trim(),
+      apiKey: smsApiKey.trim() || undefined,
+      senderId: resolvedSenderId,
+      sid: smsSid.trim(),
+      maskingEnabled: smsMaskingEnabled,
+      isLiveMode: smsIsLive,
+      otpTemplate: otpTemplate.trim(),
+      adminSecret,
+    });
+    setSmsSaving(false);
+
+    if (!serverRes.ok) {
+      setSmsStatusMsg(`❌ ${serverRes.error || (bn ? 'সার্ভারে সেভ করা যায়নি।' : 'Failed to save on server.')}`);
+      return;
+    }
+
+    if (serverRes.config) {
+      setHasServerApiKey(serverRes.config.hasApiKey);
+      setMaskedServerApiKey(serverRes.config.maskedApiKey || '');
+      setSmsApiKey(''); // Clear plaintext input after secure server save
+    }
+
+    // Save non-secret flags locally & sync non-secret fields to Firestore
+    storage.setItem('marketbd_sms_provider_id', providerId);
+    storage.setItem('marketbd_sms_provider_name', providerName.trim());
+    storage.setItem('marketbd_sms_api_url', smsApiUrl.trim());
     storage.setItem('marketbd_sms_masking_enabled', String(smsMaskingEnabled));
-    storage.setItem('marketbd_sms_sender_id', smsMaskingEnabled ? 'MarketBD.Net' : '1234');
+    storage.setItem('marketbd_sms_sender_id', resolvedSenderId);
+    storage.setItem('marketbd_sms_sid', smsSid.trim());
     storage.setItem('marketbd_live_mode', String(smsIsLive));
 
-    const ok = await safeFirestoreSetDoc(
+    await safeFirestoreSetDoc(
       doc(db, 'settings', 'sms_config'),
       {
+        providerId,
+        providerName: providerName.trim(),
+        apiUrl: smsApiUrl.trim(),
+        senderId: resolvedSenderId,
         otpTemplate: otpTemplate.trim(),
         maskingEnabled: smsMaskingEnabled,
+        isLiveMode: smsIsLive,
       },
       { merge: true }
     );
 
     setSmsStatusMsg(
-      ok === false
-        ? bn
-          ? '⚠️ লোকাল সেটিংস সেভ হয়েছে, তবে ক্লাউড সেভের জন্য অ্যাডমিন লগইন নিশ্চিত করুন।'
-          : '⚠️ Saved locally. Ensure admin login for cloud sync.'
-        : bn
-        ? '✅ এসএমএস ও ওটিপি সেটিংস সফলভাবে সংরক্ষিত হয়েছে!'
-        : '✅ Unified SMS & OTP settings saved!'
+      bn
+        ? '✅ এসএমএস প্রোভাইডার, API Key ও ওটিপি সেটিংস সফলভাবে সংরক্ষিত হয়েছে!'
+        : '✅ SMS Provider, API Key & OTP settings saved securely!'
     );
-    setTimeout(() => setSmsStatusMsg(''), 4000);
+    setTimeout(() => setSmsStatusMsg(''), 4500);
+  };
+
+  const handleClearSmsApiKey = async () => {
+    setSmsSaving(true);
+    const res = await saveUnifiedSmsConfig({
+      providerId,
+      providerName: providerName.trim() || 'BulkSMS Dhaka',
+      apiUrl: smsApiUrl.trim(),
+      clearApiKey: true,
+      senderId: smsSenderId.trim() || '1234',
+      maskingEnabled: smsMaskingEnabled,
+      isLiveMode: smsIsLive,
+      otpTemplate: otpTemplate.trim(),
+      adminSecret,
+    });
+    setSmsSaving(false);
+    if (res.ok && res.config) {
+      setHasServerApiKey(res.config.hasApiKey);
+      setMaskedServerApiKey(res.config.maskedApiKey || '');
+      setSmsApiKey('');
+      setSmsStatusMsg(bn ? '🗑️ সংরক্ষিত SMS API Key সরানো হয়েছে।' : '🗑️ Saved SMS API Key cleared.');
+    }
   };
 
   const handleCheckBalance = async () => {
@@ -133,7 +305,7 @@ export const GatewaysAdminPanel: React.FC = () => {
       return;
     }
     if (res.status === 503) {
-      setBalMsg(bn ? '❌ সার্ভারে SMS_API_KEY সেট করা নেই।' : '❌ Server SMS_API_KEY not configured.');
+      setBalMsg(bn ? '❌ SMS API Key সেট করা নেই। উপরের বক্সে API Key দিয়ে সেভ করুন।' : '❌ SMS API Key not configured.');
       return;
     }
     if (res.balance === null) {
@@ -156,33 +328,89 @@ export const GatewaysAdminPanel: React.FC = () => {
       adminSecret,
     });
     if (res.status === 503) {
-      setSendMsg(bn ? '❌ সার্ভারে SMS_API_KEY সেট করা নেই।' : '❌ Server SMS_API_KEY not set.');
+      setSendMsg(bn ? '❌ SMS API Key সেট করা নেই। উপরের বক্সে API Key দিয়ে সেভ করুন।' : '❌ SMS API Key not set.');
     } else if (res.status === 401) {
       setSendMsg(bn ? '❌ সঠিক অ্যাডমিন সিক্রেট লিখুন।' : '❌ Invalid admin secret.');
     } else if (res.ok) {
       setSendMsg(
         bn
-          ? `✅ এসএমএস সফলভাবে পাঠানো হয়েছে। (Sender ID: ${res.usedCaller || '1234'})`
-          : `✅ SMS sent successfully! (Caller ID: ${res.usedCaller || '1234'})`
+          ? `✅ এসএমএস সফলভাবে পাঠানো হয়েছে (${res.providerName || providerName}, Sender: ${res.usedCaller || '1234'})`
+          : `✅ SMS sent successfully! (${res.providerName || providerName}, Sender: ${res.usedCaller || '1234'})`
       );
     } else {
       setSendMsg(`❌ ${res.hint || res.error || 'SMS sending failed'}`);
     }
   };
 
-  const handleSavePaymentConfig = (e: React.FormEvent) => {
+  const handleSavePaymentConfig = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPaymentSaving(true);
+
+    const serverRes = await savePaymentGatewayConfig(
+      {
+        isLiveMode: paymentLiveMode,
+        autoSettle,
+        bkashAppKey: bkashAppKey.trim(),
+        ...(bkashAppSecret.trim() ? { bkashAppSecret: bkashAppSecret.trim() } : {}),
+        bkashUsername: bkashUsername.trim(),
+        nagadMerchantId: nagadMerchantId.trim(),
+        ...(nagadMerchantKey.trim() ? { nagadMerchantKey: nagadMerchantKey.trim() } : {}),
+        rocketMerchantId: rocketMerchantId.trim(),
+        ...(rocketApiKey.trim() ? { rocketApiKey: rocketApiKey.trim() } : {}),
+        sslcommerzStoreId: sslStoreId.trim(),
+        ...(sslStorePassword.trim() ? { sslcommerzStorePassword: sslStorePassword.trim() } : {}),
+      },
+      adminSecret
+    );
+    setPaymentSaving(false);
+
+    if (!serverRes.ok) {
+      setPaymentMsg(`❌ ${serverRes.error || (bn ? 'পেমেন্ট সেটিংস সেভ করা যায়নি।' : 'Failed to save payment settings.')}`);
+      return;
+    }
+
+    if (serverRes.config) {
+      setHasBkashSecret(serverRes.config.hasBkashSecret);
+      setMaskedBkashSecret(serverRes.config.maskedBkashSecret);
+      setHasNagadKey(serverRes.config.hasNagadKey);
+      setMaskedNagadKey(serverRes.config.maskedNagadKey);
+      setHasRocketKey(serverRes.config.hasRocketKey);
+      setMaskedRocketKey(serverRes.config.maskedRocketKey);
+      setHasSslPass(serverRes.config.hasSslPassword);
+      setMaskedSslPass(serverRes.config.maskedSslPassword);
+      setBkashAppSecret('');
+      setNagadMerchantKey('');
+      setRocketApiKey('');
+      setSslStorePassword('');
+    }
+
     storage.setItem('marketbd_payment_live_mode', String(paymentLiveMode));
     storage.setItem('marketbd_payment_auto_settle', String(autoSettle));
-    storage.setItem('marketbd_bkash_app_key', bkashAppKey);
-    storage.setItem('marketbd_nagad_merchant_id', nagadMerchantId);
-    storage.setItem('marketbd_ssl_store_id', sslStoreId);
+    storage.setItem('marketbd_bkash_app_key', bkashAppKey.trim());
+    storage.setItem('marketbd_bkash_username', bkashUsername.trim());
+    storage.setItem('marketbd_nagad_merchant_id', nagadMerchantId.trim());
+    storage.setItem('marketbd_rocket_merchant_id', rocketMerchantId.trim());
+    storage.setItem('marketbd_ssl_store_id', sslStoreId.trim());
+
+    await safeFirestoreSetDoc(
+      doc(db, 'settings', 'payment_gateway'),
+      {
+        isLiveMode: paymentLiveMode,
+        autoSettle,
+        hasBkashConfigured: Boolean(bkashAppKey.trim()),
+        hasNagadConfigured: Boolean(nagadMerchantId.trim()),
+        hasRocketConfigured: Boolean(rocketMerchantId.trim()),
+        hasSslConfigured: Boolean(sslStoreId.trim()),
+      },
+      { merge: true }
+    );
+
     setPaymentMsg(
       bn
-        ? '✅ আপডেট সফল হয়েছে! - অটো পেমেন্ট গেটওয়ে সেটিংস সেভ হয়েছে।'
-        : '✅ Payment Gateway settings saved.'
+        ? '✅ আপডেট সফল হয়েছে! - পেমেন্ট গেটওয়ে API কী ও সেটিংস সার্ভারে সুরক্ষিতভাবে সেভ হয়েছে।'
+        : '✅ Payment Gateway API keys & settings saved securely!'
     );
-    setTimeout(() => setPaymentMsg(''), 4000);
+    setTimeout(() => setPaymentMsg(''), 4500);
   };
 
   const handleEnableWebPush = async () => {
@@ -215,6 +443,8 @@ export const GatewaysAdminPanel: React.FC = () => {
   const smsUsed = used !== null && rate > 0 ? Math.round(used / rate) : null;
   const smsLeft = balance !== null && rate > 0 ? Math.floor(balance / rate) : null;
 
+  const selectedPreset = SMS_PROVIDER_OPTIONS.find(p => p.id === providerId);
+
   const inputCls =
     'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold';
 
@@ -233,15 +463,33 @@ export const GatewaysAdminPanel: React.FC = () => {
           </div>
           <p className="text-xs text-pink-200">
             {bn
-              ? 'একক ও নিরাপদ সার্ভার-ভিত্তিক এসএমএস ওটিপি সিস্টেম, পেমেন্ট কনফিগারেশন এবং পুশ নোটিফিকেশন কন্ট্রোল'
-              : 'Unified server-side SMS OTP gateway, payment configuration & push engine.'}
+              ? 'এসএমএস প্রোভাইডার কোম্পানি নির্বাচন, API Key/কোড সেটআপ, পেমেন্ট গেটওয়ে API এবং পুশ নোটিফিকেশন কন্ট্রোল'
+              : 'Configure SMS provider company, API keys, payment gateway credentials & push alerts.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-xs font-bold flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>API Encryption Active</span>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <span
+            className={`px-3 py-1 border rounded-full text-xs font-bold flex items-center gap-1.5 ${
+              hasServerApiKey
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                : 'bg-amber-500/20 text-amber-200 border-amber-500/40'
+            }`}
+          >
+            {hasServerApiKey ? (
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-amber-300" />
+            )}
+            <span>
+              {hasServerApiKey
+                ? bn
+                  ? `SMS API যুক্ত (${maskedServerApiKey})`
+                  : `SMS API Ready (${maskedServerApiKey})`
+                : bn
+                ? 'SMS API Key সেট করুন'
+                : 'SMS API Key Pending'}
+            </span>
           </span>
         </div>
       </div>
@@ -249,7 +497,7 @@ export const GatewaysAdminPanel: React.FC = () => {
       {/* Grid of 4 Gateway Modules */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* 1. Unified SMS & OTP Gateway Settings (Single Clean Interface) */}
+        {/* 1. Unified SMS & OTP Gateway Settings */}
         <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <div className="flex items-center gap-2.5">
@@ -258,27 +506,168 @@ export const GatewaysAdminPanel: React.FC = () => {
               </div>
               <div>
                 <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
-                  {bn ? '১. একক এসএমএস ও ওটিপি গেটওয়ে (Unified SMS & OTP)' : '1. Unified SMS & OTP Gateway'}
+                  {bn ? '১. একক এসএমএস ও ওটিপি গেটওয়ে (SMS Provider & API)' : '1. Unified SMS Provider & OTP Gateway'}
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {bn ? 'ওটিপি টেমপ্লেট, ব্যালেন্স ও গ্রাহক এসএমএস একটি সহজ প্যানেল থেকে' : 'Single unified SMS OTP template, balance & dispatch panel'}
+                  {bn ? 'কোম্পানি, API Key, Sender ID এবং OTP মেসেজ ফরম্যাট সেট করুন' : 'Select SMS provider company, API key, sender ID & OTP format'}
                 </p>
               </div>
             </div>
-            <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
-              smsIsLive ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300' : 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300'
-            }`}>
+            <span
+              className={`text-[10px] font-black px-2.5 py-1 rounded-full border shrink-0 ${
+                smsIsLive
+                  ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300'
+                  : 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300'
+              }`}
+            >
               {smsIsLive ? (bn ? '🟢 লাইভ সচল' : '🟢 Live Mode') : (bn ? '🟡 টেস্ট স্যান্ডবক্স' : '🟡 Sandbox')}
             </span>
           </div>
 
           <form onSubmit={handleSaveUnifiedSmsConfig} className="space-y-3">
+            {/* SMS Provider Company Selector & Custom Name */}
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2.5">
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-pink-600" />
+                  <span>{bn ? 'এসএমএস প্রোভাইডার কোম্পানি নির্বাচন করুন' : 'SMS Provider Company'}</span>
+                </label>
+                <select
+                  value={providerId}
+                  onChange={e => handleProviderSelect(e.target.value as SmsProviderId)}
+                  className={inputCls}
+                >
+                  {SMS_PROVIDER_OPTIONS.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.companyName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    {bn ? 'কোম্পানির নাম লিখুন *' : 'Provider Company Name *'}
+                  </label>
+                  <input
+                    type="text"
+                    value={providerName}
+                    onChange={e => setProviderName(e.target.value)}
+                    placeholder={bn ? 'যেমন: BulkSMS Dhaka / SSL Wireless' : 'e.g. BulkSMS Dhaka'}
+                    className={inputCls}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    {bn ? 'API এন্ডপয়েন্ট URL' : 'API Endpoint URL'}
+                  </label>
+                  <input
+                    type="url"
+                    value={smsApiUrl}
+                    onChange={e => setSmsApiUrl(e.target.value)}
+                    placeholder="https://bulksmsdhaka.net/api"
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* SMS API Key Input */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-pink-600" />
+                  <span>{bn ? 'এসএমএস API Key / এপিআই কোড' : 'SMS API Key / Token'}</span>
+                </label>
+                {hasServerApiKey && (
+                  <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                    {bn ? `✓ সংরক্ষিত: ${maskedServerApiKey}` : `✓ Saved: ${maskedServerApiKey}`}
+                  </span>
+                )}
+              </div>
+              <div className="relative flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <input
+                    type={showSmsApiKey ? 'text' : 'password'}
+                    value={smsApiKey}
+                    onChange={e => setSmsApiKey(e.target.value)}
+                    placeholder={
+                      hasServerApiKey
+                        ? bn
+                          ? 'পরিবর্তন করতে নতুন API Key দিন (না বদলালে খালি রাখুন)'
+                          : 'Enter new API Key to update (leave blank to keep current)'
+                        : bn
+                        ? 'আপনার SMS কোম্পানির API Key / কোড লিখুন...'
+                        : 'Paste your SMS Provider API Key...'
+                    }
+                    className={`${inputCls} pr-9 font-mono`}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSmsApiKey(!showSmsApiKey)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    title={showSmsApiKey ? 'Hide' : 'Show'}
+                  >
+                    {showSmsApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {hasServerApiKey && (
+                  <button
+                    type="button"
+                    onClick={handleClearSmsApiKey}
+                    className="px-2.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-red-100 text-red-600 rounded-xl text-[10px] font-black cursor-pointer shrink-0"
+                    title={bn ? 'সংরক্ষিত API Key মুছুন' : 'Clear saved API key'}
+                  >
+                    {bn ? 'মুছুন' : 'Clear'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Sender ID & Optional SID */}
+            <div className={`grid gap-2.5 ${selectedPreset?.requiresSid ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  🏷️ {bn ? 'Sender ID / Caller ID (মাস্কিং বা নম্বর)' : 'Sender ID / Caller ID'}
+                </label>
+                <input
+                  type="text"
+                  value={smsSenderId}
+                  onChange={e => setSmsSenderId(e.target.value)}
+                  placeholder="MarketBD.Net / 1234 / 88096..."
+                  className={`${inputCls} font-mono`}
+                />
+              </div>
+              {selectedPreset?.requiresSid && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    🆔 SID (SSL Wireless Stakeholder ID)
+                  </label>
+                  <input
+                    type="text"
+                    value={smsSid}
+                    onChange={e => setSmsSid(e.target.value)}
+                    placeholder="e.g. MARKETBDBRAND"
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Masking + Live Mode Toggles */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <label className="flex items-center justify-between gap-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 cursor-pointer select-none">
                 <span className="font-bold text-slate-800 dark:text-slate-100">
                   {smsMaskingEnabled
-                    ? (bn ? 'মাসকিং: MarketBD.Net' : 'Masking: MarketBD.Net')
-                    : (bn ? 'নন-মাসকিং: 1234' : 'Non-masking: 1234')}
+                    ? bn
+                      ? `মাসকিং: ${smsSenderId || 'MarketBD.Net'}`
+                      : `Masking: ${smsSenderId || 'MarketBD.Net'}`
+                    : bn
+                    ? 'নন-মাসকিং: 1234'
+                    : 'Non-masking: 1234'}
                 </span>
                 <input
                   type="checkbox"
@@ -301,19 +690,30 @@ export const GatewaysAdminPanel: React.FC = () => {
               </label>
             </div>
 
+            {/* Admin Secret */}
             <div>
               <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                🔐 {bn ? 'অ্যাডমিন সিক্রেট (ব্যালেন্স ও ম্যানুয়াল এসএমএসের জন্য)' : 'Admin Secret (for balance & custom SMS)'}
+                🔐 {bn ? 'অ্যাডমিন সিক্রেট (ব্যালেন্স, ম্যানুয়াল এসএমএস ও সেটিংস লক)' : 'Admin Secret (for balance & custom SMS)'}
               </label>
-              <input
-                type="password"
-                value={adminSecret}
-                onChange={e => handleSaveSecret(e.target.value)}
-                placeholder="Enter SMS_ADMIN_SECRET..."
-                className={inputCls}
-              />
+              <div className="relative">
+                <input
+                  type={showAdminSecret ? 'text' : 'password'}
+                  value={adminSecret}
+                  onChange={e => handleSaveSecret(e.target.value)}
+                  placeholder="Enter SMS_ADMIN_SECRET (optional if unset)..."
+                  className={`${inputCls} pr-9`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminSecret(!showAdminSecret)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  {showAdminSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
+            {/* OTP Template */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
@@ -336,15 +736,30 @@ export const GatewaysAdminPanel: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-pink-600 hover:bg-pink-700 text-white font-extrabold rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+              disabled={smsSaving}
+              className="w-full py-2.5 bg-pink-600 hover:bg-pink-700 disabled:opacity-60 text-white font-extrabold rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>{bn ? 'এসএমএস ও ওটিপি সেটিংস সেভ করুন' : 'Save SMS & OTP Settings'}</span>
+              <span>
+                {smsSaving
+                  ? bn
+                    ? 'সেভ হচ্ছে...'
+                    : 'Saving...'
+                  : bn
+                  ? 'এসএমএস প্রোভাইডার, API Key ও ওটিপি সেভ করুন'
+                  : 'Save SMS Provider, API Key & OTP'}
+              </span>
             </button>
 
             {smsStatusMsg && (
-              <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 text-xs font-bold rounded-xl flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div
+                className={`p-2.5 border text-xs font-bold rounded-xl flex items-center gap-2 ${
+                  smsStatusMsg.startsWith('❌')
+                    ? 'bg-red-50 dark:bg-red-950/70 border-red-300 dark:border-red-700 text-red-900 dark:text-red-200'
+                    : 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200'
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{smsStatusMsg}</span>
               </div>
             )}
@@ -372,7 +787,10 @@ export const GatewaysAdminPanel: React.FC = () => {
                 <input
                   type="number"
                   value={totalRecharged}
-                  onChange={e => { setTotalRecharged(e.target.value); storage.setItem('marketbd_sms_total_recharged', e.target.value); }}
+                  onChange={e => {
+                    setTotalRecharged(e.target.value);
+                    storage.setItem('marketbd_sms_total_recharged', e.target.value);
+                  }}
                   className={inputCls}
                 />
               </div>
@@ -382,7 +800,10 @@ export const GatewaysAdminPanel: React.FC = () => {
                   type="number"
                   step="0.01"
                   value={ratePerSms}
-                  onChange={e => { setRatePerSms(e.target.value); storage.setItem('marketbd_sms_rate', e.target.value); }}
+                  onChange={e => {
+                    setRatePerSms(e.target.value);
+                    storage.setItem('marketbd_sms_rate', e.target.value);
+                  }}
                   className={inputCls}
                 />
               </div>
@@ -390,15 +811,30 @@ export const GatewaysAdminPanel: React.FC = () => {
             {balance !== null && (
               <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-black">
                 <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300">
-                  {bn ? 'অবশিষ্ট' : 'Balance'}<br />৳ {balance.toFixed(2)}
-                  {smsLeft !== null && <><br /><span className="font-bold">≈ {smsLeft} SMS</span></>}
+                  {bn ? 'অবশিষ্ট' : 'Balance'}
+                  <br />৳ {balance.toFixed(2)}
+                  {smsLeft !== null && (
+                    <>
+                      <br />
+                      <span className="font-bold">≈ {smsLeft} SMS</span>
+                    </>
+                  )}
                 </div>
                 <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300">
-                  {bn ? 'খরচ' : 'Spent'}<br />{used !== null ? `৳ ${used.toFixed(2)}` : '—'}
-                  {smsUsed !== null && <><br /><span className="font-bold">≈ {smsUsed} SMS</span></>}
+                  {bn ? 'খরচ' : 'Spent'}
+                  <br />
+                  {used !== null ? `৳ ${used.toFixed(2)}` : '—'}
+                  {smsUsed !== null && (
+                    <>
+                      <br />
+                      <span className="font-bold">≈ {smsUsed} SMS</span>
+                    </>
+                  )}
                 </div>
                 <div className="p-2 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-800 dark:text-sky-300">
-                  {bn ? 'রিচার্জ' : 'Recharged'}<br />{!isNaN(recharged) ? `৳ ${recharged}` : '—'}
+                  {bn ? 'রিচার্জ' : 'Recharged'}
+                  <br />
+                  {!isNaN(recharged) ? `৳ ${recharged}` : '—'}
                 </div>
               </div>
             )}
@@ -445,83 +881,193 @@ export const GatewaysAdminPanel: React.FC = () => {
               </div>
               <div>
                 <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
-                  {bn ? '২. লাইভ পেমেন্ট অটো-সেটেলমেন্ট এপিআই' : '2. Live Auto Payment Gateway API'}
+                  {bn ? '২. লাইভ পেমেন্ট গেটওয়ে API কী ও কনফিগারেশন' : '2. Live Payment Gateway API Keys'}
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {bn ? 'বিকাশ, নগদ, রকেট ও SSLCommerz কনফিগারেশন' : 'bKash, Nagad, Rocket & SSLCommerz API'}
+                  {bn ? 'বিকাশ, নগদ, রকেট ও SSLCommerz API Key / Secret সেটআপ' : 'bKash, Nagad, Rocket & SSLCommerz API credentials'}
                 </p>
               </div>
             </div>
-            <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
-              autoSettle ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300' : 'bg-slate-100 text-slate-600'
-            }`}>
-              {autoSettle ? (bn ? '⚡ অটো ভেরিফিকেশন' : '⚡ Auto Verify') : (bn ? '📋 ম্যানুয়াল TrxID' : 'Manual TrxID')}
-            </span>
+            <button
+              type="button"
+              onClick={() => setShowPaySecrets(!showPaySecrets)}
+              className="px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 text-[10px] font-black text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer flex items-center gap-1"
+            >
+              {showPaySecrets ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <span>{showPaySecrets ? (bn ? 'লুকান' : 'Hide') : (bn ? 'দেখুন' : 'Show')}</span>
+            </button>
           </div>
 
           <form onSubmit={handleSavePaymentConfig} className="space-y-3.5">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                SSLCommerz Store ID
+            {/* Mode Switches */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <label className="flex items-center justify-between gap-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 cursor-pointer select-none">
+                <span className="font-bold text-slate-800 dark:text-slate-100">
+                  {paymentLiveMode ? (bn ? '🟢 লাইভ পেমেন্ট API' : '🟢 Live API Mode') : (bn ? '🟡 টেস্ট / ম্যানুয়াল মোড' : '🟡 Sandbox / Manual')}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={paymentLiveMode}
+                  onChange={e => setPaymentLiveMode(e.target.checked)}
+                  className="w-4 h-4 accent-emerald-600 rounded cursor-pointer"
+                />
               </label>
-              <input
-                type="text"
-                value={sslStoreId}
-                onChange={e => setSslStoreId(e.target.value)}
-                placeholder="e.g. marketbd_live_001"
-                className={inputCls}
-              />
+
+              <label className="flex items-center justify-between gap-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 cursor-pointer select-none">
+                <span className="font-bold text-slate-800 dark:text-slate-100">
+                  {bn ? 'অটো-সেটেলমেন্ট চালু' : 'Auto Settlement'}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={autoSettle}
+                  onChange={e => setAutoSettle(e.target.checked)}
+                  className="w-4 h-4 accent-emerald-600 rounded cursor-pointer"
+                />
+              </label>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  bKash App Key
-                </label>
-                <input
-                  type="text"
-                  value={bkashAppKey}
-                  onChange={e => setBkashAppKey(e.target.value)}
-                  placeholder="bkash_key_123"
-                  className={inputCls}
-                />
+            {/* bKash Credentials */}
+            <div className="p-3 rounded-2xl bg-pink-50/50 dark:bg-pink-950/20 border border-pink-200 dark:border-pink-900/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black text-pink-700 dark:text-pink-300">bKash Tokenized Checkout API</span>
+                {hasBkashSecret && (
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                    ✓ Secret ({maskedBkashSecret})
+                  </span>
+                )}
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">bKash App Key</label>
+                  <input
+                    type="text"
+                    value={bkashAppKey}
+                    onChange={e => setBkashAppKey(e.target.value)}
+                    placeholder="App Key"
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">bKash App Secret</label>
+                  <input
+                    type={showPaySecrets ? 'text' : 'password'}
+                    value={bkashAppSecret}
+                    onChange={e => setBkashAppSecret(e.target.value)}
+                    placeholder={hasBkashSecret ? '•••• (Saved)' : 'App Secret'}
+                    className={`${inputCls} font-mono`}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">Merchant Username</label>
+                  <input
+                    type="text"
+                    value={bkashUsername}
+                    onChange={e => setBkashUsername(e.target.value)}
+                    placeholder="Merchant User"
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+              </div>
+            </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Nagad Merchant ID
-                </label>
+            {/* Nagad & Rocket Credentials */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-amber-800 dark:text-amber-300">Nagad Merchant API</span>
+                  {hasNagadKey && <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">✓ {maskedNagadKey}</span>}
+                </div>
                 <input
                   type="text"
                   value={nagadMerchantId}
                   onChange={e => setNagadMerchantId(e.target.value)}
-                  placeholder="6829102"
-                  className={inputCls}
+                  placeholder="Nagad Merchant ID"
+                  className={`${inputCls} font-mono`}
+                />
+                <input
+                  type={showPaySecrets ? 'text' : 'password'}
+                  value={nagadMerchantKey}
+                  onChange={e => setNagadMerchantKey(e.target.value)}
+                  placeholder={hasNagadKey ? '•••• (Saved)' : 'Nagad Merchant Public/API Key'}
+                  className={`${inputCls} font-mono`}
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <div className="p-3 rounded-2xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-purple-800 dark:text-purple-300">Rocket Payment API</span>
+                  {hasRocketKey && <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">✓ {maskedRocketKey}</span>}
+                </div>
+                <input
+                  type="text"
+                  value={rocketMerchantId}
+                  onChange={e => setRocketMerchantId(e.target.value)}
+                  placeholder="Rocket Merchant ID"
+                  className={`${inputCls} font-mono`}
+                />
+                <input
+                  type={showPaySecrets ? 'text' : 'password'}
+                  value={rocketApiKey}
+                  onChange={e => setRocketApiKey(e.target.value)}
+                  placeholder={hasRocketKey ? '•••• (Saved)' : 'Rocket API Key / Secret'}
+                  className={`${inputCls} font-mono`}
+                  autoComplete="new-password"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                {bn ? 'ইনস্ট্যান্ট অটো-সেটেলমেন্ট এপ্রুভাল সক্রিয় করুন' : 'Instant Auto Payment Settlement'}
-              </span>
-              <input
-                type="checkbox"
-                checked={autoSettle}
-                onChange={e => setAutoSettle(e.target.checked)}
-                className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
-              />
+            {/* SSLCommerz Credentials */}
+            <div className="p-3 rounded-2xl bg-sky-50/50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-900/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black text-sky-800 dark:text-sky-300">SSLCommerz Gateway</span>
+                {hasSslPass && <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">✓ Pass ({maskedSslPass})</span>}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={sslStoreId}
+                  onChange={e => setSslStoreId(e.target.value)}
+                  placeholder="SSLCommerz Store ID"
+                  className={`${inputCls} font-mono`}
+                />
+                <input
+                  type={showPaySecrets ? 'text' : 'password'}
+                  value={sslStorePassword}
+                  onChange={e => setSslStorePassword(e.target.value)}
+                  placeholder={hasSslPass ? '•••• (Saved)' : 'SSLCommerz Store Password'}
+                  className={`${inputCls} font-mono`}
+                  autoComplete="new-password"
+                />
+              </div>
             </div>
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs shadow-xs transition cursor-pointer"
+              disabled={paymentSaving}
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-extrabold rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
             >
-              {bn ? 'পেমেন্ট গেটওয়ে সেটিংস সেভ করুন' : 'Save Payment Config'}
+              <Save className="w-3.5 h-3.5" />
+              <span>
+                {paymentSaving
+                  ? bn
+                    ? 'সেভ হচ্ছে...'
+                    : 'Saving...'
+                  : bn
+                  ? 'পেমেন্ট গেটওয়ে API কী ও সেটিংস সেভ করুন'
+                  : 'Save Payment Gateway Config'}
+              </span>
             </button>
             {paymentMsg && (
-              <div className="p-3 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-400 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 text-xs font-black rounded-xl animate-in fade-in flex items-center justify-center gap-2 shadow-sm">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <div
+                className={`p-3 border text-xs font-black rounded-xl animate-in fade-in flex items-center justify-center gap-2 shadow-sm ${
+                  paymentMsg.startsWith('❌')
+                    ? 'bg-red-50 dark:bg-red-950/80 border-red-300 dark:border-red-700 text-red-900 dark:text-red-200'
+                    : 'bg-emerald-100 dark:bg-emerald-950/80 border-emerald-400 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200'
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{paymentMsg}</span>
               </div>
             )}
@@ -544,9 +1090,11 @@ export const GatewaysAdminPanel: React.FC = () => {
                 </p>
               </div>
             </div>
-            <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
-              pushEnabled ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300' : 'bg-slate-100 text-slate-600'
-            }`}>
+            <span
+              className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                pushEnabled ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300' : 'bg-slate-100 text-slate-600'
+              }`}
+            >
               {pushEnabled ? (bn ? '🔔 সক্রিয়' : '🔔 Enabled') : (bn ? '🔕 নিষ্ক্রিয়' : '🔕 Disabled')}
             </span>
           </div>

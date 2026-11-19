@@ -302,13 +302,18 @@ export async function verifyPayment(
     const localList = getLocalCachedPayments();
     let payment = localList.find(p => p.paymentId === paymentId);
 
-    // Try reading directly from Firestore
+    // Try reading directly from Firestore without overwriting a newer local state
     if (!isFirestoreQuotaExceeded()) {
       try {
         const docRef = doc(db, PAYMENTS_COLLECTION, paymentId);
         const snap = await getDoc(docRef);
         if (snap.exists()) {
-          payment = snap.data() as PaymentRecord;
+          const remote = snap.data() as PaymentRecord;
+          const localTime = payment?.updatedAt ? new Date(payment.updatedAt).getTime() : 0;
+          const remoteTime = remote?.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
+          if (!payment || remoteTime > localTime) {
+            payment = remote;
+          }
         }
       } catch (err) {
         console.warn('[PaymentService] Error fetching single payment from Firestore:', err);

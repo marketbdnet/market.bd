@@ -7,15 +7,15 @@
       "properties": {
         "title": { "type": "string", "maxLength": 200 },
         "price": { "type": "number" },
-        "category": { "type": "string" },
-        "division": { "type": "string" },
-        "district": { "type": "string" },
-        "sellerId": { "type": "string" },
-        "status": { "type": "string", "enum": ["approved", "pending", "rejected", "sold"] },
-        "showPhoneNumber": { "type": "boolean", "description": "Whether the seller allowed buyers to see their phone number (default false)" },
-        "createdAt": { "type": "string" }
+        "category": { "type": "string", "maxLength": 64 },
+        "division": { "type": "string", "maxLength": 64 },
+        "district": { "type": "string", "maxLength": 64 },
+        "sellerId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["active", "approved", "pending", "rejected", "sold", "expired"] },
+        "showPhoneNumber": { "type": "boolean", "description": "Whether the seller allowed buyers to see their phone number" },
+        "createdAt": { "type": "string", "maxLength": 64 }
       },
-      "required": ["title", "price", "category", "sellerId"]
+      "required": ["title", "price", "category"]
     },
     "UserProfile": {
       "title": "User Profile",
@@ -23,22 +23,36 @@
       "type": "object",
       "properties": {
         "name": { "type": "string", "maxLength": 100 },
-        "phone": { "type": "string" },
-        "email": { "type": "string" },
+        "phone": { "type": "string", "maxLength": 25 },
+        "email": { "type": "string", "maxLength": 150 },
         "role": { "type": "string", "enum": ["buyer", "seller", "admin"] },
         "isVerified": { "type": "boolean" }
       },
       "required": ["name", "phone"]
+    },
+    "ChatThread": {
+      "title": "Chat Thread",
+      "description": "Buyer-seller product conversation container",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "buyerId": { "type": "string", "maxLength": 128 },
+        "buyerName": { "type": "string", "maxLength": 100 },
+        "lastMessage": { "type": "string", "maxLength": 2000 },
+        "lastMessageTime": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "productId", "buyerId"]
     },
     "ChatMessage": {
       "title": "Chat Message",
       "description": "In-app buyer to seller chat message",
       "type": "object",
       "properties": {
-        "senderId": { "type": "string" },
-        "receiverId": { "type": "string" },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "receiverId": { "type": "string", "maxLength": 128 },
         "text": { "type": "string", "maxLength": 2000 },
-        "timestamp": { "type": "string" }
+        "timestamp": { "type": "string", "maxLength": 64 }
       },
       "required": ["senderId", "receiverId", "text"]
     },
@@ -47,20 +61,32 @@
       "description": "Audit trail of key administrative operations performed by staff and superadmins",
       "type": "object",
       "properties": {
-        "adminId": { "type": "string" },
+        "adminId": { "type": "string", "maxLength": 128 },
         "adminName": { "type": "string", "maxLength": 100 },
-        "adminEmail": { "type": "string" },
+        "adminEmail": { "type": "string", "maxLength": 150 },
         "action": { "type": "string", "maxLength": 200 },
         "actionType": { "type": "string", "enum": ["ad_moderation", "site_maintenance", "user_management", "system_settings", "security"] },
-        "targetId": { "type": "string" },
+        "targetId": { "type": "string", "maxLength": 128 },
         "targetTitle": { "type": "string", "maxLength": 250 },
         "details": { "type": "string", "maxLength": 2000 },
-        "timestamp": { "type": "string" },
-        "createdAt": { "type": "string" },
-        "ip": { "type": "string" },
-        "device": { "type": "string" }
+        "timestamp": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["adminName", "action", "actionType", "timestamp"]
+    },
+    "ManualPayment": {
+      "title": "Manual Payment Submission",
+      "description": "User manual MFS payment verification submission (bKash, Nagad, Rocket)",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "paymentMethod": { "type": "string", "enum": ["bKash", "Nagad", "Rocket", "Upay"] },
+        "transactionId": { "type": "string", "maxLength": 100 },
+        "submittedAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending_verification", "verified", "rejected"] }
+      },
+      "required": ["orderId", "paymentMethod", "transactionId", "status"]
     }
   },
   "firestore": {
@@ -72,9 +98,13 @@
       "schema": "UserProfile",
       "description": "User account profiles and verification badges"
     },
+    "/chats/{chatId}": {
+      "schema": "ChatThread",
+      "description": "Buyer-seller chat threads"
+    },
     "/chats/{chatId}/messages/{messageId}": {
       "schema": "ChatMessage",
-      "description": "Encrypted direct messaging between buyers and sellers"
+      "description": "Direct messaging between buyers and sellers"
     },
     "/admin_logs/{logId}": {
       "schema": "AdminActivityLog",
@@ -82,7 +112,11 @@
     },
     "/activities/{activityId}": {
       "schema": "AdminActivityLog",
-      "description": "Customer care and system activity records"
+      "description": "System and user activity records"
+    },
+    "/payments/{paymentId}": {
+      "schema": "ManualPayment",
+      "description": "Manual payment verification records"
     }
   }
 }

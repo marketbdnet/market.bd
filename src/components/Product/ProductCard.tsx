@@ -292,7 +292,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, layout, layou
       </div>
 
       {/* Thumbnail */}
-      <div className="w-full h-28 xs:h-32 sm:h-44 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden mb-2 relative">
+      <div className="w-full h-28 xs:h-32 sm:h-40 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden mb-2 relative">
         <WatermarkedImage
           src={getOptimizedImageUrl(primaryImage, 380)}
           alt={product.title || 'Product'}
@@ -318,44 +318,44 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, layout, layou
 
       {/* Structured Vertical Key-Value Align Details */}
       <div className="flex-1 flex flex-col justify-between">
-        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 space-y-1 border border-slate-200/80 dark:border-slate-700/60 text-[10px] sm:text-xs font-medium">
+        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-lg sm:rounded-xl p-1.5 sm:p-2 space-y-1 border border-slate-200/80 dark:border-slate-700/60 text-[10px] sm:text-xs font-medium">
           {/* 1. Product Name */}
-          <div className="grid grid-cols-[68px_1fr] sm:grid-cols-[80px_1fr] items-start gap-1 sm:gap-2 border-b border-slate-200/60 dark:border-slate-700/50 pb-0.5 sm:pb-1">
-            <span className="text-sky-600 dark:text-sky-400 font-black text-[10px] sm:text-[11px]">
+          <div className="grid grid-cols-[44px_1fr] sm:grid-cols-[54px_1fr] items-center gap-1 sm:gap-1.5 border-b border-slate-200/60 dark:border-slate-700/50 pb-0.5">
+            <span className="text-sky-600 dark:text-sky-400 font-black text-[9.5px] sm:text-[10.5px]">
               {language === 'bn' ? 'নাম' : 'Name'}
             </span>
-            <span className="text-amber-600 dark:text-amber-400 font-black text-left line-clamp-1 text-[10px] sm:text-xs">
+            <span className="text-amber-600 dark:text-amber-400 font-black text-left truncate text-[10px] sm:text-xs">
               {language === 'bn' && product.titleBn ? product.titleBn : (product.title || 'Untitled')}
             </span>
           </div>
 
           {/* 2. Price */}
-          <div className="grid grid-cols-[68px_1fr] sm:grid-cols-[80px_1fr] items-center gap-1 sm:gap-2 border-b border-slate-200/60 dark:border-slate-700/50 pb-0.5 sm:pb-1">
-            <span className="text-sky-600 dark:text-sky-400 font-black text-[10px] sm:text-[11px]">
+          <div className="grid grid-cols-[44px_1fr] sm:grid-cols-[54px_1fr] items-center gap-1 sm:gap-1.5 border-b border-slate-200/60 dark:border-slate-700/50 pb-0.5">
+            <span className="text-sky-600 dark:text-sky-400 font-black text-[9.5px] sm:text-[10.5px]">
               {language === 'bn' ? 'দাম' : 'Price'}
             </span>
-            <span className="text-amber-600 dark:text-amber-400 font-black text-left text-[10px] sm:text-xs">
+            <span className="text-amber-600 dark:text-amber-400 font-black text-left truncate text-[10px] sm:text-xs">
               ৳{displayPrice}
             </span>
           </div>
 
           {/* 3. Post Date & Time */}
-          <div className="grid grid-cols-[68px_1fr] sm:grid-cols-[80px_1fr] items-center gap-1 sm:gap-2 border-b border-slate-200/60 dark:border-slate-700/50 pb-0.5 sm:pb-1">
-            <span className="text-emerald-600 dark:text-emerald-400 font-black text-[10px] sm:text-[11px] flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" />
-              <span>{language === 'bn' ? 'পোস্ট:' : 'Posted:'}</span>
+          <div className="grid grid-cols-[44px_1fr] sm:grid-cols-[54px_1fr] items-center gap-1 sm:gap-1.5 border-b border-slate-200/60 dark:border-slate-700/50 pb-0.5">
+            <span className="text-emerald-600 dark:text-emerald-400 font-black text-[9.5px] sm:text-[10.5px] flex items-center gap-0.5">
+              <Clock className="w-2.5 h-2.5 shrink-0" />
+              <span>{language === 'bn' ? 'পোস্ট' : 'Date'}</span>
             </span>
-            <span className="text-emerald-700 dark:text-emerald-400 font-bold text-left text-[9.5px] sm:text-[11px] leading-tight">
+            <span className="text-emerald-700 dark:text-emerald-400 font-bold text-left text-[9px] sm:text-[10px] truncate">
               {formatPostDateTime(product.postedAt, language)}
             </span>
           </div>
 
           {/* 4. Location */}
-          <div className="grid grid-cols-[68px_1fr] sm:grid-cols-[80px_1fr] items-center gap-1 sm:gap-2">
-            <span className="text-sky-600 dark:text-sky-400 font-black text-[10px] sm:text-[11px]">
-              {language === 'bn' ? 'স্থান' : 'Location'}
+          <div className="grid grid-cols-[44px_1fr] sm:grid-cols-[54px_1fr] items-center gap-1 sm:gap-1.5">
+            <span className="text-sky-600 dark:text-sky-400 font-black text-[9.5px] sm:text-[10.5px]">
+              {language === 'bn' ? 'স্থান' : 'Place'}
             </span>
-            <span className="text-amber-600 dark:text-amber-400 font-black text-left text-[10px] sm:text-[11px] truncate">
+            <span className="text-amber-600 dark:text-amber-400 font-black text-left text-[9.5px] sm:text-[10.5px] truncate">
               {locationText}
             </span>
           </div>

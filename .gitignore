@@ -22,6 +22,7 @@ backups/
 
 # Runtime sync-state cache (regenerated at runtime; move to a real DB)
 server_sync_state.json
+.gateway_secrets.json
 
 # Android Build Outputs & Gradle Cache
 android/.gradle/
