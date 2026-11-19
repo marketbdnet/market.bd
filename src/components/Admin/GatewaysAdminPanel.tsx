@@ -267,6 +267,13 @@ export const GatewaysAdminPanel: React.FC = () => {
       { merge: true }
     );
 
+    if (serverRes.persistedOnServer === false || serverRes.warning) {
+      setSmsStatusMsg(
+        `⚠️ ${serverRes.warning || (bn ? 'Vercel-এ ফাইল Read-Only থাকায় Vercel Environment Variables-এ SMS_API_KEY সেট করুন।' : 'Read-only filesystem: Set SMS_API_KEY in Vercel Environment Variables.')}`
+      );
+      return;
+    }
+
     setSmsStatusMsg(
       bn
         ? '✅ এসএমএস প্রোভাইডার, API Key ও ওটিপি সেটিংস সফলভাবে সংরক্ষিত হয়েছে!'
@@ -524,6 +531,21 @@ export const GatewaysAdminPanel: React.FC = () => {
             </span>
           </div>
 
+          {!hasServerApiKey && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 rounded-2xl text-[11px] text-amber-900 dark:text-amber-200 font-bold leading-relaxed space-y-1">
+              <p>
+                {bn
+                  ? '⚠️ এই হোস্টিংয়ে এখনো SMS_API_KEY চালু নেই — তাই ওয়েব ও অ্যান্ড্রয়েড অ্যাপে ওটিপি যাচ্ছে না।'
+                  : '⚠️ SMS_API_KEY is not active on this server host yet — OTP SMS cannot be delivered.'}
+              </p>
+              <p className="font-normal opacity-90">
+                {bn
+                  ? 'Vercel-এ হোস্ট করলে Vercel Dashboard → Settings → Environment Variables-এ SMS_API_KEY যোগ করে Redeploy করুন এবং BulkSMS Dhaka প্যানেলে IP Whitelist বন্ধ (OFF) রাখুন।'
+                  : 'On Vercel, add SMS_API_KEY in Project Settings → Environment Variables, redeploy, and keep IP Whitelist OFF in BulkSMS Dhaka.'}
+              </p>
+            </div>
+          )}
+
           <form onSubmit={handleSaveUnifiedSmsConfig} className="space-y-3">
             {/* SMS Provider Company Selector & Custom Name */}
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2.5">
@@ -756,6 +778,8 @@ export const GatewaysAdminPanel: React.FC = () => {
                 className={`p-2.5 border text-xs font-bold rounded-xl flex items-center gap-2 ${
                   smsStatusMsg.startsWith('❌')
                     ? 'bg-red-50 dark:bg-red-950/70 border-red-300 dark:border-red-700 text-red-900 dark:text-red-200'
+                    : smsStatusMsg.startsWith('⚠️')
+                    ? 'bg-amber-50 dark:bg-amber-950/70 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200'
                     : 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200'
                 }`}
               >

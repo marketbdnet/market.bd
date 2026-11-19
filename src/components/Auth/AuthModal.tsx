@@ -74,6 +74,9 @@ export const AuthModal: React.FC = () => {
 
   // OTP Delivery Channel: 'sms' | 'email'
   const [otpChannel, setOtpChannel] = useState<'sms' | 'email'>('sms');
+  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
+  const [otpTargetPhone, setOtpTargetPhone] = useState('');
+  const [adminPasswordVerified, setAdminPasswordVerified] = useState(false);
 
   // Step flow: 'form' -> 'otp'
   const [authStep, setAuthStep] = useState<'form' | 'otp'>('form');
@@ -306,6 +309,9 @@ export const AuthModal: React.FC = () => {
       setErrorMsg('');
       setOtpError('');
       setEnteredOtp('');
+      setOtpTargetPhone('');
+      setAdminPasswordVerified(false);
+      setLoginMethod('password');
       setMode('login');
     }
   }, [isAuthModalOpen]);
@@ -347,14 +353,26 @@ export const AuthModal: React.FC = () => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr.trim());
   };
 
-  const handleSendOtp = async (channelOverride?: 'sms' | 'email') => {
+  const resolveSmsPhoneTarget = (rawInput: string, fallbackPhone?: string): string => {
+    const trimmed = rawInput.trim();
+    const norm = normalizePhone(trimmed);
+    if (trimmed.toLowerCase() === 'official.marketsbd@gmail.com' || norm === '1634025151') {
+      return '01634025151';
+    }
+    if (isValidBDPhone(trimmed)) return trimmed;
+    if (fallbackPhone && isValidBDPhone(fallbackPhone)) return fallbackPhone;
+    return trimmed;
+  };
+
+  const handleSendOtp = async (channelOverride?: 'sms' | 'email', phoneOverride?: string) => {
     const selectedChannel = channelOverride || otpChannel;
     setOtpChannel(selectedChannel);
     setErrorMsg('');
     setOtpError('');
     setIsSendingOtp(true);
 
-    const targetPhone = phoneOrEmail.trim();
+    const targetPhone = resolveSmsPhoneTarget(phoneOverride || otpTargetPhone || phoneOrEmail);
+    setOtpTargetPhone(targetPhone);
     setEnteredOtp('');
     setResendTimer(120);
 
@@ -366,12 +384,15 @@ export const AuthModal: React.FC = () => {
       const data = await sendUnifiedSmsOtp(targetPhone);
       if (!data.ok || !data.token || !data.exp) {
         setIsSendingOtp(false);
+        const detail = data.hint || data.error;
         setErrorMsg(
           data.code === 'NOT_CONFIGURED'
-            ? (language === 'bn' ? '❌ এসএমএস সেবা এখনো চালু করা হয়নি। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।' : '❌ SMS service is not enabled yet. Please try again later.')
+            ? (language === 'bn'
+                ? '❌ এসএমএস গেটওয়ে API Key এই সার্ভারে সেট করা নেই (Vercel-এ SMS_API_KEY যোগ করুন)।'
+                : '❌ SMS gateway API Key is not configured on this server (set SMS_API_KEY on Vercel).')
             : data.code === 'NETWORK_ERROR'
             ? (language === 'bn' ? '❌ ইন্টারনেট সংযোগ সমস্যা। আবার চেষ্টা করুন।' : '❌ Network problem. Please try again.')
-            : `❌ ${data.error || (language === 'bn' ? 'ওটিপি পাঠানো যায়নি। আবার চেষ্টা করুন।' : 'Could not send OTP. Please try again.')}`
+            : `❌ ${detail || (language === 'bn' ? 'ওটিপি পাঠানো যায়নি। আবার চেষ্টা করুন।' : 'Could not send OTP. Please try again.')}`
         );
         return;
       }
@@ -395,16 +416,25 @@ export const AuthModal: React.FC = () => {
     setErrorMsg('');
 
     const cleanInput = phoneOrEmail.trim();
+    const cleanPhoneNorm = normalizePhone(cleanInput);
 
-    // Check Admin Master Credentials
+    // Check Admin Master Credentials (if not using forgot mode)
     const adminIdMatch =
-      cleanInput.toLowerCase() === 'official.marketsbd@gmail.com' || cleanInput === '01634025151';
-    const isAdmin = adminIdMatch && (await verifyAdminPassword(password));
+      cleanInput.toLowerCase() === 'official.marketsbd@gmail.com' ||
+      cleanInput === '01634025151' ||
+      cleanPhoneNorm === '1634025151';
+    const isAdmin =
+      mode !== 'forgot' &&
+      loginMethod === 'password' &&
+      adminIdMatch &&
+      (await verifyAdminPassword(password));
 
     if (isAdmin) {
-      handleSendOtp();
+      setAdminPasswordVerified(true);
+      await handleSendOtp('sms', '01634025151');
       return;
     }
+    setAdminPasswordVerified(false);
 
     // REGISTRATION FORM VALIDATION
     if (mode === 'register') {
@@ -505,8 +535,29 @@ export const AuthModal: React.FC = () => {
       handleSendOtp();
     }
 
-    // LOGIN FORM VALIDATION & DIRECT AUTHENTICATION
+    // LOGIN FORM VALIDATION & AUTHENTICATION (PASSWORD OR SMS OTP)
     if (mode === 'login') {
+      if (loginMethod === 'otp') {
+        if (adminIdMatch) {
+          setErrorMsg(
+            language === 'bn'
+              ? '🔐 এডমিন অ্যাকাউন্টের জন্য "পাসওয়ার্ড লগইন" বা এডমিন পোর্টাল ব্যবহার করুন।'
+              : '🔐 For Admin login, please use Password Login or the Admin Portal.'
+          );
+          return;
+        }
+        if (!isValidBDPhone(cleanInput)) {
+          setErrorMsg(
+            language === 'bn'
+              ? '❌ SMS OTP দিয়ে লগইন করতে সঠিক ১১ ডিজিটের বিডি মোবাইল নম্বর দিন (যেমন: 01712345678)।'
+              : '❌ Enter a valid 11-digit Bangladeshi mobile number (e.g. 01712345678) for SMS OTP login.'
+          );
+          return;
+        }
+        await handleSendOtp('sms', cleanInput);
+        return;
+      }
+
       if (!isValidBDPhone(cleanInput) && !isValidEmail(cleanInput)) {
         setErrorMsg(
           language === 'bn'
@@ -528,23 +579,6 @@ export const AuthModal: React.FC = () => {
       const allUsers = getAllRegisteredUsers();
       const cleanPhone = normalizePhone(cleanInput);
       const cleanEmail = normalizeEmail(cleanInput);
-
-      const adminIdMatch =
-        cleanInput.toLowerCase() === 'official.marketsbd@gmail.com' || cleanInput === '01634025151' || cleanPhone === '01634025151' || cleanPhone === '1634025151';
-      const isAdmin = adminIdMatch && (await verifyAdminPassword(password));
-
-      if (isAdmin) {
-        login({
-          id: 'admin-master',
-          name: 'সুপার এডমিন (MarketBD.Net Admin)',
-          phone: '01634025151',
-          email: 'official.marketsbd@gmail.com',
-          role: 'admin',
-          password: password,
-          isVerified: true
-        });
-        return;
-      }
 
       // Determine target email for Firebase Auth
       let targetAuthEmail = cleanEmail;
@@ -723,8 +757,14 @@ export const AuthModal: React.FC = () => {
         return;
       }
 
-      // User found -> Send OTP to reset password
-      handleSendOtp();
+      // User found -> Send OTP to reset password (resolve phone if email entered)
+      const resetSmsPhone =
+        cleanInput.toLowerCase() === 'official.marketsbd@gmail.com'
+          ? '01634025151'
+          : isValidBDPhone(cleanInput)
+          ? cleanInput
+          : matchedUser?.phone || cleanInput;
+      await handleSendOtp(otpChannel, resetSmsPhone);
     }
   };
 
@@ -743,8 +783,9 @@ export const AuthModal: React.FC = () => {
     let isOtpValid = false;
 
     if (otpChannel === 'sms' && smsToken) {
+      const verifyTargetPhone = resolveSmsPhoneTarget(otpTargetPhone || phoneOrEmail);
       const data = await verifyUnifiedSmsOtp({
-        phone: phoneOrEmail.trim(),
+        phone: verifyTargetPhone,
         code: cleanOtp,
         token: smsToken,
         exp: smsExp,
@@ -926,7 +967,7 @@ export const AuthModal: React.FC = () => {
 
     // LOGIN MODE -> LOG USER IN
     const allUsers = getAllRegisteredUsers();
-    const matchedUser = allUsers.find(
+    let matchedUser = allUsers.find(
       (u: any) => {
         const uPhone = normalizePhone(u.phone);
         const uEmail = normalizeEmail(u.email);
@@ -936,6 +977,22 @@ export const AuthModal: React.FC = () => {
           u.email === cleanInput;
       }
     );
+
+    if (!matchedUser && isPhone) {
+      try {
+        const usersRef = collection(db, 'users');
+        const candidates = Array.from(new Set([cleanInput, cleanPhone, `0${cleanPhone}`].filter(Boolean)));
+        for (const cand of candidates) {
+          const snap = await getDocs(query(usersRef, where('phone', '==', cand)));
+          if (!snap.empty) {
+            matchedUser = { id: snap.docs[0].id, ...(snap.docs[0].data() as any) };
+            break;
+          }
+        }
+      } catch {
+        // Fallback smoothly if Firestore read is unavailable
+      }
+    }
 
     if (matchedUser && (matchedUser.isBlocked || matchedUser.status === 'blocked')) {
       setOtpError(
@@ -947,15 +1004,18 @@ export const AuthModal: React.FC = () => {
     }
 
     const isAdmin =
-      (cleanInput.toLowerCase() === 'official.marketsbd@gmail.com' || cleanInput === '01634025151') ||
-      matchedUser?.role === 'admin';
+      adminPasswordVerified &&
+      (cleanInput.toLowerCase() === 'official.marketsbd@gmail.com' ||
+        cleanInput === '01634025151' ||
+        cleanPhone === '1634025151' ||
+        matchedUser?.role === 'admin');
 
     login({
       id: matchedUser?.id || (isAdmin ? 'admin-master' : 'usr-' + Date.now()),
       name: matchedUser?.name || (isAdmin ? 'সুপার এডমিন (MarketBD.Net Admin)' : name.trim() || 'ভেরিফাইড ইউজার'),
-      phone: isPhone ? cleanInput : matchedUser?.phone || '01634025151',
+      phone: isPhone ? cleanInput : matchedUser?.phone || (isAdmin ? '01634025151' : ''),
       email: !isPhone ? cleanInput : (matchedUser?.email || (isAdmin ? 'official.marketsbd@gmail.com' : '')),
-      role: isAdmin ? 'admin' : (matchedUser?.role || 'seller'),
+      role: isAdmin ? 'admin' : 'seller',
       password: matchedUser?.password || password,
       isVerified: true
     });
@@ -1077,6 +1137,43 @@ export const AuthModal: React.FC = () => {
                   </div>
                 )}
 
+                {/* Login Mode Method Switch: Password vs SMS OTP */}
+                {mode === 'login' && (
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-white/[0.04] border border-white/10 rounded-full">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginMethod('password');
+                        setErrorMsg('');
+                      }}
+                      className={`py-2 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        loginMethod === 'password'
+                          ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <Lock className="w-3.5 h-3.5 shrink-0" />
+                      <span>{language === 'bn' ? 'পাসওয়ার্ড লগইন' : 'Password Login'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginMethod('otp');
+                        setOtpChannel('sms');
+                        setErrorMsg('');
+                      }}
+                      className={`py-2 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        loginMethod === 'otp'
+                          ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                      <span>{language === 'bn' ? 'SMS OTP লগইন' : 'SMS OTP Login'}</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Username / Phone / Email input */}
                 <div className="relative">
                   <User className="w-4 h-4 text-zinc-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1089,7 +1186,13 @@ export const AuthModal: React.FC = () => {
                     }}
                     placeholder={
                       mode === 'login'
-                        ? 'Username'
+                        ? loginMethod === 'otp'
+                          ? language === 'bn'
+                            ? '১১ ডিজিটের বিডি মোবাইল নম্বর (01XXXXXXXXX)'
+                            : '11-digit BD Mobile (01XXXXXXXXX)'
+                          : language === 'bn'
+                          ? 'মোবাইল নম্বর বা ইমেইল'
+                          : 'Mobile or Email'
                         : language === 'bn'
                         ? '১১ ডিজিটের বিডি মোবাইল নম্বর'
                         : 'Mobile Number (01XXXXXXXXX)'
@@ -1118,7 +1221,7 @@ export const AuthModal: React.FC = () => {
                 )}
 
                 {/* Password input */}
-                {mode !== 'forgot' && (
+                {mode !== 'forgot' && !(mode === 'login' && loginMethod === 'otp') && (
                   <div className="relative">
                     <Lock className="w-4 h-4 text-zinc-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
@@ -1216,6 +1319,8 @@ export const AuthModal: React.FC = () => {
                         : 'Send Verification Code'
                     ) : mode === 'forgot' ? (
                       language === 'bn' ? 'রিসেট ওটিপি পাঠান' : 'Send Reset Code'
+                    ) : loginMethod === 'otp' ? (
+                      language === 'bn' ? 'ওটিপি কোড পাঠান' : 'Send Login OTP'
                     ) : (
                       'Login'
                     )}
@@ -1325,34 +1430,36 @@ export const AuthModal: React.FC = () => {
           {/* STEP 2: OTP CODE VERIFICATION SCREEN */}
           {authStep === 'otp' && (
             <div className="relative z-10 space-y-4 animate-in fade-in duration-300">
-              {/* Channel Switch Tabs */}
-              <div className="flex bg-white/[0.05] border border-white/10 p-1 rounded-full gap-1 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => handleSendOtp('sms')}
-                  className={`flex-1 py-1.5 px-3 rounded-full transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    otpChannel === 'sms'
-                      ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-sm font-bold'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  <Smartphone className="w-3.5 h-3.5" />
-                  <span>{language === 'bn' ? 'মোবাইল এসএমএস' : 'Mobile SMS'}</span>
-                </button>
+              {/* Channel Switch Tabs (Disabled in Login / Admin 2FA so SMS OTP cannot be bypassed) */}
+              {mode !== 'login' && !adminPasswordVerified && (
+                <div className="flex bg-white/[0.05] border border-white/10 p-1 rounded-full gap-1 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => handleSendOtp('sms')}
+                    className={`flex-1 py-1.5 px-3 rounded-full transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      otpChannel === 'sms'
+                        ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-sm font-bold'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>{language === 'bn' ? 'মোবাইল এসএমএস' : 'Mobile SMS'}</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleSendOtp('email')}
-                  className={`flex-1 py-1.5 px-3 rounded-full transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    otpChannel === 'email'
-                      ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-sm font-bold'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  <span>{language === 'bn' ? 'ইমেইল ওটিপি' : 'Email OTP'}</span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSendOtp('email')}
+                    className={`flex-1 py-1.5 px-3 rounded-full transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      otpChannel === 'email'
+                        ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-sm font-bold'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>{language === 'bn' ? 'ইমেইল ওটিপি' : 'Email OTP'}</span>
+                  </button>
+                </div>
+              )}
 
               <div className="text-center space-y-1.5">
                 <div className="w-12 h-12 rounded-full bg-pink-500/15 text-pink-400 flex items-center justify-center mx-auto border border-pink-500/40 shadow-sm">
@@ -1371,11 +1478,11 @@ export const AuthModal: React.FC = () => {
                   {otpChannel === 'sms' ? (
                     language === 'bn' ? (
                       <>
-                        আপনার <span className="font-bold text-pink-400 font-mono">{phoneOrEmail || '017XXXXXXXX'}</span> নম্বরে ৬ ডিজিটের কোড পাঠানো হয়েছে।
+                        আপনার <span className="font-bold text-pink-400 font-mono">{otpTargetPhone || phoneOrEmail || '017XXXXXXXX'}</span> নম্বরে ৬ ডিজিটের কোড পাঠানো হয়েছে।
                       </>
                     ) : (
                       <>
-                        We dispatched a 6-digit SMS verification code to <span className="font-bold text-pink-400">{phoneOrEmail || '017XXXXXXXX'}</span>.
+                        We dispatched a 6-digit SMS verification code to <span className="font-bold text-pink-400">{otpTargetPhone || phoneOrEmail || '017XXXXXXXX'}</span>.
                       </>
                     )
                   ) : language === 'bn' ? (
@@ -1399,8 +1506,8 @@ export const AuthModal: React.FC = () => {
                       <p>
                         {otpChannel === 'sms' ? (
                           language === 'bn'
-                            ? `আপনার নম্বর (${phoneOrEmail || '01XXXXXXXXX'}) এ ওটিপি পাঠানো হয়েছে।`
-                            : `An OTP has been sent to ${phoneOrEmail || '01XXXXXXXXX'}.`
+                            ? `আপনার নম্বর (${otpTargetPhone || phoneOrEmail || '01XXXXXXXXX'}) এ ওটিপি পাঠানো হয়েছে।`
+                            : `An OTP has been sent to ${otpTargetPhone || phoneOrEmail || '01XXXXXXXXX'}.`
                         ) : (
                           language === 'bn'
                             ? `আপনার ইমেইল ঠিকানায় (${emailInput || phoneOrEmail || 'user@example.com'}) ৬ ডিজিটের ওটিপি পাঠানো হয়েছে।`

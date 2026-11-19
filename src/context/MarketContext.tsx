@@ -450,15 +450,37 @@ const defaultFilters: FilterState = {
 
 const MarketContext = createContext<MarketContextType | undefined>(undefined);
 
-// Single-Device Login Enforcement (request #6-7): a unique ID for this browser
-// tab/session, generated once when the app loads. On login this is written to
-// the user's Firestore doc as the "active" session. If another device logs
-// into the same account, its own session ID overwrites this field, and this
-// tab detects the mismatch via a live Firestore listener and auto-logs-out.
-const THIS_DEVICE_SESSION_ID: string =
-  (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+// Persistent per-browser / per-Android-WebView device identifier.
+// Stored in localStorage so refreshing, opening new tabs, or relaunching the
+// Android app on the same device never alters the device ID and triggers false
+// "logged in from another device" logouts.
+const getOrCreateDeviceSessionId = (): string => {
+  try {
+    const existing = storage.getItem('marketbd_device_session_id');
+    if (existing && existing.length >= 8) return existing;
+    const created =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `dev_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    storage.setItem('marketbd_device_session_id', created);
+    return created;
+  } catch {
+    return `dev_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  }
+};
+
+const THIS_DEVICE_SESSION_ID: string = getOrCreateDeviceSessionId();
+
+const compareSemver = (a?: string, b?: string): number => {
+  const pa = String(a || '0.0.0').replace(/[^\d.]/g, '').split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b || '0.0.0').replace(/[^\d.]/g, '').split('.').map(n => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length, 3);
+  for (let i = 0; i < len; i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+};
 
 export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguage] = useState<Language>('en');
@@ -1221,29 +1243,37 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }, () => {});
       unsubs.push(unsubUserNotifications);
 
-      // Super Admin Active Session Listener for Real-time Single Device Concurrency Protection
+      // Explicit Super Admin Remote Session Revocation Listener (triggers ONLY when
+      // an admin explicitly presses "Terminate Other Sessions", never on normal web/Android login).
       const unsubAdminSession = onSnapshot(doc(db, 'settings', 'admin_active_session'), (snapshot) => {
         if (snapshot.exists()) {
-          const val = snapshot.data()?.value as AdminActiveSession;
+          const val = snapshot.data()?.value as (AdminActiveSession & { revokedBeforeMs?: number }) | undefined;
           if (val && val.sessionToken) {
             setAdminActiveSession(val);
             storage.setItem('marketbd_admin_active_session', JSON.stringify(val));
 
             const localAdminToken = storage.getItem('marketbd_admin_session_token');
             const localUserRole = storage.getItem('marketbd_user_role');
-            if (localUserRole === 'admin' && localAdminToken && val.sessionToken !== localAdminToken) {
-              console.warn('[Admin Security] Super Admin logged in from another device (Realtime listener). Terminating this session.', val);
+            const localLoginAtMs = Number(storage.getItem('marketbd_admin_login_at_ms') || 0);
+            const revokedBeforeMs = Number(val.revokedBeforeMs || 0);
+            if (
+              localUserRole === 'admin' &&
+              localAdminToken &&
+              val.sessionToken !== localAdminToken &&
+              revokedBeforeMs > 0 &&
+              localLoginAtMs > 0 &&
+              localLoginAtMs < revokedBeforeMs
+            ) {
+              console.warn('[Admin Security] Admin session revoked remotely via Terminate Other Sessions.');
               storage.removeItem('marketbd_is_logged_in');
               storage.removeItem('marketbd_user_role');
               storage.removeItem('marketbd_auth_user');
               storage.removeItem('marketbd_admin_session_token');
+              storage.removeItem('marketbd_admin_login_at_ms');
               setIsLoggedIn(false);
               setUserRole('buyer');
               setCurrentUser(null);
               setActiveTab('home');
-              alert(
-                `⚠️ **সুপার এডমিন সিকিউরিটি সতর্কতা**\n\nআপনার সুপার এডমিন অ্যাকাউন্টটি অন্য একটি ডিভাইস (${val.deviceName}) থেকে লগইন করা হয়েছে।\nএকক ডিভাইস সুরক্ষা পলিসি (Single-Device Concurrency Enforcement) অনুযায়ী একই সাথে দুটি ডিভাইসে সুপার এডমিন সেশন চালু রাখা নিষিদ্ধ। তাই এই ডিভাইসের এডমিন এক্সেস তৎক্ষণাৎ বন্ধ করা হয়েছে।`
-              );
             }
           }
         }
@@ -2304,9 +2334,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     releaseDate: '05 Aug 2026',
     titleBn: 'গুগল প্লে স্টোর সিকিউরিটি ও ফিচার আপডেট v2.5.0',
     titleEn: 'Google Play Store Security & Feature Update v2.5.0',
-    notesBn: '• গুগল প্লে স্টোরে অফিসিয়াল নতুন ভার্সন অবমুক্ত করা হয়েছে।\n• এডমিন নিরাপত্তার জন্য ৬ ডিজিটের ওটিপি ভেরিফিকেশন সিস্টেম চালু।\n• সাইটে রোবট, হ্যাকার ও ফেইক বট প্রতিরোধে WAF সিকিউরিটি প্রোটোকল একটিভ।\n• অ্যান্ড্রয়েড ইউজারদের জন্য প্লে স্টোর থেকে বাধ্যতামূলক আপডেট প্রযোজ্য।',
-    notesEn: '• Official new version released on Google Play Store.\n• 6-Digit OTP Verification added for Admin Login security.\n• Bot, scraper & hacker protection protocol active.\n• Mandatory update from Google Play Store for Android users.',
-    isMandatory: true,
+    notesBn: '• গুগল প্লে স্টোরে অফিসিয়াল নতুন ভার্সন অবমুক্ত করা হয়েছে।\n• এডমিন নিরাপত্তার জন্য ৬ ডিজিটের ওটিপি ভেরিফিকেশন সিস্টেম চালু।\n• সাইটে রোবট, হ্যাকার ও ফেইক বট প্রতিরোধে WAF সিকিউরিটি প্রোটোকল একটিভ।\n• অ্যান্ড্রয়েড ইউজারদের জন্য প্লে স্টোর থেকে আপডেট উপলব্ধ।',
+    notesEn: '• Official new version released on Google Play Store.\n• 6-Digit OTP Verification added for Admin Login security.\n• Bot, scraper & hacker protection protocol active.\n• Play Store update available for Android users.',
+    isMandatory: false,
     apkDownloadUrl: '/api/download/apk',
     playStoreUrl: 'https://play.google.com/store/apps/details?id=com.marketbd.app',
     publishedAt: new Date().toISOString()
@@ -2330,24 +2360,39 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const [userInstalledVersion, setUserInstalledVersion] = useState<string>(() => {
-    // Detect version from custom Android WebView User-Agent suffix: MarketBDAndroidApp/2.5.0
+    const storedVersion = storage.getItem('marketbd_installed_version') || '';
+    let uaVersion = '';
     if (typeof window !== 'undefined') {
       const ua = navigator.userAgent || '';
       const match = ua.match(/MarketBDAndroidApp\/([0-9.]+)/i);
       if (match && match[1]) {
-        return match[1];
+        uaVersion = match[1];
       }
     }
-    return storage.getItem('marketbd_installed_version') || '2.5.0';
+    if (storedVersion && uaVersion) {
+      return compareSemver(storedVersion, uaVersion) >= 0 ? storedVersion : uaVersion;
+    }
+    return storedVersion || uaVersion || '2.5.0';
   });
 
-  const [isUpdateDismissed, setIsUpdateDismissed] = useState<boolean>(false);
+  const [isUpdateDismissed, setIsUpdateDismissed] = useState<boolean>(() => {
+    const dismissedVer = storage.getItem('marketbd_dismissed_update_version');
+    return Boolean(dismissedVer && compareSemver(dismissedVer, defaultRelease.version) >= 0);
+  });
+
+  useEffect(() => {
+    const dismissedVer = storage.getItem('marketbd_dismissed_update_version');
+    if (dismissedVer) {
+      setIsUpdateDismissed(compareSemver(dismissedVer, appRelease.version) >= 0);
+    }
+  }, [appRelease.version]);
 
   const updateAppRelease = (newRelease: AppReleaseInfo) => {
     setAppReleaseState(newRelease);
     setIsUpdateDismissed(false);
     try {
       storage.setItem('marketbd_app_release', JSON.stringify(newRelease));
+      storage.removeItem('marketbd_dismissed_update_version');
     } catch (e) {
       console.error('Error saving app release info', e);
     }
@@ -2371,6 +2416,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setUserInstalledVersion(appRelease.version);
     try {
       storage.setItem('marketbd_installed_version', appRelease.version);
+      storage.setItem('marketbd_dismissed_update_version', appRelease.version);
     } catch (e) {
       console.error('Error saving installed version', e);
     }
@@ -2694,34 +2740,34 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return updated;
     });
 
+    const loginTimeMs = Date.now();
+    storage.setItem('marketbd_this_device_session_id', THIS_DEVICE_SESSION_ID);
+    storage.setItem('marketbd_session_login_at_ms', String(loginTimeMs));
+    storage.setItem('marketbd_is_logged_in', 'true');
+    storage.setItem('marketbd_user_role', role);
+    storage.setItem('marketbd_auth_user', JSON.stringify(profile));
+
     setCurrentUser(profile);
     setIsLoggedIn(true);
     setUserRole(role);
     setIsAuthModalOpen(false);
 
     // Persist user profile directly into Firestore /users/{uid} for cloud persistence
-    safeFirestoreSetDoc(doc(db, 'users', profile.id), profile, { merge: true }).catch(() => {});
-
-    // SINGLE-DEVICE LOGIN ENFORCEMENT (request #6-7): claim this device/tab as
-    // the one active session for this account. If the same account logs in
-    // elsewhere, that device writes its own ID here, and this device's
-    // listener (see useEffect below) detects the change and auto-logs-out.
     safeFirestoreSetDoc(
       doc(db, 'users', profile.id),
-      { activeSessionId: THIS_DEVICE_SESSION_ID, activeSessionUpdatedAt: new Date().toISOString() },
+      {
+        ...profile,
+        activeSessionId: THIS_DEVICE_SESSION_ID,
+        activeSessionUpdatedAt: new Date(loginTimeMs).toISOString(),
+      },
       { merge: true }
     ).catch(() => {});
-    storage.setItem('marketbd_this_device_session_id', THIS_DEVICE_SESSION_ID);
 
-    // Save persistent login session
-    storage.setItem('marketbd_is_logged_in', 'true');
-    storage.setItem('marketbd_user_role', role);
-    storage.setItem('marketbd_auth_user', JSON.stringify(profile));
-
-    // If Super Admin logs in, assign a single-device session token and announce to server/cloud
+    // Record active Admin session metadata without auto-evicting Web & Android companions
     if (role === 'admin' || (profile.role === 'admin' && profile.id === 'admin-master')) {
       const newSessionToken = 'adm_sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
       storage.setItem('marketbd_admin_session_token', newSessionToken);
+      storage.setItem('marketbd_admin_login_at_ms', String(loginTimeMs));
 
       const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
@@ -2731,19 +2777,13 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         sessionToken: newSessionToken,
         userEmail: profile.email || 'official.marketsbd@gmail.com',
         deviceName,
-        ip: '103.110.22.4',
+        ip: 'Current Network',
         loginTime: new Date().toISOString()
       };
 
       setAdminActiveSession(sessionData);
       storage.setItem('marketbd_admin_active_session', JSON.stringify(sessionData));
       syncToCloud('admin_active_session', sessionData);
-
-      fetch('/api/admin/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sessionData)
-      }).catch(() => {});
     }
 
     // If purpose was post-ad, automatically go to post-ad tab
@@ -2754,29 +2794,26 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const terminateOtherAdminSessions = () => {
     const newSessionToken = 'adm_sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    const nowMs = Date.now();
     storage.setItem('marketbd_admin_session_token', newSessionToken);
+    storage.setItem('marketbd_admin_login_at_ms', String(nowMs));
 
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
     const deviceName = (isMobile ? 'Mobile / Android Device' : 'Desktop Browser') + ' (Primary Device Claimed)';
 
-    const sessionData: AdminActiveSession = {
+    const sessionData: AdminActiveSession & { revokedBeforeMs?: number } = {
       sessionToken: newSessionToken,
       userEmail: currentUser?.email || 'official.marketsbd@gmail.com',
       deviceName,
-      ip: '103.110.22.4',
-      loginTime: new Date().toISOString()
+      ip: 'Primary Device',
+      loginTime: new Date().toISOString(),
+      revokedBeforeMs: nowMs,
     };
 
     setAdminActiveSession(sessionData);
     storage.setItem('marketbd_admin_active_session', JSON.stringify(sessionData));
     syncToCloud('admin_active_session', sessionData);
-
-    fetch('/api/admin/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sessionData)
-    }).catch(() => {});
   };
 
   const logout = () => {
@@ -2790,6 +2827,8 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     storage.removeItem('marketbd_user_role');
     storage.removeItem('marketbd_auth_user');
     storage.removeItem('marketbd_admin_session_token');
+    storage.removeItem('marketbd_admin_login_at_ms');
+    storage.removeItem('marketbd_session_login_at_ms');
     storage.removeItem('marketbd_this_device_session_id');
 
     if (activeTab === 'post-ad' || activeTab === 'admin') {
@@ -2797,64 +2836,25 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  // Single-Device Login Enforcement Monitor (request #6-7): applies to EVERY
-  // logged-in user/role, not just admin. Listens to this user's own Firestore
-  // doc; if activeSessionId there no longer matches this browser tab's own
-  // session ID, another device has logged into the same account, so this
-  // device is auto-logged-out.
+  // Multi-device friendly account state sync: allows using both Web & Android App
+  // smoothly with the same account without false cross-device logout alerts.
+  // Only respects explicit remote account blocking (isBlocked / status === 'blocked').
   useEffect(() => {
     if (!currentUser?.id || !isLoggedIn) return;
 
-    const unsubscribe = onSnapshot(doc(db, 'users', currentUser.id), (snap) => {
-      const remoteSessionId = snap.data()?.activeSessionId;
-      if (remoteSessionId && remoteSessionId !== THIS_DEVICE_SESSION_ID) {
-        console.warn('[Session Security] Account logged in from another device. Logging out this session.');
-        logout();
-        alert(
-          language === 'bn'
-            ? '⚠️ আপনার অ্যাকাউন্টটি অন্য একটি ডিভাইস থেকে লগইন করা হয়েছে। নিরাপত্তার জন্য (একটি আইডি = একটি সক্রিয় ডিভাইস নীতি অনুযায়ী) এই ডিভাইস থেকে স্বয়ংক্রিয়ভাবে লগআউট করা হলো।'
-            : '⚠️ Your account was logged into from another device. For security (one account = one active device), this session has been automatically logged out.'
-        );
-      }
-    });
+    const unsubscribe = onSnapshot(
+      doc(db, 'users', currentUser.id),
+      (snap) => {
+        const data = snap.data();
+        if (data && (data.isBlocked === true || data.status === 'blocked')) {
+          logout();
+        }
+      },
+      () => {}
+    );
 
     return () => unsubscribe();
-  }, [currentUser?.id, isLoggedIn, language]);
-
-  // Super Admin Single-Device Concurrency Enforcement Monitor
-  useEffect(() => {
-    const isCurrentUserAdmin = userRole === 'admin' || currentUser?.role === 'admin';
-    if (!isCurrentUserAdmin) return;
-
-    const checkAdminSession = () => {
-      const localToken = storage.getItem('marketbd_admin_session_token');
-      if (!localToken) return;
-
-      fetch('/api/admin/session')
-        .then(res => res.json())
-        .then(res => {
-          if (res && res.success && res.data) {
-            const remote: AdminActiveSession = res.data;
-            setAdminActiveSession(remote);
-            storage.setItem('marketbd_admin_active_session', JSON.stringify(remote));
-
-            if (remote.sessionToken && remote.sessionToken !== localToken) {
-              console.warn('[Admin Security] Super Admin logged in from another device. Terminating this session.', remote);
-              logout();
-              alert(
-                language === 'bn'
-                  ? `⚠️ **সুপার এডমিন সিকিউরিটি সতর্কতা**\n\nআপনার সুপার এডমিন অ্যাকাউন্টটি অন্য একটি ডিভাইস (${remote.deviceName}) থেকে লগইন করা হয়েছে।\nএকক ডিভাইস সুরক্ষা পলিসি (Single-Device Enforcement) অনুযায়ী একই সাথে দুটি ডিভাইসে সুপার এডমিন সেশন চালু রাখা নিষিদ্ধ। তাই এই ডিভাইসের এডমিন এক্সেস স্বয়ংক্রিয়ভাবে বন্ধ করা হয়েছে।`
-                  : `⚠️ **Super Admin Security Alert**\n\nYour Super Admin account was logged into from another device (${remote.deviceName}).\nUnder our single-device security policy, concurrent admin sessions are strictly prohibited. This session has been terminated.`
-              );
-            }
-          }
-        })
-        .catch(() => {});
-    };
-
-    const interval = setInterval(checkAdminSession, 5000);
-    return () => clearInterval(interval);
-  }, [userRole, currentUser, language]);
+  }, [currentUser?.id, isLoggedIn]);
 
   const handlePostAdClick = () => {
     if (!isLoggedIn) {

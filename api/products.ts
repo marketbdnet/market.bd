@@ -1,5 +1,51 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { CANONICAL_400_PRODUCTS } from '../src/data/canonicalCatalog400';
+
+const FIRESTORE_PRODUCTS_URL =
+  'https://firestore.googleapis.com/v1/projects/quantum-heading-1mbw7/databases/ai-studio-marketbd-58cc526e-10d5-498a-b77b-be2f1e9c76d1/documents/products?pageSize=300';
+
+function decodeFirestoreValue(val: any): any {
+  if (!val || typeof val !== 'object') return val;
+  if ('stringValue' in val) return val.stringValue;
+  if ('integerValue' in val) return Number(val.integerValue);
+  if ('doubleValue' in val) return Number(val.doubleValue);
+  if ('booleanValue' in val) return Boolean(val.booleanValue);
+  if ('nullValue' in val) return null;
+  if ('timestampValue' in val) return val.timestampValue;
+  if ('arrayValue' in val) return (val.arrayValue?.values || []).map(decodeFirestoreValue);
+  if ('mapValue' in val) {
+    const out: Record<string, any> = {};
+    const fields = val.mapValue?.fields || {};
+    for (const k of Object.keys(fields)) out[k] = decodeFirestoreValue(fields[k]);
+    return out;
+  }
+  return val;
+}
+
+async function fetchFirestoreProducts(): Promise<any[]> {
+  try {
+    const r = await fetch(FIRESTORE_PRODUCTS_URL);
+    if (!r.ok) return [];
+    const json: any = await r.json();
+    const docs = Array.isArray(json?.documents) ? json.documents : [];
+    return docs
+      .map((d: any) => {
+        const id = String(d?.name || '').split('/').pop() || '';
+        const fields = d?.fields || {};
+        const obj: Record<string, any> = { id };
+        for (const k of Object.keys(fields)) obj[k] = decodeFirestoreValue(fields[k]);
+        return obj;
+      })
+      .filter((p: any) => p && p.id && p.title && String(p.title).trim() !== '')
+      .map((p: any) => ({
+        ...p,
+        status: p.status || 'active',
+        isApproved: p.isApproved !== false,
+        isActive: p.isActive !== false,
+      }));
+  } catch {
+    return [];
+  }
+}
 
 function sanitizeProductForPublic(product: any, callerUserId?: string, isAdmin?: boolean) {
   if (!product) return product;
@@ -27,7 +73,7 @@ function sanitizeProductForPublic(product: any, callerUserId?: string, isAdmin?:
   };
 }
 
-export default function handler(req: VercelRequest | any, res: VercelResponse | any) {
+export default async function handler(req: VercelRequest | any, res: VercelResponse | any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -37,14 +83,7 @@ export default function handler(req: VercelRequest | any, res: VercelResponse | 
   }
 
   try {
-    const canonicalValid = CANONICAL_400_PRODUCTS.filter(
-      p => p && p.id && p.title && p.title.trim() !== ''
-    ).map(p => ({
-      ...p,
-      status: p.status || 'active',
-      isApproved: true,
-      isActive: true
-    }));
+    const canonicalValid = await fetchFirestoreProducts();
 
     if (req.method === 'GET') {
       const { category, sellerId, status, query, userId, role, id } = req.query || {};

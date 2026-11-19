@@ -57,6 +57,7 @@ export interface UnifiedSmsOtpResult {
   token?: string;
   exp?: number;
   code?: string;
+  hint?: string;
   error?: string;
   providerName?: string;
   mode?: string;
@@ -135,6 +136,8 @@ export async function saveUnifiedSmsConfig(params: {
 }): Promise<{
   ok: boolean;
   status: number;
+  persistedOnServer?: boolean;
+  warning?: string;
   config?: UnifiedSmsGatewayConfig;
   error?: string;
 }> {
@@ -160,7 +163,14 @@ export async function saveUnifiedSmsConfig(params: {
       },
       secret
     );
-    return { ok, status, config: data?.config, error: data?.error };
+    return {
+      ok,
+      status,
+      persistedOnServer: data?.persistedOnServer,
+      warning: data?.warning,
+      config: data?.config,
+      error: data?.error,
+    };
   } catch (err: any) {
     return { ok: false, status: 0, error: err?.message || 'Failed to save SMS gateway config' };
   }
@@ -179,6 +189,7 @@ export async function sendUnifiedSmsOtp(phone: string): Promise<UnifiedSmsOtpRes
       return {
         ok: false,
         code: data?.code,
+        hint: data?.hint,
         error: data?.error || 'Could not send OTP. Please try again.',
       };
     }

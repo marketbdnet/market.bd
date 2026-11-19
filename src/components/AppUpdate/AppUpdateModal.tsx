@@ -15,12 +15,36 @@ export const isAndroidDevice = (): boolean => {
   return isAndroid || isAndroidParam;
 };
 
+export const isAndroidAppWebView = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const ua = (navigator.userAgent || navigator.vendor || '').toLowerCase();
+  return (
+    ua.includes('marketbdandroidapp') ||
+    window.location.search.includes('platform=android') ||
+    window.location.search.includes('app=android') ||
+    (ua.includes('android') && ua.includes('; wv'))
+  );
+};
+
+const isSemverNewer = (remoteVer?: string, localVer?: string): boolean => {
+  const a = String(remoteVer || '0.0.0').replace(/[^\d.]/g, '').split('.').map(n => parseInt(n, 10) || 0);
+  const b = String(localVer || '0.0.0').replace(/[^\d.]/g, '').split('.').map(n => parseInt(n, 10) || 0);
+  const len = Math.max(a.length, b.length, 3);
+  for (let i = 0; i < len; i++) {
+    const diff = (a[i] || 0) - (b[i] || 0);
+    if (diff > 0) return true;
+    if (diff < 0) return false;
+  }
+  return false;
+};
+
 export const AppUpdateModal: React.FC = () => {
   const {
     language,
     appRelease,
     userInstalledVersion,
-    applyAppUpdate
+    applyAppUpdate,
+    isUpdateDismissed,
   } = useMarket();
 
   const [isUpdating, setIsUpdating] = useState(false);
@@ -29,19 +53,20 @@ export const AppUpdateModal: React.FC = () => {
   const [apkDownloadDone, setApkDownloadDone] = useState(false);
 
   const isAndroid = isAndroidDevice();
-  const isNewVersionAvailable = userInstalledVersion !== appRelease.version;
+  const isInsideAndroidApp = isAndroidAppWebView();
+  const isNewVersionAvailable = isSemverNewer(appRelease.version, userInstalledVersion);
 
   // WEB AUTO-UPDATE RULE:
-  // If user is accessing via standard Web browser (Non-Android / Web platform),
-  // automatically sync and apply update silently in background without showing any modal option!
+  // If user is accessing via standard browser (not inside the Android APK WebView),
+  // silently mark synced without interrupting browsing with an Android APK update modal.
   useEffect(() => {
-    if (!isAndroid && isNewVersionAvailable) {
+    if (!isInsideAndroidApp && isNewVersionAvailable) {
       applyAppUpdate();
     }
-  }, [isAndroid, isNewVersionAvailable, applyAppUpdate]);
+  }, [isInsideAndroidApp, isNewVersionAvailable, applyAppUpdate]);
 
-  // If website browser (Non-Android) or no new version available, do not display popup
-  if (!isAndroid || !isNewVersionAvailable) {
+  // Do not display modal if already synced/dismissed, on normal web browsers, or no newer version exists
+  if (!isAndroid || !isInsideAndroidApp || !isNewVersionAvailable || isUpdateDismissed) {
     return null;
   }
 
@@ -197,6 +222,16 @@ export const AppUpdateModal: React.FC = () => {
                 <p className="text-[10px] text-emerald-500 font-bold text-center animate-in fade-in">
                   {language === 'bn' ? '✅ APK ডাউনলোড শুরু হয়েছে!' : '✅ APK download started!'}
                 </p>
+              )}
+
+              {!appRelease.isMandatory && (
+                <button
+                  type="button"
+                  onClick={applyAppUpdate}
+                  className="w-full py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
+                >
+                  {language === 'bn' ? 'পরে আপডেট করবো (অ্যাপে প্রবেশ করুন)' : 'Update Later (Continue to App)'}
+                </button>
               )}
             </>
           )}

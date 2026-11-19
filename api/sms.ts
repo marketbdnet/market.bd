@@ -212,13 +212,17 @@ const GATEWAY_HINTS: Record<string, string> = {
 };
 
 function hintFor(g: { json: any; raw: string; httpStatus: number }): string {
+  const rawStr = String(g.raw || '');
+  if (/not whitelisted|access denied/i.test(rawStr)) {
+    return 'গেটওয়ে সার্ভারের IP ব্লক করেছে (IP Whitelist চালু আছে)। BulkSMS Dhaka ড্যাশবোর্ডে গিয়ে IP Whitelist বন্ধ (OFF) করুন।';
+  }
   const code = String(g.json?.Status ?? g.json?.response_code ?? g.json?.error ?? '');
   const base = GATEWAY_HINTS[code];
   if (base) return `কোড ${code}: ${base}`;
   if (g.json?.Message || g.json?.error_message || g.json?.status_message) {
     return `কোড ${code || '?'}: ${g.json.Message || g.json.error_message || g.json.status_message}`;
   }
-  return `গেটওয়ে অপ্রত্যাশিত উত্তর দিয়েছে (HTTP ${g.httpStatus}): ${String(g.raw).slice(0, 140)}`;
+  return `গেটওয়ে অপ্রত্যাশিত উত্তর দিয়েছে (HTTP ${g.httpStatus}): ${rawStr.slice(0, 140)}`;
 }
 
 const isOk = (j: any, raw = '', httpStatus = 200): boolean => {
@@ -266,7 +270,7 @@ async function dispatchSmsByProvider(params: {
     const qs1 = new URLSearchParams({ apikey: apiKey, number: phone, message, callerID: senderId || '1234' }).toString();
     let g = await fetchGatewayUrl(`${base}/${endpoint}?${qs1}`);
     let usedCaller = senderId || '1234';
-    if (!isOk(g.json, g.raw, g.httpStatus) && usedCaller !== '1234' && ['1011', '1012'].includes(String(g.json?.Status))) {
+    if (!isOk(g.json, g.raw, g.httpStatus) && usedCaller !== '1234' && ['1003', '1006', '1011', '1012'].includes(String(g.json?.Status))) {
       const qs2 = new URLSearchParams({ apikey: apiKey, number: phone, message, callerID: '1234' }).toString();
       g = await fetchGatewayUrl(`${base}/${endpoint}?${qs2}`);
       usedCaller = '1234';
@@ -491,6 +495,12 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       return res.status(200).json({
         ok: true,
         persistedOnServer: persisted,
+        ...(persisted
+          ? {}
+          : {
+              warning:
+                'এই হোস্টিংয়ের ফাইল সিস্টেম Read-Only (যেমন Vercel)। স্থায়ীভাবে SMS চালু রাখতে Vercel → Project Settings → Environment Variables-এ SMS_API_KEY যোগ করে Redeploy করুন।',
+            }),
         config: {
           providerId: nextSms.providerId,
           providerName: nextSms.providerName,
@@ -557,7 +567,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
           const statusCode = String(g.json?.Status ?? g.httpStatus ?? 'N/A');
           return res.status(502).json({
             ok: false,
-            error: `এসএমএস পাঠানো যায়নি (কোড ${statusCode})। প্রোভাইডার ও API Key যাচাই করুন।`,
+            error: `এসএমএস পাঠানো যায়নি (${hint || `কোড ${statusCode}`})।`,
             hint,
             gateway: g.json || g.raw,
           });

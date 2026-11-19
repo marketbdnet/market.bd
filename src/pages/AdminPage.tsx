@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { verifyAdminPassword } from '../utils/adminAuth';
+import { sendUnifiedSmsOtp, verifyUnifiedSmsOtp } from '../services/smsService';
 import { useMarket } from '../context/MarketContext';
 import { getRemainingAutoApproveTime } from '../utils/autoApprovalTimer';
 import { isProductPublicActive, isProductPending, isProductRejected } from '../utils/productStatus';
@@ -106,6 +107,10 @@ export const AdminPage: React.FC = () => {
   // Admin OTP Verification State
   const [showOtpStep, setShowOtpStep] = useState(false);
   const [generatedOtp, setGeneratedOtp] = useState('');
+  const [adminSmsToken, setAdminSmsToken] = useState('');
+  const [adminSmsExp, setAdminSmsExp] = useState(0);
+  const [isSendingAdminOtp, setIsSendingAdminOtp] = useState(false);
+  const [adminSmsNotice, setAdminSmsNotice] = useState('');
   const [enteredOtp, setEnteredOtp] = useState('');
   const [otpCountdown, setOtpCountdown] = useState(60);
   const [otpErrorMsg, setOtpErrorMsg] = useState('');
@@ -118,6 +123,36 @@ export const AdminPage: React.FC = () => {
     return () => clearInterval(timer);
   }, [showOtpStep, otpCountdown]);
 
+  const dispatchAdminRealOtp = async () => {
+    setIsSendingAdminOtp(true);
+    setOtpErrorMsg('');
+    const res = await sendUnifiedSmsOtp('01634025151');
+    setIsSendingAdminOtp(false);
+
+    if (res.ok && res.token && res.exp) {
+      setAdminSmsToken(res.token);
+      setAdminSmsExp(res.exp);
+      setGeneratedOtp('');
+      setAdminSmsNotice(
+        language === 'bn'
+          ? `✅ আপনার এডমিন মোবাইল নম্বর (01634025151)-এ আসল ৬ ডিজিটের SMS OTP পাঠানো হয়েছে (${res.providerName || 'BulkSMS Dhaka'})।`
+          : `✅ Live 6-digit SMS OTP sent to admin phone 01634025151 (${res.providerName || 'BulkSMS Dhaka'}).`
+      );
+      return;
+    }
+
+    // Gateway not ready yet (e.g. SMS_API_KEY missing on Vercel) -> emergency backup code so admin isn't locked out of Gateways setup
+    const backupOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    setAdminSmsToken('');
+    setAdminSmsExp(0);
+    setGeneratedOtp(backupOtp);
+    setAdminSmsNotice(
+      language === 'bn'
+        ? `⚠️ লাইভ SMS OTP পাঠানো যায়নি: ${res.hint || res.error || 'গেটওয়ে কনফিগার করা নেই'}। Gateways প্যানেল সেটআপ করতে নিচের জরুরি রিকভারি কোড ব্যবহার করুন।`
+        : `⚠️ Live SMS OTP could not be sent: ${res.hint || res.error || 'Gateway not configured'}. Use emergency recovery code below to enter Gateways setup.`
+    );
+  };
+
   const handleAdminLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const idClean = adminIdInput.trim().toLowerCase();
@@ -128,13 +163,10 @@ export const AdminPage: React.FC = () => {
 
     if (isValidId && isValidPass) {
       setAdminLoginError('');
-      // Generate 6-digit secure OTP for Admin Login
-      const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedOtp(newOtp);
-      setShowOtpStep(true);
-      setOtpCountdown(60);
       setEnteredOtp('');
-      setOtpErrorMsg('');
+      setOtpCountdown(120);
+      setShowOtpStep(true);
+      await dispatchAdminRealOtp();
     } else {
       setAdminLoginError(
         language === 'bn'
@@ -144,17 +176,42 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  const handleResendOtp = () => {
-    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(newOtp);
-    setOtpCountdown(60);
+  const handleResendOtp = async () => {
+    setOtpCountdown(120);
     setEnteredOtp('');
-    setOtpErrorMsg(language === 'bn' ? '✅ নতুন ওটিপি কোড আপনার রেজিস্টার্ড নম্বরে পাঠানো হয়েছে।' : '✅ New OTP code sent.');
+    await dispatchAdminRealOtp();
   };
 
-  const handleVerifyOtpSubmit = (e: React.FormEvent) => {
+  const handleVerifyOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (enteredOtp.trim() === generatedOtp) {
+    const cleanOtp = enteredOtp.trim();
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      setOtpErrorMsg(
+        language === 'bn'
+          ? '❌ ৬ ডিজিটের ওটিপি কোডটি সঠিকভাবে টাইপ করুন।'
+          : '❌ Please enter a valid 6-digit OTP code.'
+      );
+      return;
+    }
+
+    let verified = false;
+    if (adminSmsToken && adminSmsExp) {
+      const check = await verifyUnifiedSmsOtp({
+        phone: '01634025151',
+        code: cleanOtp,
+        token: adminSmsToken,
+        exp: adminSmsExp,
+      });
+      if (!check.ok) {
+        setOtpErrorMsg(`❌ ${check.error || (language === 'bn' ? 'ভুল ওটিপি কোড!' : 'Invalid OTP code!')}`);
+        return;
+      }
+      verified = true;
+    } else if (generatedOtp && cleanOtp === generatedOtp) {
+      verified = true;
+    }
+
+    if (verified) {
       setShowOtpStep(false);
       login({
         id: 'admin-master',
@@ -239,22 +296,32 @@ export const AdminPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Security Simulation Banner with Live OTP */}
-          <div className="p-3 bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-300 dark:border-indigo-800 rounded-2xl text-xs font-bold text-indigo-900 dark:text-indigo-200 space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1">
-                <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                <span>{language === 'bn' ? 'এডমিন সিকিউরিটি ওটিপি কোড:' : 'Admin Security OTP:'}</span>
-              </span>
-              <span className="bg-emerald-600 text-white font-mono text-xs px-2 py-0.5 rounded-lg font-black">
-                {generatedOtp}
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-              {language === 'bn'
-                ? '(লাইভ ডেমো সিকিউরিটি ওটিপি কোড উপরে প্রদর্শিত হয়েছে)'
-                : '(Live simulated OTP code displayed for instant admin access)'}
+          {/* Live SMS OTP Delivery / Fallback Notice */}
+          <div
+            className={`p-3 rounded-2xl text-xs font-bold space-y-1.5 border ${
+              generatedOtp
+                ? 'bg-amber-50 dark:bg-amber-950/70 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200'
+                : 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200'
+            }`}
+          >
+            <p className="leading-relaxed">
+              {isSendingAdminOtp
+                ? language === 'bn'
+                  ? '⏳ আপনার এডমিন নম্বরে লাইভ SMS OTP পাঠানো হচ্ছে...'
+                  : '⏳ Dispatching live SMS OTP to admin phone...'
+                : adminSmsNotice}
             </p>
+            {generatedOtp && (
+              <div className="flex items-center justify-between pt-1">
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="w-4 h-4 text-amber-600" />
+                  <span>{language === 'bn' ? 'জরুরি রিকভারি কোড:' : 'Emergency Recovery Code:'}</span>
+                </span>
+                <span className="bg-amber-600 text-white font-mono text-xs px-2.5 py-0.5 rounded-lg font-black tracking-widest">
+                  {generatedOtp}
+                </span>
+              </div>
+            )}
           </div>
 
           {otpErrorMsg && (
@@ -289,7 +356,7 @@ export const AdminPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleResendOtp}
-                disabled={otpCountdown > 45}
+                disabled={otpCountdown > 90 || isSendingAdminOtp}
                 className="text-emerald-600 dark:text-emerald-400 hover:underline disabled:opacity-50 cursor-pointer"
               >
                 {language === 'bn' ? 'ওটিপি পুনরায় পাঠান' : 'Resend OTP'}
