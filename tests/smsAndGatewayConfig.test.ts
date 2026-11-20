@@ -224,4 +224,61 @@ describe('Unified SMS Provider & Payment Gateway Config APIs', () => {
     expect(getNonMask.body.config.maskingEnabled).toBe(false);
     expect(getNonMask.body.config.senderId).toBe('1234');
   });
+
+  it('sanitizes accidental note text in SMS_CALLER_ID and runs admin_test_otp atomically', async () => {
+    const prevFetch = globalThis.fetch;
+    const prevCaller = process.env.SMS_CALLER_ID;
+    const prevSecrets = fs.existsSync(SECRETS_FILE) ? fs.readFileSync(SECRETS_FILE, 'utf-8') : null;
+    if (fs.existsSync(SECRETS_FILE)) fs.unlinkSync(SECRETS_FILE);
+
+    process.env.SMS_CALLER_ID = '1234 (অথবা আপনার অনুমোদিত Non-Masking / Masking Sender ID)';
+    let sentUrl = '';
+    (globalThis as any).fetch = async (url: string) => {
+      if (String(url).includes('settings/sms_config')) {
+        return { ok: true, status: 200, json: async () => ({ fields: {} }) };
+      }
+      sentUrl = String(url);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ Status: '1000', Success: 'true', Message: 'Your OTP Send Successful!!' }),
+      };
+    };
+
+    try {
+      const getCfg = createMockRes();
+      await smsHandler({ method: 'POST', headers: {}, body: { action: 'get_config' } }, getCfg.res);
+      expect(getCfg.body.config.senderId).toBe('1234');
+
+      const testOtp = createMockRes();
+      await smsHandler(
+        {
+          method: 'POST',
+          headers: {},
+          body: {
+            action: 'admin_test_otp',
+            phone: '01711223344',
+            providerId: 'bulksmsdhaka',
+            apiUrl: 'https://bulksmsdhaka.net/api',
+            apiKey: 'atomic-test-key',
+            senderId: '1234 (helper text)',
+            maskingEnabled: false,
+            isLiveMode: true,
+            otpTemplate: 'Your MarketBD.Net OTP is {otp}',
+          },
+        },
+        testOtp.res
+      );
+      expect(testOtp.statusCode).toBe(200);
+      expect(testOtp.body.ok).toBe(true);
+      expect(testOtp.body.usedCaller).toBe('1234');
+      expect(sentUrl).toContain('callerID=1234');
+      expect(sentUrl).toContain('apikey=atomic-test-key');
+    } finally {
+      (globalThis as any).fetch = prevFetch;
+      if (prevCaller === undefined) delete process.env.SMS_CALLER_ID;
+      else process.env.SMS_CALLER_ID = prevCaller;
+      if (prevSecrets !== null) fs.writeFileSync(SECRETS_FILE, prevSecrets, 'utf-8');
+    }
+  });
 });

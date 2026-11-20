@@ -1362,6 +1362,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               return;
             }
 
+            if (typeof window !== 'undefined' && window.sessionStorage?.getItem('marketbd_2fa_pending') === 'true') {
+              return;
+            }
+
             setCurrentUser(profile);
             setIsLoggedIn(true);
             setUserRole(profile.role || 'seller');
@@ -2746,6 +2750,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     const loginTimeMs = Date.now();
+    if (typeof window !== 'undefined') {
+      window.sessionStorage?.removeItem('marketbd_2fa_pending');
+    }
     storage.setItem('marketbd_this_device_session_id', THIS_DEVICE_SESSION_ID);
     storage.setItem('marketbd_session_login_at_ms', String(loginTimeMs));
     storage.setItem('marketbd_is_logged_in', 'true');

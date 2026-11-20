@@ -75,6 +75,8 @@ export const AuthModal: React.FC = () => {
   // OTP Delivery Channel: 'sms' | 'email'
   const [otpChannel, setOtpChannel] = useState<'sms' | 'email'>('sms');
   const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
+  const [requireLoginOtp, setRequireLoginOtp] = useState<boolean>(true);
+  const [pendingLoginProfile, setPendingLoginProfile] = useState<Partial<UserProfile> | null>(null);
   const [otpTargetPhone, setOtpTargetPhone] = useState('');
   const [adminPasswordVerified, setAdminPasswordVerified] = useState(false);
 
@@ -311,8 +313,12 @@ export const AuthModal: React.FC = () => {
       setEnteredOtp('');
       setOtpTargetPhone('');
       setAdminPasswordVerified(false);
+      setPendingLoginProfile(null);
       setLoginMethod('password');
       setMode('login');
+      if (typeof window !== 'undefined') {
+        window.sessionStorage?.removeItem('marketbd_2fa_pending');
+      }
     }
   }, [isAuthModalOpen]);
 
@@ -364,7 +370,7 @@ export const AuthModal: React.FC = () => {
     return trimmed;
   };
 
-  const handleSendOtp = async (channelOverride?: 'sms' | 'email', phoneOverride?: string) => {
+  const handleSendOtp = async (channelOverride?: 'sms' | 'email', phoneOverride?: string): Promise<boolean> => {
     const selectedChannel = channelOverride || otpChannel;
     setOtpChannel(selectedChannel);
     setErrorMsg('');
@@ -394,7 +400,7 @@ export const AuthModal: React.FC = () => {
             ? (language === 'bn' ? '❌ ইন্টারনেট সংযোগ সমস্যা। আবার চেষ্টা করুন।' : '❌ Network problem. Please try again.')
             : `❌ ${detail || (language === 'bn' ? 'ওটিপি পাঠানো যায়নি। আবার চেষ্টা করুন।' : 'Could not send OTP. Please try again.')}`
         );
-        return;
+        return false;
       }
       setSmsToken(data.token);
       setSmsExp(data.exp);
@@ -409,6 +415,7 @@ export const AuthModal: React.FC = () => {
     setIsSendingOtp(false);
     setAuthStep('otp');
     setIsOtpSentBannerVisible(true);
+    return true;
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -592,6 +599,32 @@ export const AuthModal: React.FC = () => {
       }
 
       setIsSendingOtp(true);
+      if (requireLoginOtp && typeof window !== 'undefined') {
+        window.sessionStorage?.setItem('marketbd_2fa_pending', 'true');
+      }
+
+      const completeOrChallengeLogin = async (profileToLogin: Partial<UserProfile>) => {
+        const candidatePhone = isValidBDPhone(cleanInput)
+          ? cleanInput
+          : (profileToLogin.phone && isValidBDPhone(profileToLogin.phone) ? profileToLogin.phone : '');
+        if (requireLoginOtp && candidatePhone) {
+          setPendingLoginProfile(profileToLogin);
+          const sent = await handleSendOtp('sms', candidatePhone);
+          if (!sent) {
+            setPendingLoginProfile(null);
+            if (typeof window !== 'undefined') {
+              window.sessionStorage?.removeItem('marketbd_2fa_pending');
+            }
+            signOut(auth).catch(() => {});
+          }
+          return;
+        }
+        if (typeof window !== 'undefined') {
+          window.sessionStorage?.removeItem('marketbd_2fa_pending');
+        }
+        setIsSendingOtp(false);
+        login(profileToLogin);
+      };
 
       try {
         // Native Firebase Auth Sign In
@@ -601,7 +634,7 @@ export const AuthModal: React.FC = () => {
         let userProfileData: Partial<UserProfile> = {
           id: fbUser.uid,
           name: fbUser.displayName || (cleanEmail ? cleanEmail.split('@')[0] : 'MarketBD User'),
-          phone: cleanPhone || fbUser.phoneNumber || '',
+          phone: cleanPhone ? (cleanPhone.startsWith('0') ? cleanPhone : `0${cleanPhone}`) : (fbUser.phoneNumber || ''),
           email: cleanEmail || fbUser.email || '',
           role: (fbUser.email === 'official.marketsbd@gmail.com' || fbUser.email === 'official.marketbd@gmail.com') ? 'admin' : 'seller',
           password: password,
@@ -618,6 +651,9 @@ export const AuthModal: React.FC = () => {
         } catch (e) {}
 
         if (userProfileData.isBlocked || userProfileData.status === 'blocked') {
+          if (typeof window !== 'undefined') {
+            window.sessionStorage?.removeItem('marketbd_2fa_pending');
+          }
           setIsSendingOtp(false);
           signOut(auth).catch(() => {});
           setErrorMsg(
@@ -628,8 +664,7 @@ export const AuthModal: React.FC = () => {
           return;
         }
 
-        setIsSendingOtp(false);
-        login(userProfileData);
+        await completeOrChallengeLogin(userProfileData);
         return;
       } catch (fbErr: any) {
         const errCode = fbErr?.code || '';
@@ -649,6 +684,9 @@ export const AuthModal: React.FC = () => {
 
         if (matchedUser) {
           if (matchedUser.isBlocked || matchedUser.status === 'blocked') {
+            if (typeof window !== 'undefined') {
+              window.sessionStorage?.removeItem('marketbd_2fa_pending');
+            }
             setIsSendingOtp(false);
             setErrorMsg(
               language === 'bn'
@@ -668,8 +706,7 @@ export const AuthModal: React.FC = () => {
             safeFirestoreSetDoc(doc(db, 'users', newCred.user.uid), matchedUser, { merge: true }).catch(() => {});
           } catch (createErr) {}
 
-          setIsSendingOtp(false);
-          login({
+          await completeOrChallengeLogin({
             id: matchedUser.id,
             name: matchedUser.name,
             phone: matchedUser.phone,
@@ -680,6 +717,10 @@ export const AuthModal: React.FC = () => {
             isVerified: matchedUser.isVerified ?? true
           });
           return;
+        }
+
+        if (typeof window !== 'undefined') {
+          window.sessionStorage?.removeItem('marketbd_2fa_pending');
         }
 
         // Check if user account exists by phone or email
@@ -966,6 +1007,16 @@ export const AuthModal: React.FC = () => {
     }
 
     // LOGIN MODE -> LOG USER IN
+    if (pendingLoginProfile) {
+      const profileToFinish = pendingLoginProfile;
+      setPendingLoginProfile(null);
+      if (typeof window !== 'undefined') {
+        window.sessionStorage?.removeItem('marketbd_2fa_pending');
+      }
+      login(profileToFinish);
+      return;
+    }
+
     const allUsers = getAllRegisteredUsers();
     let matchedUser = allUsers.find(
       (u: any) => {
@@ -1039,7 +1090,14 @@ export const AuthModal: React.FC = () => {
           {/* Close button */}
           <button
             onClick={() => {
+              if (pendingLoginProfile) {
+                signOut(auth).catch(() => {});
+              }
               setAuthStep('form');
+              setPendingLoginProfile(null);
+              if (typeof window !== 'undefined') {
+                window.sessionStorage?.removeItem('marketbd_2fa_pending');
+              }
               closeAuthModal();
             }}
             className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-zinc-400 hover:text-white flex items-center justify-center transition cursor-pointer z-20"
@@ -1270,6 +1328,23 @@ export const AuthModal: React.FC = () => {
                       {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                )}
+
+                {/* 2-Step SMS OTP Verification Toggle for Password Login */}
+                {mode === 'login' && loginMethod === 'password' && (
+                  <label className="flex items-center justify-between gap-2 px-3.5 py-2 rounded-2xl bg-white/[0.05] border border-white/10 text-xs text-zinc-200 cursor-pointer select-none">
+                    <span className="font-medium">
+                      {language === 'bn'
+                        ? 'মোবাইলে SMS OTP দিয়ে ২-ধাপ লগইন যাচাই'
+                        : 'Verify login with 2-Step SMS OTP'}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={requireLoginOtp}
+                      onChange={e => setRequireLoginOtp(e.target.checked)}
+                      className="w-4 h-4 accent-pink-600 cursor-pointer"
+                    />
+                  </label>
                 )}
 
                 {/* Remember me & Forgot password row */}

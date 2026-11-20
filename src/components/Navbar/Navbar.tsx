@@ -1164,7 +1164,7 @@ export const Navbar: React.FC = () => {
         },
         {
           key: 'create',
-          label: language === 'bn' ? 'পোস্ট' : 'Create',
+          label: language === 'bn' ? 'এড পোস্ট' : 'Ad post',
           icon: 'create',
           onClick: () => {
             setIsFloatingSearchOpen(false);

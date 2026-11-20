@@ -26,8 +26,8 @@ import {
   fetchUnifiedSmsBalance,
   fetchUnifiedSmsConfig,
   saveUnifiedSmsConfig,
-  sendUnifiedSmsOtp,
   sendUnifiedSmsText,
+  testAdminSmsOtp,
 } from '../../services/smsService';
 import {
   fetchPaymentGatewayConfig,
@@ -281,7 +281,9 @@ export const GatewaysAdminPanel: React.FC = () => {
     if (serverRes.config) {
       setHasServerApiKey(serverRes.config.hasApiKey);
       setMaskedServerApiKey(serverRes.config.maskedApiKey || '');
-      setSmsApiKey(''); // Clear plaintext input after secure server save
+      if (serverRes.persistedOnServer !== false) {
+        setSmsApiKey('');
+      }
       setSmsSenderId(serverRes.config.senderId);
       setSmsMaskingEnabled(serverRes.config.maskingEnabled);
       if (serverRes.config.maskingEnabled) {
@@ -421,10 +423,10 @@ export const GatewaysAdminPanel: React.FC = () => {
         : `Sending live OTP via ${smsMaskingEnabled ? 'Masking' : 'Non-Masking'} (${resolvedSenderId})...`
     );
 
-    // Sync selected Masking / Non-Masking route to the active server runtime first
-    await saveUnifiedSmsConfig({
+    // Run atomic admin OTP test directly with the ticked Masking / Non-Masking route & key
+    const res = await testAdminSmsOtp({
+      phone: smsTargetPhone,
       providerId,
-      providerName: providerName.trim() || 'BulkSMS Dhaka',
       apiUrl: smsApiUrl.trim(),
       apiKey: smsApiKey.trim() || undefined,
       senderId: resolvedSenderId,
@@ -434,8 +436,6 @@ export const GatewaysAdminPanel: React.FC = () => {
       otpTemplate: activeTemplate,
       adminSecret,
     });
-
-    const res = await sendUnifiedSmsOtp(smsTargetPhone);
     if (res.ok) {
       setSendMsg(
         bn
@@ -630,17 +630,23 @@ export const GatewaysAdminPanel: React.FC = () => {
           </div>
 
           {!hasServerApiKey && (
-            <div className="p-3 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 rounded-2xl text-[11px] text-amber-900 dark:text-amber-200 font-bold leading-relaxed space-y-1">
-              <p>
+            <div className="p-3.5 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 rounded-2xl text-[11px] text-amber-950 dark:text-amber-100 leading-relaxed space-y-1.5">
+              <p className="font-extrabold">
                 {bn
-                  ? '⚠️ এই হোস্টিংয়ে এখনো SMS_API_KEY চালু নেই — তাই ওয়েব ও অ্যান্ড্রয়েড অ্যাপে ওটিপি যাচ্ছে না।'
-                  : '⚠️ SMS_API_KEY is not active on this server host yet — OTP SMS cannot be delivered.'}
+                  ? '⚠️ এই হোস্টিং সার্ভারে এখনো SMS_API_KEY সেট নেই — তাই সাধারণ লগইন ওটিপি যাচ্ছে না।'
+                  : '⚠️ SMS_API_KEY is not set in Vercel Production Environment Variables yet — customer OTPs will not send.'}
               </p>
               <p className="font-normal opacity-90">
                 {bn
-                  ? 'Vercel-এ হোস্ট করলে Vercel Dashboard → Settings → Environment Variables-এ SMS_API_KEY যোগ করে Redeploy করুন এবং BulkSMS Dhaka প্যানেলে IP Whitelist বন্ধ (OFF) রাখুন।'
-                  : 'On Vercel, add SMS_API_KEY in Project Settings → Environment Variables, redeploy, and keep IP Whitelist OFF in BulkSMS Dhaka.'}
+                  ? 'Vercel Dashboard → Project → Settings → Environment Variables (Production টিক দিয়ে) নিচের ভ্যালুগুলো হুবহু যোগ করে Redeploy করুন:'
+                  : 'In Vercel Dashboard → Project → Settings → Environment Variables (check Production), set these exact values and Redeploy:'}
               </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 font-mono text-[10px] bg-white/80 dark:bg-slate-900/70 p-2 rounded-xl border border-amber-200 dark:border-amber-800">
+                <div><span className="font-black">SMS_API_KEY</span> = your_bulksms_key</div>
+                <div><span className="font-black">SMS_MASKING_ENABLED</span> = {smsMaskingEnabled ? 'true' : 'false'}</div>
+                <div><span className="font-black">SMS_CALLER_ID</span> = {smsMaskingEnabled ? (maskingSenderId || 'MarketBD.Net') : (nonMaskingSenderId || '1234')}</div>
+                <div><span className="font-black">SMS_OTP_TEMPLATE</span> = Your MarketBD.Net OTP is {'{otp}'}</div>
+              </div>
             </div>
           )}
 

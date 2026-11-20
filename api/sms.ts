@@ -194,6 +194,13 @@ function normalizePhone(raw: string): string | null {
   return /^01[3-9]\d{8}$/.test(local) ? local : null;
 }
 
+function sanitizeCallerId(raw?: string): string {
+  const t = String(raw || '').trim();
+  if (!t) return '';
+  const cleaned = t.replace(/\s*\(.*$/, '').trim();
+  return /^[\x20-\x7E]+$/.test(cleaned) ? cleaned : (cleaned.match(/\d{4,15}/)?.[0] || '');
+}
+
 async function readRemoteConfig(): Promise<{
   template?: string;
   masking?: boolean;
@@ -515,7 +522,9 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
     const envApiUrl = (process.env.SMS_API_URL || '').trim();
     const apiUrl = smsStored.apiUrl || envApiUrl || (!envProviderId ? remote.apiUrl : '') || preset.defaultApiUrl;
 
-    const envSenderId = (process.env.SMS_SENDER_ID || process.env.SMS_CALLER_ID || '').trim();
+    const envSenderId = sanitizeCallerId(process.env.SMS_SENDER_ID || process.env.SMS_CALLER_ID);
+    const storedSenderId = sanitizeCallerId(smsStored.senderId);
+    const remoteSenderId = sanitizeCallerId(remote.senderId);
     const envMasking =
       process.env.SMS_MASKING_ENABLED === 'false'
         ? false
@@ -530,11 +539,11 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       false;
 
     const nonMaskingSender =
-      (smsStored.senderId && smsStored.senderId !== 'MarketBD.Net' ? smsStored.senderId : '') ||
+      (storedSenderId && storedSenderId !== 'MarketBD.Net' ? storedSenderId : '') ||
       (envSenderId && envSenderId !== 'MarketBD.Net' ? envSenderId : '') ||
       '1234';
     const senderId = masking
-      ? (smsStored.senderId || envSenderId || remote.senderId || 'MarketBD.Net')
+      ? (storedSenderId || envSenderId || remoteSenderId || 'MarketBD.Net')
       : nonMaskingSender;
 
     const envLive =
@@ -613,7 +622,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         providerName: String(body.providerName || preset.companyName).trim(),
         apiUrl: String(body.apiUrl || preset.defaultApiUrl).trim(),
         apiKey: nextApiKey,
-        senderId: String(body.senderId ?? smsStored.senderId ?? 'MarketBD.Net').trim(),
+        senderId: sanitizeCallerId(body.senderId ?? smsStored.senderId ?? '1234') || '1234',
         sid: String(body.sid ?? smsStored.sid ?? '').trim(),
         maskingEnabled: typeof body.maskingEnabled === 'boolean' ? body.maskingEnabled : (smsStored.maskingEnabled ?? true),
         isLiveMode: typeof body.isLiveMode === 'boolean' ? body.isLiveMode : (smsStored.isLiveMode ?? true),
@@ -742,6 +751,80 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
     }
 
     // ---- Admin-only actions ---------------------------------------------
+    if (action === 'admin_test_otp') {
+      if (!isAdminAuthorized(req, effectiveAdminSecret)) {
+        return res.status(401).json({ ok: false, error: 'অ্যাডমিন সিক্রেট ভুল বা সেট করা নেই।' });
+      }
+      const phone = normalizePhone(body.phone);
+      if (!phone) return res.status(400).json({ ok: false, error: 'সঠিক মোবাইল নম্বর দিন।' });
+
+      const cfg = await resolveActiveConfig();
+      const testKey = (typeof body.apiKey === 'string' && body.apiKey.trim() ? body.apiKey.trim() : effectiveApiKey).trim();
+      const testProviderId = (body.providerId as SmsProviderId) || cfg.providerId;
+      const testPreset = SMS_PROVIDER_PRESETS[testProviderId] || SMS_PROVIDER_PRESETS.custom;
+      const testApiUrl = String(body.apiUrl || cfg.apiUrl || testPreset.defaultApiUrl).trim();
+      const testMasking = typeof body.maskingEnabled === 'boolean' ? body.maskingEnabled : cfg.masking;
+      const rawTestSender = sanitizeCallerId(body.senderId) || cfg.senderId;
+      const testSender = testMasking
+        ? (rawTestSender || 'MarketBD.Net')
+        : (rawTestSender && rawTestSender !== 'MarketBD.Net' ? rawTestSender : '1234');
+      const testTemplate = String(body.otpTemplate || cfg.otpTemplate || DEFAULT_TEMPLATE).trim();
+      const testIsLive = typeof body.isLiveMode === 'boolean' ? body.isLiveMode : cfg.isLive;
+
+      if (testIsLive && !testKey) {
+        return res.status(503).json({
+          ok: false,
+          code: 'NOT_CONFIGURED',
+          error: 'Vercel Environment Variables-এ SMS_API_KEY সেট করা নেই (অথবা উপরের SMS API Key বক্সে কী দিয়ে টেস্ট করুন)।',
+        });
+      }
+
+      const code = String(randomInt(100000, 1000000));
+      let message = testTemplate.replace(/\{otp\}/gi, code);
+      if (message.length > 70) {
+        message = `Your MarketBD.Net OTP is ${code}`;
+      }
+
+      let usedCaller = testSender;
+      let usedEndpoint = 'otpsend';
+      if (testIsLive) {
+        const dispatched = await dispatchSmsByProvider({
+          providerId: testProviderId,
+          apiUrl: testApiUrl,
+          apiKey: testKey,
+          senderId: testSender,
+          sid: String(body.sid ?? cfg.sid ?? '').trim(),
+          phone,
+          message,
+          isOtp: true,
+          otpCode: code,
+        });
+        const g = dispatched.g;
+        usedCaller = dispatched.usedCaller;
+        usedEndpoint = (dispatched as any).usedEndpoint || 'otpsend';
+
+        if (!isOk(g.json, g.raw, g.httpStatus)) {
+          const hint = hintFor(g);
+          return res.status(502).json({
+            ok: false,
+            error: `টেস্ট OTP পাঠানো যায়নি (${hint})।`,
+            hint,
+            usedCaller,
+            usedEndpoint,
+            gateway: g.json || g.raw,
+          });
+        }
+      }
+
+      return res.status(200).json({
+        ok: true,
+        providerName: testPreset.companyName,
+        usedCaller,
+        usedEndpoint,
+        mode: testIsLive ? 'live' : 'sandbox',
+      });
+    }
+
     if (action === 'balance' || action === 'send_text') {
       if (!isAdminAuthorized(req, effectiveAdminSecret)) {
         return res.status(401).json({ ok: false, error: 'অ্যাডমিন সিক্রেট ভুল বা সেট করা নেই।' });
@@ -750,7 +833,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         return res.status(503).json({
           ok: false,
           code: 'NOT_CONFIGURED',
-          error: 'SMS API Key সেট করা নেই। নিচের SMS API Key বক্সে আপনার কী দিয়ে সেভ করুন।',
+          error: 'SMS API Key সেট করা নেই। Vercel Settings → Environment Variables-এ SMS_API_KEY যোগ করুন।',
         });
       }
 

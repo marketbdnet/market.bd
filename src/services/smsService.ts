@@ -215,6 +215,64 @@ export async function sendUnifiedSmsOtp(phone: string): Promise<UnifiedSmsOtpRes
   }
 }
 
+export async function testAdminSmsOtp(params: {
+  phone: string;
+  providerId: SmsProviderId;
+  apiUrl: string;
+  apiKey?: string;
+  senderId: string;
+  sid?: string;
+  maskingEnabled: boolean;
+  isLiveMode: boolean;
+  otpTemplate: string;
+  adminSecret?: string;
+}): Promise<UnifiedSmsOtpResult> {
+  try {
+    const secret =
+      params.adminSecret !== undefined
+        ? params.adminSecret
+        : storage.getItem('marketbd_sms_admin_secret') || '';
+    const { ok, data } = await postUnifiedSmsApi(
+      {
+        action: 'admin_test_otp',
+        phone: params.phone.trim(),
+        providerId: params.providerId,
+        apiUrl: params.apiUrl,
+        ...(params.apiKey ? { apiKey: params.apiKey } : {}),
+        senderId: params.senderId,
+        sid: params.sid || '',
+        maskingEnabled: params.maskingEnabled,
+        isLiveMode: params.isLiveMode,
+        otpTemplate: params.otpTemplate,
+      },
+      secret
+    );
+    if (!ok) {
+      return {
+        ok: false,
+        code: data?.code,
+        hint: data?.hint,
+        usedCaller: data?.usedCaller,
+        usedEndpoint: data?.usedEndpoint,
+        error: data?.error || 'Could not send test OTP.',
+      };
+    }
+    return {
+      ok: true,
+      providerName: data.providerName,
+      usedCaller: data.usedCaller,
+      usedEndpoint: data.usedEndpoint,
+      mode: data.mode,
+    };
+  } catch (err: any) {
+    return {
+      ok: false,
+      code: 'NETWORK_ERROR',
+      error: err?.message || 'Network error while testing OTP.',
+    };
+  }
+}
+
 /**
  * Single Unified Function: Verify OTP SMS code securely via /api/sms.
  */
