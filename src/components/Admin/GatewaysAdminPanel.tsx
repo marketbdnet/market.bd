@@ -268,9 +268,16 @@ export const GatewaysAdminPanel: React.FC = () => {
       { merge: true }
     );
 
+    if (serverRes.config) {
+      setSmsSenderId(serverRes.config.senderId);
+      setSmsMaskingEnabled(serverRes.config.maskingEnabled);
+      if (serverRes.config.otpTemplate) setOtpTemplate(serverRes.config.otpTemplate);
+    }
+
     if (serverRes.persistedOnServer === false || serverRes.warning) {
+      const prefix = serverRes.config?.hasApiKey ? 'ℹ️' : '⚠️';
       setSmsStatusMsg(
-        `⚠️ ${serverRes.warning || (bn ? 'Vercel-এ ফাইল Read-Only থাকায় Vercel Environment Variables-এ SMS_API_KEY সেট করুন।' : 'Read-only filesystem: Set SMS_API_KEY in Vercel Environment Variables.')}`
+        `${prefix} ${serverRes.warning || (bn ? 'Vercel-এ ফাইল Read-Only থাকায় Vercel Environment Variables-এ SMS_API_KEY সেট করুন।' : 'Read-only filesystem: Set SMS_API_KEY in Vercel Environment Variables.')}`
       );
       return;
     }

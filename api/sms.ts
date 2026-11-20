@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createHmac, randomInt, timingSafeEqual } from 'crypto';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 /**
@@ -105,36 +106,62 @@ export interface StoredGatewaySecrets {
 }
 
 const SECRETS_FILE = path.join(process.cwd(), '.gateway_secrets.json');
+const TMP_SECRETS_FILE = path.join(os.tmpdir(), '.marketbd_gateway_secrets.json');
 const FIRESTORE_CFG_URL =
   'https://firestore.googleapis.com/v1/projects/quantum-heading-1mbw7/databases/ai-studio-marketbd-58cc526e-10d5-498a-b77b-be2f1e9c76d1/documents/settings/sms_config';
 const DEFAULT_TEMPLATE = 'Your MarketBD.Net OTP is {otp}';
 const OTP_TTL_MS = 5 * 60 * 1000;
 
-function readSecretsFile(): StoredGatewaySecrets {
+function readJsonSafe(filePath: string): StoredGatewaySecrets {
   try {
-    if (fs.existsSync(SECRETS_FILE)) {
-      const raw = fs.readFileSync(SECRETS_FILE, 'utf-8');
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, 'utf-8');
       return JSON.parse(raw) || {};
     }
   } catch {
-    // Fallback cleanly in read-only runtimes
+    // Ignore unreadable file
   }
   return {};
 }
 
-function writeSecretsFile(next: StoredGatewaySecrets): boolean {
+function readSecretsFile(): StoredGatewaySecrets {
+  const base = readJsonSafe(SECRETS_FILE);
+  const tmp = TMP_SECRETS_FILE !== SECRETS_FILE ? readJsonSafe(TMP_SECRETS_FILE) : {};
+  const baseSmsTs = Date.parse(base.sms?.updatedAt || '') || 0;
+  const tmpSmsTs = Date.parse(tmp.sms?.updatedAt || '') || 0;
+  const sms = tmpSmsTs > baseSmsTs ? { ...(base.sms || {}), ...(tmp.sms || {}) } : { ...(tmp.sms || {}), ...(base.sms || {}) };
+  const basePayTs = Date.parse(base.payment?.updatedAt || '') || 0;
+  const tmpPayTs = Date.parse(tmp.payment?.updatedAt || '') || 0;
+  const payment =
+    tmpPayTs > basePayTs
+      ? { ...(base.payment || {}), ...(tmp.payment || {}) }
+      : { ...(tmp.payment || {}), ...(base.payment || {}) };
+  return {
+    ...(Object.keys(sms).length ? { sms } : {}),
+    ...(Object.keys(payment).length ? { payment } : {}),
+  };
+}
+
+function writeSecretsFile(next: StoredGatewaySecrets): { permanent: boolean; temp: boolean } {
+  const existing = readSecretsFile();
+  const merged: StoredGatewaySecrets = {
+    ...existing,
+    ...next,
+    sms: { ...(existing.sms || {}), ...(next.sms || {}) },
+    payment: { ...(existing.payment || {}), ...(next.payment || {}) },
+  };
+  const payload = JSON.stringify(merged, null, 2);
+
   try {
-    const existing = readSecretsFile();
-    const merged: StoredGatewaySecrets = {
-      ...existing,
-      ...next,
-      sms: { ...(existing.sms || {}), ...(next.sms || {}) },
-      payment: { ...(existing.payment || {}), ...(next.payment || {}) },
-    };
-    fs.writeFileSync(SECRETS_FILE, JSON.stringify(merged, null, 2), 'utf-8');
-    return true;
+    fs.writeFileSync(SECRETS_FILE, payload, 'utf-8');
+    return { permanent: true, temp: false };
   } catch {
-    return false;
+    try {
+      fs.writeFileSync(TMP_SECRETS_FILE, payload, 'utf-8');
+      return { permanent: false, temp: true };
+    } catch {
+      return { permanent: false, temp: false };
+    }
   }
 }
 
@@ -596,17 +623,22 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       };
 
       const persisted = writeSecretsFile({ sms: nextSms });
-      const activeKey = (nextSms.apiKey || process.env.SMS_API_KEY || '').trim();
+      const hasEnvApiKey = Boolean(
+        (process.env.SMS_API_KEY || process.env.BULKSMS_API_KEY || process.env.SMS_TOKEN || '').trim()
+      );
+      const tryingNewApiKey = typeof body.apiKey === 'string' && body.apiKey.trim().length > 0;
+      const activeKey = (nextSms.apiKey || process.env.SMS_API_KEY || process.env.BULKSMS_API_KEY || process.env.SMS_TOKEN || '').trim();
+
+      const readOnlyWarning =
+        hasEnvApiKey && !tryingNewApiKey
+          ? 'আপনার SMS_API_KEY Vercel-এ ইতিমধ্যেই সেট করা আছে ✅। বর্তমান সার্ভার সেশনে নতুন সেটিংস চালু হয়েছে; রিস্টার্ট বা পরের ডিপ্লয়ের পরও স্থায়ী রাখতে Vercel → Project Settings → Environment Variables-এ SMS_MASKING_ENABLED, SMS_CALLER_ID এবং SMS_OTP_TEMPLATE যোগ করুন।'
+          : 'এই হোস্টিংয়ের ফাইল সিস্টেম Read-Only (যেমন Vercel)। বর্তমান সেশনে চালু থাকলেও স্থায়ীভাবে সংরক্ষণ করতে Vercel → Project Settings → Environment Variables-এ SMS_API_KEY (এবং চাইলে SMS_MASKING_ENABLED, SMS_CALLER_ID, SMS_OTP_TEMPLATE) যোগ করে Redeploy করুন।';
 
       return res.status(200).json({
         ok: true,
-        persistedOnServer: persisted,
-        ...(persisted
-          ? {}
-          : {
-              warning:
-                'এই হোস্টিংয়ের ফাইল সিস্টেম Read-Only (যেমন Vercel)। স্থায়ীভাবে SMS চালু রাখতে Vercel → Project Settings → Environment Variables-এ SMS_API_KEY যোগ করে Redeploy করুন।',
-            }),
+        persistedOnServer: persisted.permanent,
+        savedInSession: persisted.temp,
+        ...(persisted.permanent ? {} : { warning: readOnlyWarning }),
         config: {
           providerId: nextSms.providerId,
           providerName: nextSms.providerName,
