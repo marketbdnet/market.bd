@@ -3184,6 +3184,7 @@ export const CategoryForms: React.FC = () => {
             setImageError('');
           }
         }}
+        onUseNativeCamera={() => cameraInputRef.current?.click()}
         language={language}
       />
 

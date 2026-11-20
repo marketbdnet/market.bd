@@ -1199,7 +1199,7 @@ export const Navbar: React.FC = () => {
           label: isLoggedIn
             ? language === 'bn'
               ? 'প্রোফাইল'
-              : 'Saved'
+              : 'Profile'
             : language === 'bn'
             ? 'লগ ইন'
             : 'Login',
