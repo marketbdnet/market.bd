@@ -1,10 +1,12 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import smsHandler, { SMS_PROVIDER_PRESETS } from '../api/sms';
 import paymentGatewayHandler from '../api/payment-gateway';
 
 const SECRETS_FILE = path.join(process.cwd(), '.gateway_secrets.json');
+const TMP_SECRETS_FILE = path.join(os.tmpdir(), '.marketbd_gateway_secrets.json');
 const hadSecretsBefore = fs.existsSync(SECRETS_FILE);
 const prevSecretsContent = hadSecretsBefore ? fs.readFileSync(SECRETS_FILE, 'utf-8') : null;
 
@@ -42,6 +44,9 @@ describe('Unified SMS Provider & Payment Gateway Config APIs', () => {
       fs.writeFileSync(SECRETS_FILE, prevSecretsContent, 'utf-8');
     } else if (fs.existsSync(SECRETS_FILE)) {
       fs.unlinkSync(SECRETS_FILE);
+    }
+    if (fs.existsSync(TMP_SECRETS_FILE)) {
+      fs.unlinkSync(TMP_SECRETS_FILE);
     }
   });
 
@@ -187,5 +192,36 @@ describe('Unified SMS Provider & Payment Gateway Config APIs', () => {
       else process.env.SMS_API_KEY = prevKey;
       if (prevSecrets !== null) fs.writeFileSync(SECRETS_FILE, prevSecrets, 'utf-8');
     }
+  });
+
+  it('switches cleanly between Non-Masking (1234) and Masking (MarketBD.Net) via save_config', async () => {
+    const saveNonMask = createMockRes();
+    await smsHandler(
+      {
+        method: 'POST',
+        headers: {},
+        body: {
+          action: 'save_config',
+          providerId: 'bulksmsdhaka',
+          providerName: 'BulkSMS Dhaka (bulksmsdhaka.net)',
+          apiUrl: 'https://bulksmsdhaka.net/api',
+          senderId: '1234',
+          maskingEnabled: false,
+          isLiveMode: true,
+          otpTemplate: 'Your MarketBD.Net OTP is {otp}',
+        },
+      },
+      saveNonMask.res
+    );
+
+    expect(saveNonMask.statusCode).toBe(200);
+    expect(saveNonMask.body.config.maskingEnabled).toBe(false);
+    expect(saveNonMask.body.config.senderId).toBe('1234');
+
+    const getNonMask = createMockRes();
+    await smsHandler({ method: 'POST', headers: {}, body: { action: 'get_config' } }, getNonMask.res);
+    expect(getNonMask.statusCode).toBe(200);
+    expect(getNonMask.body.config.maskingEnabled).toBe(false);
+    expect(getNonMask.body.config.senderId).toBe('1234');
   });
 });

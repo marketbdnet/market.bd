@@ -56,11 +56,17 @@ export const GatewaysAdminPanel: React.FC = () => {
   const [hasServerApiKey, setHasServerApiKey] = useState(false);
   const [maskedServerApiKey, setMaskedServerApiKey] = useState('');
   const [smsSenderId, setSmsSenderId] = useState(
-    storage.getItem('marketbd_sms_sender_id') || 'MarketBD.Net'
+    storage.getItem('marketbd_sms_sender_id') || '1234'
+  );
+  const [nonMaskingSenderId, setNonMaskingSenderId] = useState(
+    storage.getItem('marketbd_sms_non_masking_sender_id') || '1234'
+  );
+  const [maskingSenderId, setMaskingSenderId] = useState(
+    storage.getItem('marketbd_sms_masking_sender_id') || 'MarketBD.Net'
   );
   const [smsSid, setSmsSid] = useState(storage.getItem('marketbd_sms_sid') || '');
   const [smsMaskingEnabled, setSmsMaskingEnabled] = useState(
-    storage.getItem('marketbd_sms_masking_enabled') !== 'false'
+    storage.getItem('marketbd_sms_masking_enabled') === 'true'
   );
   const [smsIsLive, setSmsIsLive] = useState(storage.getItem('marketbd_live_mode') !== 'false');
   const [adminSecret, setAdminSecret] = useState(storage.getItem('marketbd_sms_admin_secret') || '');
@@ -128,6 +134,11 @@ export const GatewaysAdminPanel: React.FC = () => {
         setProviderName(c.providerName);
         setSmsApiUrl(c.apiUrl);
         setSmsSenderId(c.senderId);
+        if (c.maskingEnabled) {
+          setMaskingSenderId(c.senderId || 'MarketBD.Net');
+        } else {
+          setNonMaskingSenderId(c.senderId && c.senderId !== 'MarketBD.Net' ? c.senderId : '1234');
+        }
         setSmsSid(c.sid || '');
         setSmsMaskingEnabled(c.maskingEnabled);
         setSmsIsLive(c.isLiveMode);
@@ -141,7 +152,12 @@ export const GatewaysAdminPanel: React.FC = () => {
             if (d?.otpTemplate) setOtpTemplate(String(d.otpTemplate));
             if (typeof d?.maskingEnabled === 'boolean') setSmsMaskingEnabled(d.maskingEnabled);
             if (d?.providerName) setProviderName(String(d.providerName));
-            if (d?.senderId) setSmsSenderId(String(d.senderId));
+            if (d?.senderId) {
+              const sidVal = String(d.senderId);
+              setSmsSenderId(sidVal);
+              if (d?.maskingEnabled) setMaskingSenderId(sidVal);
+              else setNonMaskingSenderId(sidVal !== 'MarketBD.Net' ? sidVal : '1234');
+            }
           })
           .catch(() => {});
       }
@@ -187,6 +203,25 @@ export const GatewaysAdminPanel: React.FC = () => {
     storage.setItem('marketbd_sms_admin_secret', value);
   };
 
+  const handleSelectMaskingMode = (enableMasking: boolean) => {
+    setSmsMaskingEnabled(enableMasking);
+    const nextSender = enableMasking
+      ? (maskingSenderId.trim() || 'MarketBD.Net')
+      : (nonMaskingSenderId.trim() && nonMaskingSenderId.trim() !== 'MarketBD.Net' ? nonMaskingSenderId.trim() : '1234');
+    setSmsSenderId(nextSender);
+  };
+
+  const handleSenderIdChange = (val: string) => {
+    setSmsSenderId(val);
+    if (smsMaskingEnabled) {
+      setMaskingSenderId(val);
+      storage.setItem('marketbd_sms_masking_sender_id', val);
+    } else {
+      setNonMaskingSenderId(val);
+      storage.setItem('marketbd_sms_non_masking_sender_id', val);
+    }
+  };
+
   // Single Unified Save Handler (Provider + API Key + Masking + Live Mode + OTP Template)
   const handleSaveUnifiedSmsConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,7 +253,11 @@ export const GatewaysAdminPanel: React.FC = () => {
     }
 
     setSmsSaving(true);
-    const resolvedSenderId = smsMaskingEnabled ? (smsSenderId.trim() || 'MarketBD.Net') : '1234';
+    const resolvedSenderId = smsMaskingEnabled
+      ? (maskingSenderId.trim() || smsSenderId.trim() || 'MarketBD.Net')
+      : (nonMaskingSenderId.trim() && nonMaskingSenderId.trim() !== 'MarketBD.Net'
+          ? nonMaskingSenderId.trim()
+          : '1234');
 
     const serverRes = await saveUnifiedSmsConfig({
       providerId,
@@ -243,6 +282,14 @@ export const GatewaysAdminPanel: React.FC = () => {
       setHasServerApiKey(serverRes.config.hasApiKey);
       setMaskedServerApiKey(serverRes.config.maskedApiKey || '');
       setSmsApiKey(''); // Clear plaintext input after secure server save
+      setSmsSenderId(serverRes.config.senderId);
+      setSmsMaskingEnabled(serverRes.config.maskingEnabled);
+      if (serverRes.config.maskingEnabled) {
+        setMaskingSenderId(serverRes.config.senderId);
+      } else {
+        setNonMaskingSenderId(serverRes.config.senderId);
+      }
+      if (serverRes.config.otpTemplate) setOtpTemplate(serverRes.config.otpTemplate);
     }
 
     // Save non-secret flags locally & sync non-secret fields to Firestore
@@ -251,10 +298,15 @@ export const GatewaysAdminPanel: React.FC = () => {
     storage.setItem('marketbd_sms_api_url', smsApiUrl.trim());
     storage.setItem('marketbd_sms_masking_enabled', String(smsMaskingEnabled));
     storage.setItem('marketbd_sms_sender_id', resolvedSenderId);
+    if (smsMaskingEnabled) {
+      storage.setItem('marketbd_sms_masking_sender_id', resolvedSenderId);
+    } else {
+      storage.setItem('marketbd_sms_non_masking_sender_id', resolvedSenderId);
+    }
     storage.setItem('marketbd_sms_sid', smsSid.trim());
     storage.setItem('marketbd_live_mode', String(smsIsLive));
 
-    await safeFirestoreSetDoc(
+    const firestoreSaved = await safeFirestoreSetDoc(
       doc(db, 'settings', 'sms_config'),
       {
         providerId,
@@ -268,13 +320,7 @@ export const GatewaysAdminPanel: React.FC = () => {
       { merge: true }
     );
 
-    if (serverRes.config) {
-      setSmsSenderId(serverRes.config.senderId);
-      setSmsMaskingEnabled(serverRes.config.maskingEnabled);
-      if (serverRes.config.otpTemplate) setOtpTemplate(serverRes.config.otpTemplate);
-    }
-
-    if (serverRes.persistedOnServer === false || serverRes.warning) {
+    if (serverRes.persistedOnServer === false && !firestoreSaved) {
       const prefix = serverRes.config?.hasApiKey ? 'ℹ️' : '⚠️';
       setSmsStatusMsg(
         `${prefix} ${serverRes.warning || (bn ? 'Vercel-এ ফাইল Read-Only থাকায় Vercel Environment Variables-এ SMS_API_KEY সেট করুন।' : 'Read-only filesystem: Set SMS_API_KEY in Vercel Environment Variables.')}`
@@ -284,10 +330,10 @@ export const GatewaysAdminPanel: React.FC = () => {
 
     setSmsStatusMsg(
       bn
-        ? '✅ এসএমএস প্রোভাইডার, API Key ও ওটিপি সেটিংস সফলভাবে সংরক্ষিত হয়েছে!'
-        : '✅ SMS Provider, API Key & OTP settings saved securely!'
+        ? `✅ সংরক্ষিত হয়েছে! (${smsMaskingEnabled ? 'Masking' : 'Non-Masking'}: ${resolvedSenderId})`
+        : `✅ Saved! (${smsMaskingEnabled ? 'Masking' : 'Non-Masking'}: ${resolvedSenderId})`
     );
-    setTimeout(() => setSmsStatusMsg(''), 4500);
+    setTimeout(() => setSmsStatusMsg(''), 5000);
   };
 
   const handleClearSmsApiKey = async () => {
@@ -362,13 +408,39 @@ export const GatewaysAdminPanel: React.FC = () => {
       setSendMsg(bn ? '⚠️ টেস্ট OTP পাঠাতে মোবাইল নম্বর দিন।' : '⚠️ Enter a phone number to test OTP.');
       return;
     }
-    setSendMsg(bn ? 'লাইভ ওটিপি (OTP) পাঠানো হচ্ছে...' : 'Sending live test OTP...');
+    const resolvedSenderId = smsMaskingEnabled
+      ? (maskingSenderId.trim() || smsSenderId.trim() || 'MarketBD.Net')
+      : (nonMaskingSenderId.trim() && nonMaskingSenderId.trim() !== 'MarketBD.Net'
+          ? nonMaskingSenderId.trim()
+          : '1234');
+    const activeTemplate = /\{otp\}/i.test(otpTemplate) ? otpTemplate.trim() : DEFAULT_OTP_TEMPLATE;
+
+    setSendMsg(
+      bn
+        ? `${smsMaskingEnabled ? 'Masking' : 'Non-Masking'} (${resolvedSenderId}) দিয়ে লাইভ OTP পাঠানো হচ্ছে...`
+        : `Sending live OTP via ${smsMaskingEnabled ? 'Masking' : 'Non-Masking'} (${resolvedSenderId})...`
+    );
+
+    // Sync selected Masking / Non-Masking route to the active server runtime first
+    await saveUnifiedSmsConfig({
+      providerId,
+      providerName: providerName.trim() || 'BulkSMS Dhaka',
+      apiUrl: smsApiUrl.trim(),
+      apiKey: smsApiKey.trim() || undefined,
+      senderId: resolvedSenderId,
+      sid: smsSid.trim(),
+      maskingEnabled: smsMaskingEnabled,
+      isLiveMode: smsIsLive,
+      otpTemplate: activeTemplate,
+      adminSecret,
+    });
+
     const res = await sendUnifiedSmsOtp(smsTargetPhone);
     if (res.ok) {
       setSendMsg(
         bn
-          ? `✅ OTP পাঠানো সফল হয়েছে! (${res.providerName || providerName}, রুট: ${res.usedEndpoint || 'otpsend'}, Sender: ${res.usedCaller || '1234'})`
-          : `✅ Test OTP sent! (${res.providerName || providerName}, Route: ${res.usedEndpoint || 'otpsend'}, Sender: ${res.usedCaller || '1234'})`
+          ? `✅ OTP পাঠানো সফল হয়েছে! (মোড: ${smsMaskingEnabled ? 'Masking' : 'Non-Masking'}, Sender: ${res.usedCaller || resolvedSenderId}, রুট: ${res.usedEndpoint || 'otpsend'})`
+          : `✅ Test OTP sent! (Mode: ${smsMaskingEnabled ? 'Masking' : 'Non-Masking'}, Sender: ${res.usedCaller || resolvedSenderId}, Route: ${res.usedEndpoint || 'otpsend'})`
       );
     } else {
       setSendMsg(`❌ ${res.hint || res.error || 'OTP sending failed'}`);
@@ -675,59 +747,154 @@ export const GatewaysAdminPanel: React.FC = () => {
               </div>
             </div>
 
-            {/* Sender ID & Optional SID */}
-            <div className={`grid gap-2.5 ${selectedPreset?.requiresSid ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  🏷️ {bn ? 'Sender ID / Caller ID (মাস্কিং বা নম্বর)' : 'Sender ID / Caller ID'}
+            {/* Masking & Non-Masking Route Selector (Tick Cards) */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[11px] font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>{bn ? 'OTP রুট নির্বাচন করুন (Masking / Non-Masking টিক দিন)' : 'Select OTP Route (Tick Masking or Non-Masking)'}</span>
                 </label>
-                <input
-                  type="text"
-                  value={smsSenderId}
-                  onChange={e => setSmsSenderId(e.target.value)}
-                  placeholder="MarketBD.Net / 1234 / 88096..."
-                  className={`${inputCls} font-mono`}
-                />
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                  !smsMaskingEnabled
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                    : 'bg-pink-100 text-pink-800 dark:bg-pink-950 dark:text-pink-300'
+                }`}>
+                  {!smsMaskingEnabled ? (bn ? 'নন-মাসকিং চালু' : 'Non-Masking') : (bn ? 'মাসকিং চালু' : 'Masking')}
+                </span>
               </div>
-              {selectedPreset?.requiresSid && (
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Non-Masking Tick Card */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectMaskingMode(false)}
+                  aria-pressed={!smsMaskingEnabled}
+                  className={`text-left p-3 rounded-2xl border-2 transition cursor-pointer flex items-start gap-2.5 ${
+                    !smsMaskingEnabled
+                      ? 'border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/50 shadow-xs'
+                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs font-black shrink-0 ${
+                      !smsMaskingEnabled
+                        ? 'border-emerald-600 bg-emerald-600 text-white'
+                        : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-transparent'
+                    }`}
+                  >
+                    ✓
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                        {bn ? 'নন-মাসকিং (Non-Masking)' : 'Non-Masking'}
+                      </span>
+                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-600 text-white">
+                        {bn ? 'সহজ ও চালু' : 'Recommended'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-600 dark:text-slate-300 mt-0.5 leading-snug">
+                      {bn
+                        ? 'BTRC ব্র্যান্ড অনুমোদন ছাড়া 1234 বা নম্বর দিয়ে সরাসরি OTP পাঠাবে।'
+                        : 'Sends OTP directly via 1234 or virtual number without BTRC brand approval.'}
+                    </p>
+                  </div>
+                </button>
+
+                {/* Masking Tick Card */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectMaskingMode(true)}
+                  aria-pressed={smsMaskingEnabled}
+                  className={`text-left p-3 rounded-2xl border-2 transition cursor-pointer flex items-start gap-2.5 ${
+                    smsMaskingEnabled
+                      ? 'border-pink-500 bg-pink-50/90 dark:bg-pink-950/50 shadow-xs'
+                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs font-black shrink-0 ${
+                      smsMaskingEnabled
+                        ? 'border-pink-600 bg-pink-600 text-white'
+                        : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-transparent'
+                    }`}
+                  >
+                    ✓
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                        {bn ? 'মাসকিং (Masking Brand)' : 'Masking (Brand Name)'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-600 dark:text-slate-300 mt-0.5 leading-snug">
+                      {bn
+                        ? 'প্রোভাইডার থেকে Brand Name (যেমন MarketBD.Net) অনুমোদিত থাকলে টিক দিন।'
+                        : 'Tick only if your Brand Name (e.g. MarketBD.Net) is approved by your provider.'}
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Active Sender / Caller ID Input based on selected route */}
+              <div className={`grid gap-2.5 ${selectedPreset?.requiresSid ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    🆔 SID (SSL Wireless Stakeholder ID)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                      {smsMaskingEnabled
+                        ? bn
+                          ? '🏷️ অনুমোদিত Masking Sender ID'
+                          : '🏷️ Approved Masking Sender ID'
+                        : bn
+                        ? '📱 Non-Masking Caller ID (ডিফল্ট: 1234)'
+                        : '📱 Non-Masking Caller ID (default: 1234)'}
+                    </label>
+                    {!smsMaskingEnabled && nonMaskingSenderId !== '1234' && (
+                      <button
+                        type="button"
+                        onClick={() => handleSenderIdChange('1234')}
+                        className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
+                      >
+                        {bn ? '1234 বসান' : 'Use 1234'}
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
-                    value={smsSid}
-                    onChange={e => setSmsSid(e.target.value)}
-                    placeholder="e.g. MARKETBDBRAND"
+                    value={smsMaskingEnabled ? maskingSenderId : nonMaskingSenderId}
+                    onChange={e => handleSenderIdChange(e.target.value)}
+                    placeholder={smsMaskingEnabled ? 'MarketBD.Net' : '1234 বা 88096...'}
                     className={`${inputCls} font-mono`}
                   />
+                  {smsMaskingEnabled && (
+                    <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1 font-semibold">
+                      {bn
+                        ? '⚠️ ব্র্যান্ড মাসকিং অনুমোদিত না থাকলে গেটওয়ে ১০১১ এরর দেবে—সেক্ষেত্রে Non-Masking টিক দিন।'
+                        : '⚠️ If brand masking is not approved by BTRC/provider, OTP will fail—tick Non-Masking instead.'}
+                    </p>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Masking + Live Mode Toggles */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <label className="flex items-center justify-between gap-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 cursor-pointer select-none">
-                <span className="font-bold text-slate-800 dark:text-slate-100">
-                  {smsMaskingEnabled
-                    ? bn
-                      ? `মাসকিং: ${smsSenderId || 'MarketBD.Net'}`
-                      : `Masking: ${smsSenderId || 'MarketBD.Net'}`
-                    : bn
-                    ? 'নন-মাসকিং: 1234'
-                    : 'Non-masking: 1234'}
-                </span>
-                <input
-                  type="checkbox"
-                  checked={smsMaskingEnabled}
-                  onChange={e => setSmsMaskingEnabled(e.target.checked)}
-                  className="w-4 h-4 accent-emerald-600 cursor-pointer"
-                />
-              </label>
+                {selectedPreset?.requiresSid && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      🆔 SID (SSL Wireless Stakeholder ID)
+                    </label>
+                    <input
+                      type="text"
+                      value={smsSid}
+                      onChange={e => setSmsSid(e.target.value)}
+                      placeholder="e.g. MARKETBDBRAND"
+                      className={`${inputCls} font-mono`}
+                    />
+                  </div>
+                )}
+              </div>
 
-              <label className="flex items-center justify-between gap-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 cursor-pointer select-none">
+              {/* Live SMS Mode Toggle */}
+              <label className="flex items-center justify-between gap-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-900 cursor-pointer select-none">
                 <span className="font-bold text-slate-800 dark:text-slate-100">
-                  {bn ? 'লাইভ এসএমএস মোড' : 'Live SMS Mode'}
+                  {bn ? 'লাইভ এসএমএস মোড (Live OTP চালু)' : 'Live SMS Mode (Send Real OTPs)'}
                 </span>
                 <input
                   type="checkbox"
@@ -763,13 +930,24 @@ export const GatewaysAdminPanel: React.FC = () => {
 
             {/* OTP Template */}
             <div>
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-1 gap-2">
                 <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
                   ✉️ {bn ? 'ওটিপি মেসেজ টেমপ্লেট' : 'OTP Message Template'}
                 </label>
-                <span className="text-[10px] font-bold text-slate-500">
-                  ({otpTemplate.replace(/\{otp\}/gi, '123456').length}/70)
-                </span>
+                <div className="flex items-center gap-2">
+                  {otpTemplate !== DEFAULT_OTP_TEMPLATE && (
+                    <button
+                      type="button"
+                      onClick={() => setOtpTemplate(DEFAULT_OTP_TEMPLATE)}
+                      className="text-[10px] font-extrabold text-pink-600 dark:text-pink-400 hover:underline cursor-pointer"
+                    >
+                      {bn ? '১-লাইন ডিফল্ট বসান' : 'Use 1-Line Default'}
+                    </button>
+                  )}
+                  <span className="text-[10px] font-bold text-slate-500">
+                    ({otpTemplate.replace(/\{otp\}/gi, '123456').length}/70)
+                  </span>
+                </div>
               </div>
               <textarea
                 rows={2}
@@ -780,6 +958,13 @@ export const GatewaysAdminPanel: React.FC = () => {
               <p className="text-[10px] text-slate-500 mt-0.5">
                 {bn ? '{otp} লিখলে ৬ ডিজিটের কোড বসবে (সর্বোচ্চ ৭০ অক্ষর)।' : 'Use {otp} placeholder. Keep max 70 chars.'}
               </p>
+              {/[\n&]/.test(otpTemplate) && (
+                <p className="text-[10px] font-bold text-amber-700 dark:text-amber-300 mt-0.5">
+                  {bn
+                    ? '💡 পরামর্শ: একাধিক লাইন বা "&" চিহ্ন থাকলে কিছু গেটওয়ে OTP আটকে দেয়—১-লাইন টেমপ্লেট ব্যবহার করুন।'
+                    : '💡 Tip: Multiline text or "&" can be rejected by BulkSMS OTP endpoints—1-line template is safest.'}
+                </p>
+              )}
             </div>
 
             <button
@@ -794,8 +979,8 @@ export const GatewaysAdminPanel: React.FC = () => {
                     ? 'সেভ হচ্ছে...'
                     : 'Saving...'
                   : bn
-                  ? 'এসএমএস প্রোভাইডার, API Key ও ওটিপি সেভ করুন'
-                  : 'Save SMS Provider, API Key & OTP'}
+                  ? 'এসএমএস ও OTP রুট সেভ করুন'
+                  : 'Save SMS & OTP Route'}
               </span>
             </button>
 
@@ -806,6 +991,8 @@ export const GatewaysAdminPanel: React.FC = () => {
                     ? 'bg-red-50 dark:bg-red-950/70 border-red-300 dark:border-red-700 text-red-900 dark:text-red-200'
                     : smsStatusMsg.startsWith('⚠️')
                     ? 'bg-amber-50 dark:bg-amber-950/70 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200'
+                    : smsStatusMsg.startsWith('ℹ️')
+                    ? 'bg-sky-50 dark:bg-sky-950/70 border-sky-300 dark:border-sky-700 text-sky-900 dark:text-sky-200'
                     : 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200'
                 }`}
               >
