@@ -197,6 +197,9 @@ export interface ChatThread {
   seller: Seller;
   buyerId: string;
   buyerName: string;
+  buyerPhone?: string;
+  buyerEmail?: string;
+  isCustomerCare?: boolean;
   lastMessage: string;
   lastMessageTime: string;
   unreadCount: number;

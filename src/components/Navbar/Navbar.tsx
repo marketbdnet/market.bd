@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { useMarket } from '../../context/MarketContext';
 import { UserProfileModal } from '../Auth/UserProfileModal';
 import { LiveClockWidget } from '../Common/LiveClockWidget';
 import {
   MapPin,
   Search,
+  Plus,
   PlusCircle,
   Heart,
+  MessageCircle,
   MessageSquare,
   Sparkles,
   User,
@@ -69,8 +72,20 @@ export const Navbar: React.FC = () => {
   } = useMarket();
 
   const [searchInput, setSearchInput] = useState('');
+  const [isFloatingSearchOpen, setIsFloatingSearchOpen] = useState(false);
+  const floatingSearchInputRef = useRef<HTMLInputElement>(null);
+  const shouldReduceMotion = useReducedMotion();
 
-  const unreadChats = chatThreads.reduce((acc, t) => acc + t.unreadCount, 0);
+  useEffect(() => {
+    if (isFloatingSearchOpen) {
+      const timer = window.setTimeout(() => {
+        floatingSearchInputRef.current?.focus();
+      }, 80);
+      return () => window.clearTimeout(timer);
+    }
+  }, [isFloatingSearchOpen]);
+
+  const unreadChats = chatThreads.reduce((acc, t) => acc + Number(t?.unreadCount || 0), 0);
   const isAdmin = Boolean(isLoggedIn && (userRole === 'admin' || currentUser?.role === 'admin'));
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -1099,95 +1114,309 @@ export const Navbar: React.FC = () => {
         </div>
       )}
 
-    {/* Fixed Mobile Bottom Navigation Bar - Mounted directly to document root viewport */}
-    <nav
-      aria-label="Mobile Navigation"
-      className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 pt-1.5 pb-[max(8px,env(safe-area-inset-bottom))] px-3 flex items-center justify-between shadow-2xl md:hidden text-[10px] font-bold select-none"
-    >
-      {/* Home */}
-      <button
-        onClick={() => setActiveTab('home')}
-        className={`flex flex-col items-center gap-0.5 cursor-pointer ${
-          activeTab === 'home' ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'
-        }`}
-      >
-        <Home className="w-4 h-4" />
-        <span>{language === 'bn' ? 'হোম' : 'Home'}</span>
-      </button>
+    {/* Floating Mobile Search Pill & Animated Capsule Navigation Dock */}
+    {(() => {
+      const navTransition = shouldReduceMotion
+        ? { duration: 0.01 }
+        : { type: 'spring' as const, stiffness: 430, damping: 32, mass: 0.85 };
 
-      {/* All Ads */}
-      <button
-        onClick={() => {
-          setFilters(prev => ({ ...prev, category: '' }));
-          setActiveTab('search');
-        }}
-        className={`flex flex-col items-center gap-0.5 cursor-pointer ${
-          activeTab === 'search' ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'
-        }`}
-      >
-        <Search className="w-4 h-4" />
-        <span>{language === 'bn' ? 'সব বিজ্ঞাপন' : 'All Ads'}</span>
-      </button>
+      const activeMobileNavKey = isProfileModalOpen
+        ? 'profile'
+        : activeTab === 'home'
+        ? 'home'
+        : activeTab === 'search'
+        ? 'search'
+        : activeTab === 'post-ad'
+        ? 'create'
+        : activeTab === 'chat'
+        ? 'chat'
+        : activeTab === 'admin' && isAdmin
+        ? 'admin'
+        : activeTab === 'dashboard'
+        ? 'profile'
+        : '';
 
-      {/* Sell / Post Ad (Center Highlighted Floating Red Circle with Live Beacon & Label) */}
-      <button
-        onClick={handlePostAdClick}
-        className="flex flex-col items-center justify-center -mt-5 bg-gradient-to-r from-rose-600 via-pink-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white w-13 h-13 rounded-full shadow-lg border-2 border-white dark:border-slate-900 transition active:scale-95 cursor-pointer shrink-0 live-beacon-pulse relative"
-        title={language === 'bn' ? 'বিজ্ঞাপন দিন বা সেল করুন' : 'Sell / Post Ad'}
-      >
-        <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-90"></span>
-          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400 border border-white"></span>
-        </span>
-        <PlusCircle className="w-5 h-5 text-white stroke-[2.5]" />
-        <span className="text-[8.5px] font-black text-white whitespace-nowrap -mt-0.5">
-          {language === 'bn' ? 'সেল / এড পোস্ট' : 'Sell / Post Ad'}
-        </span>
-      </button>
+      const navItems: Array<{
+        key: string;
+        label: string;
+        icon: 'home' | 'search' | 'create' | 'chat' | 'admin' | 'profile';
+        badge?: number;
+        onClick: () => void;
+      }> = [
+        {
+          key: 'home',
+          label: language === 'bn' ? 'হোম' : 'Home',
+          icon: 'home',
+          onClick: () => {
+            setIsFloatingSearchOpen(false);
+            setActiveTab('home');
+          },
+        },
+        {
+          key: 'search',
+          label: language === 'bn' ? 'খুঁজুন' : 'Search',
+          icon: 'search',
+          onClick: () => {
+            setFilters(prev => ({ ...prev, category: '' }));
+            setIsFloatingSearchOpen(prev => (activeTab === 'search' ? !prev : true));
+            setActiveTab('search');
+          },
+        },
+        {
+          key: 'create',
+          label: language === 'bn' ? 'পোস্ট' : 'Create',
+          icon: 'create',
+          onClick: () => {
+            setIsFloatingSearchOpen(false);
+            handlePostAdClick();
+          },
+        },
+        {
+          key: 'chat',
+          label: language === 'bn' ? 'ইনবক্স' : 'Inbox',
+          icon: 'chat',
+          badge: unreadChats,
+          onClick: () => {
+            setIsFloatingSearchOpen(false);
+            setActiveTab('chat');
+          },
+        },
+        ...(isAdmin
+          ? [
+              {
+                key: 'admin',
+                label: language === 'bn' ? 'এডমিন' : 'Admin',
+                icon: 'admin' as const,
+                onClick: () => {
+                  setIsFloatingSearchOpen(false);
+                  setActiveTab('admin');
+                },
+              },
+            ]
+          : []),
+        {
+          key: 'profile',
+          label: isLoggedIn
+            ? language === 'bn'
+              ? 'প্রোফাইল'
+              : 'Saved'
+            : language === 'bn'
+            ? 'লগ ইন'
+            : 'Login',
+          icon: 'profile',
+          onClick: () => {
+            setIsFloatingSearchOpen(false);
+            if (isLoggedIn) {
+              setIsProfileModalOpen(true);
+            } else {
+              openAuthModal('general');
+            }
+          },
+        },
+      ];
 
-      {/* Chat / Support */}
-      <button
-        onClick={() => setActiveTab('chat')}
-        className={`flex flex-col items-center gap-0.5 cursor-pointer relative ${
-          activeTab === 'chat' ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'
-        }`}
-      >
-        <MessageSquare className="w-4 h-4" />
-        <span>{language === 'bn' ? 'চ্যাট' : 'Chat'}</span>
-        {unreadChats > 0 && (
-          <span className="absolute -top-1 right-0 bg-emerald-600 text-white font-bold text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center">
-            {unreadChats}
-          </span>
-        )}
-      </button>
+      const renderDockIcon = (
+        iconName: 'home' | 'search' | 'create' | 'chat' | 'admin' | 'profile',
+        isActive: boolean
+      ) => {
+        const cls = `w-[18px] h-[18px] transition-transform duration-200 ${
+          isActive ? 'scale-105 stroke-[2.3]' : 'stroke-[1.9]'
+        }`;
+        switch (iconName) {
+          case 'home':
+            return <Home className={cls} />;
+          case 'search':
+            return <Search className={cls} />;
+          case 'create':
+            return <Plus className={cls} />;
+          case 'chat':
+            return <MessageCircle className={cls} />;
+          case 'admin':
+            return <LayoutDashboard className={cls} />;
+          case 'profile':
+            return <User className={cls} />;
+        }
+      };
 
-      {/* Admin Panel (ONLY Visible if user is explicitly logged in as Admin) */}
-      {isAdmin && (
-        <button
-          onClick={() => {
-            setActiveTab('admin');
-          }}
-          className={`flex flex-col items-center gap-0.5 cursor-pointer ${
-            activeTab === 'admin' ? 'text-pink-500 font-extrabold' : 'text-slate-500 dark:text-slate-400 hover:text-pink-400'
-          }`}
-          title="Admin Panel"
-        >
-          <LayoutDashboard className="w-4 h-4 text-pink-500" />
-          <span className="text-[9px] font-black text-pink-500">{language === 'bn' ? 'এডমিন' : 'Admin'}</span>
-        </button>
-      )}
+      return (
+        <>
+          {/* Floating Dark Search Pill matching reference screenshot */}
+          <AnimatePresence>
+            {isFloatingSearchOpen && (
+              <motion.form
+                initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.96 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                onSubmit={e => {
+                  handleSearchSubmit(e);
+                  setIsFloatingSearchOpen(false);
+                }}
+                className="fixed bottom-[82px] left-3.5 right-3.5 mx-auto max-w-md z-50 md:hidden mb-[env(safe-area-inset-bottom)] h-12 px-3.5 rounded-full bg-[#151519]/95 backdrop-blur-xl border border-white/12 shadow-[0_14px_34px_rgba(0,0,0,0.48)] flex items-center gap-2.5"
+                role="search"
+                aria-label={language === 'bn' ? 'পণ্য খুঁজুন' : 'Search products'}
+              >
+                <Search className="w-4.5 h-4.5 text-[#DC2626] shrink-0" strokeWidth={2.4} />
+                <input
+                  ref={floatingSearchInputRef}
+                  type="text"
+                  value={searchInput}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setSearchInput(val);
+                    setFilters(prev => ({ ...prev, searchQuery: val }));
+                  }}
+                  placeholder={language === 'bn' ? 'যেকোনো পণ্য খুঁজুন...' : 'Search anything...'}
+                  className="flex-1 bg-transparent text-white placeholder:text-slate-400 text-xs sm:text-sm font-medium focus:outline-none min-w-0"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (searchInput.trim()) {
+                      setSearchInput('');
+                      setFilters(prev => ({ ...prev, searchQuery: '' }));
+                      floatingSearchInputRef.current?.focus();
+                    } else {
+                      setIsFloatingSearchOpen(false);
+                    }
+                  }}
+                  className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer shrink-0"
+                  aria-label={language === 'bn' ? 'বন্ধ বা পরিষ্কার করুন' : 'Clear or close search'}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </motion.form>
+            )}
+          </AnimatePresence>
 
-      {/* Account / Profile Modal Trigger */}
-      <button
-        onClick={() => (isLoggedIn ? setIsProfileModalOpen(true) : openAuthModal('general'))}
-        className={`flex flex-col items-center gap-0.5 cursor-pointer ${
-          activeTab === 'dashboard' ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'
-        }`}
-      >
-        <User className="w-4 h-4" />
-        <span>{isLoggedIn ? (language === 'bn' ? 'প্রোফাইল' : 'Profile') : (language === 'bn' ? 'লগ ইন' : 'Login')}</span>
-      </button>
-    </nav>
+          {/* Floating Animated Capsule Navigation Dock */}
+          <nav
+            aria-label="Mobile Navigation"
+            className="fixed bottom-2.5 left-3 right-3 mx-auto max-w-md z-50 md:hidden mb-[env(safe-area-inset-bottom)] select-none"
+          >
+            <div
+              className={`relative rounded-full transition-colors duration-300 ${
+                isDarkMode
+                  ? 'bg-[#141418]/95 border border-white/10 shadow-[0_16px_40px_-6px_rgba(0,0,0,0.82)] px-2 pt-1.5 pb-2 overflow-hidden backdrop-blur-xl'
+                  : 'bg-white/95 border border-slate-200/90 shadow-[0_14px_36px_-6px_rgba(15,23,42,0.22)] p-1.5 backdrop-blur-xl'
+              }`}
+            >
+              {/* Dark mode bottom continuous crimson accent rail */}
+              {isDarkMode && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute bottom-0 inset-x-4 h-[2px] rounded-full bg-gradient-to-r from-transparent via-[#DC2626] to-transparent opacity-90"
+                />
+              )}
+
+              <div className="relative flex items-center justify-between gap-0.5">
+                {navItems.map(item => {
+                  const isActive = activeMobileNavKey === item.key;
+
+                  return (
+                    <motion.button
+                      key={item.key}
+                      type="button"
+                      onClick={item.onClick}
+                      whileTap={shouldReduceMotion ? undefined : { scale: 0.93 }}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`relative flex-1 min-w-0 min-h-[48px] flex flex-col items-center justify-center gap-0.5 rounded-full px-1 cursor-pointer focus:outline-none ${
+                        isDarkMode
+                          ? isActive
+                            ? 'text-[#FF2E4C]'
+                            : 'text-slate-200/85 hover:text-white'
+                          : isActive
+                          ? 'text-white'
+                          : 'text-slate-700 hover:text-[#B91C1C]'
+                      }`}
+                    >
+                      {/* Light Mode Sliding Crimson Pill Indicator */}
+                      {!isDarkMode && isActive && (
+                        <motion.span
+                          layoutId="mobileNavActivePill"
+                          transition={navTransition}
+                          aria-hidden="true"
+                          className="absolute inset-0 rounded-full bg-gradient-to-b from-[#DC2626] to-[#B91C1C] shadow-[0_6px_16px_rgba(220,38,38,0.42)]"
+                        />
+                      )}
+
+                      {/* Dark Mode Glowing Crimson Bell-Curve Wave Indicator */}
+                      {isDarkMode && isActive && (
+                        <motion.span
+                          layoutId="mobileNavActiveWave"
+                          transition={navTransition}
+                          aria-hidden="true"
+                          className="pointer-events-none absolute -inset-y-1 inset-x-0 flex items-end justify-center overflow-hidden"
+                        >
+                          <svg
+                            viewBox="0 0 100 56"
+                            preserveAspectRatio="none"
+                            className="w-full h-full"
+                          >
+                            <defs>
+                              <linearGradient id="navWaveGlow" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#FF1E42" stopOpacity="0.28" />
+                                <stop offset="100%" stopColor="#DC2626" stopOpacity="0.04" />
+                              </linearGradient>
+                            </defs>
+                            <path
+                              d="M0,54 C18,54 24,8 50,8 C76,8 82,54 100,54 L100,56 L0,56 Z"
+                              fill="url(#navWaveGlow)"
+                            />
+                            <path
+                              d="M2,54 C19,54 25,8 50,8 C75,8 81,54 98,54"
+                              fill="none"
+                              stroke="#FF1E42"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </motion.span>
+                      )}
+
+                      {/* Icon + Optional Unread Notification Dot */}
+                      <span className="relative z-10 inline-flex items-center justify-center">
+                        {renderDockIcon(item.icon, isActive)}
+                        {item.badge !== undefined && item.badge > 0 && (
+                          <span
+                            className={`absolute -top-1 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full text-[8px] font-black flex items-center justify-center border ${
+                              !isDarkMode && isActive
+                                ? 'bg-white text-[#DC2626] border-[#DC2626]'
+                                : 'bg-[#FF1E42] text-white border-white dark:border-[#141418]'
+                            }`}
+                          >
+                            {item.badge > 9 ? '9+' : item.badge}
+                          </span>
+                        )}
+                      </span>
+
+                      {/* Crisp Label */}
+                      <span
+                        className={`relative z-10 text-[10px] leading-tight truncate max-w-full transition-colors ${
+                          isActive ? 'font-extrabold' : 'font-semibold'
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+
+                      {/* Dark mode glowing center dot */}
+                      {isDarkMode && isActive && (
+                        <motion.span
+                          layoutId="mobileNavDarkDot"
+                          transition={navTransition}
+                          aria-hidden="true"
+                          className="relative z-10 w-1 h-1 rounded-full bg-[#FF1E42] shadow-[0_0_8px_#FF1E42]"
+                        />
+                      )}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+          </nav>
+        </>
+      );
+    })()}
 
     {/* Global User Profile Edit & Deactivate Modal */}
     <UserProfileModal

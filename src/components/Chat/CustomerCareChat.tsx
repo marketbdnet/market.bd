@@ -7,7 +7,8 @@ import {
   HelpCircle,
   ChevronRight,
   Phone,
-  Mail
+  Mail,
+  MessageSquare
 } from 'lucide-react';
 
 interface HelpEntry {
@@ -66,7 +67,17 @@ const HELP_TOPICS = [
 ];
 
 export const CustomerCareChat: React.FC = () => {
-  const { language, isCustomerCareOpen, setIsCustomerCareOpen, systemNotice } = useMarket();
+  const {
+    language,
+    isCustomerCareOpen,
+    setIsCustomerCareOpen,
+    systemNotice,
+    isLoggedIn,
+    currentUser,
+    openAuthModal,
+    openChatWithCustomer,
+    setActiveTab
+  } = useMarket();
 
   const [entries, setEntries] = useState<HelpEntry[]>([
     {
@@ -257,6 +268,26 @@ export const CustomerCareChat: React.FC = () => {
             <span>{language === 'bn' ? 'পাঠান' : 'Send'}</span>
           </button>
         </form>
+
+        <button
+          type="button"
+          onClick={() => {
+            setIsCustomerCareOpen(false);
+            if (!isLoggedIn || !currentUser) {
+              openAuthModal('chat');
+              return;
+            }
+            if (currentUser.role === 'admin' || currentUser.id === 'admin-master') {
+              setActiveTab('chat');
+            } else {
+              openChatWithCustomer(currentUser);
+            }
+          }}
+          className="w-full py-2 px-3 bg-gradient-to-r from-[#FF0000] to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-black text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer"
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>{language === 'bn' ? 'সরাসরি ইনবক্সে লাইভ চ্যাট করুন' : 'Start Live Inbox Chat'}</span>
+        </button>
 
         <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">
           <a href={`tel:${systemNotice?.contactPhone || '01533830784'}`} className="flex items-center gap-1 hover:text-emerald-600">

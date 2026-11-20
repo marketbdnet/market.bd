@@ -32,13 +32,16 @@
     },
     "ChatThread": {
       "title": "Chat Thread",
-      "description": "Buyer-seller product conversation container",
+      "description": "Buyer-seller and customer care conversation container",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
         "productId": { "type": "string", "maxLength": 128 },
         "buyerId": { "type": "string", "maxLength": 128 },
-        "buyerName": { "type": "string", "maxLength": 100 },
+        "buyerName": { "type": "string", "maxLength": 120 },
+        "buyerPhone": { "type": "string", "maxLength": 30 },
+        "buyerEmail": { "type": "string", "maxLength": 150 },
+        "isCustomerCare": { "type": "boolean" },
         "lastMessage": { "type": "string", "maxLength": 2000 },
         "lastMessageTime": { "type": "string", "maxLength": 64 }
       },

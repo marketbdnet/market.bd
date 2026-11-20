@@ -120,4 +120,72 @@ describe('Unified SMS Provider & Payment Gateway Config APIs', () => {
     expect(JSON.stringify(mockSave.body)).not.toContain('bkash-super-secret-5544');
     expect(JSON.stringify(mockSave.body)).not.toContain('ssl-pass-3322');
   });
+
+  it('falls back to non-masking callerID 1234 and clean single-line OTP on BulkSMS Dhaka rejection', async () => {
+    const prevFetch = globalThis.fetch;
+    const prevSecrets = fs.existsSync(SECRETS_FILE) ? fs.readFileSync(SECRETS_FILE, 'utf-8') : null;
+    if (fs.existsSync(SECRETS_FILE)) fs.unlinkSync(SECRETS_FILE);
+
+    const calls: string[] = [];
+    (globalThis as any).fetch = async (url: string) => {
+      calls.push(String(url));
+      if (String(url).includes('settings/sms_config')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => '{}',
+          json: async () => ({
+            fields: {
+              maskingEnabled: { booleanValue: true },
+              otpTemplate: { stringValue: 'Buy Sell & Exchange\nIn Bangladesh\nMarketBD.Net \nOTP is {otp}' },
+            },
+          }),
+        };
+      }
+      if (String(url).includes('callerID=MarketBD.Net')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ Status: '1011', Success: 'false', Message: 'Sender ID not approved' }),
+        };
+      }
+      if (String(url).includes('Buy+Sell')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ Status: '1006', Success: 'false', Message: 'Content Validation Error' }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ Status: '1000', Success: 'true', Message: 'Your OTP Send Successful!!' }),
+      };
+    };
+
+    const prevKey = process.env.SMS_API_KEY;
+    process.env.SMS_API_KEY = 'unit-test-live-key';
+
+    try {
+      const mockOtp = createMockRes();
+      await smsHandler(
+        {
+          method: 'POST',
+          headers: {},
+          body: { action: 'send_otp', phone: '01711223344' },
+        },
+        mockOtp.res
+      );
+
+      expect(mockOtp.statusCode).toBe(200);
+      expect(mockOtp.body.ok).toBe(true);
+      expect(mockOtp.body.usedCaller).toBe('1234');
+      expect(calls.some(c => c.includes('callerID=1234') && c.includes('Your+MarketBD.Net+OTP+is+'))).toBe(true);
+    } finally {
+      (globalThis as any).fetch = prevFetch;
+      if (prevKey === undefined) delete process.env.SMS_API_KEY;
+      else process.env.SMS_API_KEY = prevKey;
+      if (prevSecrets !== null) fs.writeFileSync(SECRETS_FILE, prevSecrets, 'utf-8');
+    }
+  });
 });

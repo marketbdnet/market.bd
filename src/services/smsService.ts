@@ -60,6 +60,8 @@ export interface UnifiedSmsOtpResult {
   hint?: string;
   error?: string;
   providerName?: string;
+  usedCaller?: string;
+  usedEndpoint?: string;
   mode?: string;
 }
 
@@ -190,6 +192,8 @@ export async function sendUnifiedSmsOtp(phone: string): Promise<UnifiedSmsOtpRes
         ok: false,
         code: data?.code,
         hint: data?.hint,
+        usedCaller: data?.usedCaller,
+        usedEndpoint: data?.usedEndpoint,
         error: data?.error || 'Could not send OTP. Please try again.',
       };
     }
@@ -198,6 +202,8 @@ export async function sendUnifiedSmsOtp(phone: string): Promise<UnifiedSmsOtpRes
       token: data.token,
       exp: data.exp,
       providerName: data.providerName,
+      usedCaller: data.usedCaller,
+      usedEndpoint: data.usedEndpoint,
       mode: data.mode,
     };
   } catch (err: any) {

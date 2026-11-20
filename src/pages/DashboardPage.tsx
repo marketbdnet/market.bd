@@ -20,7 +20,8 @@ import {
   ArrowLeft,
   Edit3,
   Check,
-  LogOut
+  LogOut,
+  MessageSquare
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
@@ -37,8 +38,11 @@ export const DashboardPage: React.FC = () => {
     openDeleteModal,
     setEditingAd,
     goBack,
-    renewAd
+    renewAd,
+    chatThreads
   } = useMarket();
+
+  const unreadChatCount = (chatThreads || []).reduce((sum, t) => sum + Number(t?.unreadCount || 0), 0);
 
   const [dashboardTab, setDashboardTab] = useState<'my-ads' | 'wishlist' | 'notifs' | 'verification'>('my-ads');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending' | 'rejected' | 'sold' | 'expired'>('all');
@@ -105,6 +109,20 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setActiveTab('chat')}
+            className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black px-4 py-3 rounded-2xl shadow transition text-xs flex items-center gap-1.5 cursor-pointer border border-emerald-400/50 relative"
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>{language === 'bn' ? 'কাস্টমার চ্যাট' : 'Customer Chat'}</span>
+            {unreadChatCount > 0 && (
+              <span className="ml-0.5 bg-yellow-400 text-emerald-950 font-black text-[10px] px-1.5 py-0.5 rounded-full">
+                {unreadChatCount}
+              </span>
+            )}
+          </button>
+
           {/* Prominent LogOut Button */}
           <button
             onClick={logout}

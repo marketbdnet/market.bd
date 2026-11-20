@@ -132,9 +132,11 @@ export const ProductDetailModal: React.FC = () => {
   };
 
   const handleStartChat = () => {
-    openChatForProduct(selectedProduct);
-    setSelectedProduct(null);
-    logUserActivity('Started Chat', selectedProduct.title, selectedProduct.id);
+    const tid = openChatForProduct(selectedProduct);
+    if (tid) {
+      setSelectedProduct(null);
+      logUserActivity('Started Chat', selectedProduct.title, selectedProduct.id);
+    }
   };
 
   const handleReportSubmit = (e: React.FormEvent) => {
@@ -170,7 +172,10 @@ export const ProductDetailModal: React.FC = () => {
     if (!amount || amount <= 0) return;
 
     const threadId = openChatForProduct(selectedProduct);
-    if (!threadId) return; // not logged in — auth modal was opened instead
+    if (!threadId) {
+      setShowOfferModal(false);
+      return; // not logged in — auth modal was opened instead
+    }
     sendMessage(
       threadId,
       `${language === 'bn' ? 'অফার পাঠানো হয়েছে:' : 'Offer sent:'} ৳${amount.toLocaleString()}`,
@@ -714,10 +719,8 @@ export const ProductDetailModal: React.FC = () => {
 
                 {/* Live Chat */}
                 <button
-                  onClick={() => {
-                    openChatForProduct(selectedProduct);
-                    setSelectedProduct(null);
-                  }}
+                  type="button"
+                  onClick={handleStartChat}
                   className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-700 transition flex items-center justify-center gap-2 text-sm cursor-pointer"
                 >
                   <MessageSquare className="w-4 h-4 text-pink-600 dark:text-pink-400" />

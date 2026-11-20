@@ -63,16 +63,18 @@ export const ChatDrawer: React.FC = () => {
     userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight >= 80;
   };
 
+  const activeMessages = Array.isArray(activeChat?.messages) ? activeChat.messages : [];
+
   useEffect(() => {
     if (messagesContainerRef.current && !userScrolledUpRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
-  }, [activeChat?.messages?.length]);
+  }, [activeMessages.length]);
 
   useEffect(() => {
     userScrolledUpRef.current = false;
     setConfirmDeleteId(null);
-    if (activeChat?.id && activeChat.unreadCount > 0) {
+    if (activeChat?.id && Number(activeChat.unreadCount || 0) > 0) {
       markChatThreadRead(activeChat.id);
     }
     if (messagesContainerRef.current) {
@@ -81,15 +83,17 @@ export const ChatDrawer: React.FC = () => {
   }, [activeChat?.id]);
 
   const getCounterpartName = (thread: typeof chatThreads[number]) => {
+    const isAdminViewer = currentUser?.role === 'admin' || currentUser?.id === 'admin-master';
     const isViewerSeller =
       Boolean(currentUser?.id && thread.seller?.id === currentUser.id) ||
+      Boolean(isAdminViewer && (thread.isCustomerCare || thread.seller?.id === 'admin-master')) ||
       Boolean(
         currentUser?.phone &&
           thread.seller?.phone &&
           currentUser.phone.replace(/\D/g, '') === thread.seller.phone.replace(/\D/g, '')
       );
     if (isViewerSeller) {
-      return thread.buyerName || (language === 'bn' ? 'ক্রেতা' : 'Buyer');
+      return thread.buyerName || thread.buyerPhone || (language === 'bn' ? 'ক্রেতা' : 'Buyer');
     }
     return thread.seller?.name || (language === 'bn' ? 'বিক্রেতা' : 'Seller');
   };
@@ -116,7 +120,7 @@ export const ChatDrawer: React.FC = () => {
     }
   }, [activeChat, visibleThreads.length]);
 
-  const unreadTotal = chatThreads.filter(t => t.unreadCount > 0).length;
+  const unreadTotal = chatThreads.filter(t => Number(t.unreadCount || 0) > 0).length;
 
   const processImageFile = (file: File) => {
     if (file && file.type.startsWith('image/')) {
@@ -239,8 +243,11 @@ export const ChatDrawer: React.FC = () => {
                   >
                     <div className="relative shrink-0">
                       <img
-                        src={thread.productImage}
-                        alt={thread.productTitle}
+                        src={thread.productImage || '/logo.jpg'}
+                        alt={thread.productTitle || 'Chat'}
+                        onError={e => {
+                          (e.currentTarget as HTMLImageElement).src = '/logo.jpg';
+                        }}
                         className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-slate-700 bg-slate-100"
                       />
                       {isUnread && (
@@ -293,17 +300,32 @@ export const ChatDrawer: React.FC = () => {
                   {language === 'bn' ? 'এখনো কোনো মেসেজ নেই' : 'No conversations yet'}
                 </p>
                 <p className="text-[11px] text-slate-400">
-                  {language === 'bn'
-                    ? 'যেকোনো বিজ্ঞাপনে গিয়ে "চ্যাট করুন" বাটনে ক্লিক করলে এখানে কথোপকথন শুরু হবে।'
+                  {currentUser?.role === 'admin' || currentUser?.id === 'admin-master'
+                    ? language === 'bn'
+                      ? 'এডমিন প্যানেলের "কাস্টমার ম্যানেজমেন্ট" থেকে যেকোনো কাস্টমারের পাশে চ্যাট বাটনে ক্লিক করে সরাসরি মেসেজ শুরু করুন।'
+                      : 'Open Admin Customer Management and tap Chat next to any customer to message them directly.'
+                    : language === 'bn'
+                    ? 'যেকোনো বিজ্ঞাপনে গিয়ে "সরাসরি চ্যাট করুন" বাটনে ক্লিক করলে এখানে কথোপকথন শুরু হবে।'
                     : 'Open any ad and tap Chat to message the seller directly.'}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('home')}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition cursor-pointer"
-                >
-                  {language === 'bn' ? 'বিজ্ঞাপন দেখুন' : 'Browse Ads'}
-                </button>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {(currentUser?.role === 'admin' || currentUser?.id === 'admin-master') && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('admin')}
+                      className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+                    >
+                      {language === 'bn' ? 'কাস্টমার তালিকা দেখুন' : 'View Customers'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('home')}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+                  >
+                    {language === 'bn' ? 'বিজ্ঞাপন দেখুন' : 'Browse Ads'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -336,9 +358,12 @@ export const ChatDrawer: React.FC = () => {
                   </button>
 
                   <img
-                    src={activeChat.productImage}
+                    src={activeChat.productImage || '/logo.jpg'}
                     alt=""
                     onClick={handleViewAd}
+                    onError={e => {
+                      (e.currentTarget as HTMLImageElement).src = '/logo.jpg';
+                    }}
                     className="w-10 h-10 rounded-xl object-cover shrink-0 border border-slate-200 dark:border-slate-700 cursor-pointer"
                   />
 
@@ -456,12 +481,12 @@ export const ChatDrawer: React.FC = () => {
                 onScroll={handleContainerScroll}
                 className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-2.5 bg-slate-50 dark:bg-slate-950/40"
               >
-                {activeChat.messages.length === 0 ? (
+                {activeMessages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2">
                     <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
                       {language === 'bn'
-                        ? `"${activeChat.productTitle}" নিয়ে আলোচনা শুরু করুন`
-                        : `Start chatting about "${activeChat.productTitle}"`}
+                        ? `"${activeChat.productTitle || 'চ্যাট'}" নিয়ে আলোচনা শুরু করুন`
+                        : `Start chatting about "${activeChat.productTitle || 'Chat'}"`}
                     </p>
                     <p className="text-[11px] text-slate-400">
                       {language === 'bn'
@@ -470,7 +495,7 @@ export const ChatDrawer: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  activeChat.messages.map(msg => {
+                  activeMessages.map(msg => {
                     const isMe = isOwnChatMessage(msg, activeChat, currentUser);
                     return (
                       <div

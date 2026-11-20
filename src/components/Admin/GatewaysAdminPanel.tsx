@@ -26,6 +26,7 @@ import {
   fetchUnifiedSmsBalance,
   fetchUnifiedSmsConfig,
   saveUnifiedSmsConfig,
+  sendUnifiedSmsOtp,
   sendUnifiedSmsText,
 } from '../../services/smsService';
 import {
@@ -118,7 +119,7 @@ export const GatewaysAdminPanel: React.FC = () => {
   // 4. Expiry Run State
   const [expirySummary, setExpirySummary] = useState('');
 
-  // Load initial configuration from server API + Firestore non-secret mirror
+  // Load initial configuration from authoritative server API; use Firestore only as fallback
   useEffect(() => {
     fetchUnifiedSmsConfig().then(res => {
       if (res.ok && res.config) {
@@ -133,6 +134,16 @@ export const GatewaysAdminPanel: React.FC = () => {
         setOtpTemplate(c.otpTemplate || DEFAULT_OTP_TEMPLATE);
         setHasServerApiKey(c.hasApiKey);
         setMaskedServerApiKey(c.maskedApiKey || '');
+      } else {
+        getDoc(doc(db, 'settings', 'sms_config'))
+          .then(snap => {
+            const d = snap.data();
+            if (d?.otpTemplate) setOtpTemplate(String(d.otpTemplate));
+            if (typeof d?.maskingEnabled === 'boolean') setSmsMaskingEnabled(d.maskingEnabled);
+            if (d?.providerName) setProviderName(String(d.providerName));
+            if (d?.senderId) setSmsSenderId(String(d.senderId));
+          })
+          .catch(() => {});
       }
     });
 
@@ -156,16 +167,6 @@ export const GatewaysAdminPanel: React.FC = () => {
         setMaskedSslPass(p.maskedSslPassword);
       }
     });
-
-    getDoc(doc(db, 'settings', 'sms_config'))
-      .then(snap => {
-        const d = snap.data();
-        if (d?.otpTemplate) setOtpTemplate(String(d.otpTemplate));
-        if (typeof d?.maskingEnabled === 'boolean') setSmsMaskingEnabled(d.maskingEnabled);
-        if (d?.providerName) setProviderName(String(d.providerName));
-        if (d?.senderId) setSmsSenderId(String(d.senderId));
-      })
-      .catch(() => {});
   }, []);
 
   const handleProviderSelect = (nextId: SmsProviderId) => {
@@ -346,6 +347,24 @@ export const GatewaysAdminPanel: React.FC = () => {
       );
     } else {
       setSendMsg(`❌ ${res.hint || res.error || 'SMS sending failed'}`);
+    }
+  };
+
+  const handleTestUnifiedOtp = async () => {
+    if (!smsTargetPhone.trim()) {
+      setSendMsg(bn ? '⚠️ টেস্ট OTP পাঠাতে মোবাইল নম্বর দিন।' : '⚠️ Enter a phone number to test OTP.');
+      return;
+    }
+    setSendMsg(bn ? 'লাইভ ওটিপি (OTP) পাঠানো হচ্ছে...' : 'Sending live test OTP...');
+    const res = await sendUnifiedSmsOtp(smsTargetPhone);
+    if (res.ok) {
+      setSendMsg(
+        bn
+          ? `✅ OTP পাঠানো সফল হয়েছে! (${res.providerName || providerName}, রুট: ${res.usedEndpoint || 'otpsend'}, Sender: ${res.usedCaller || '1234'})`
+          : `✅ Test OTP sent! (${res.providerName || providerName}, Route: ${res.usedEndpoint || 'otpsend'}, Sender: ${res.usedCaller || '1234'})`
+      );
+    } else {
+      setSendMsg(`❌ ${res.hint || res.error || 'OTP sending failed'}`);
     }
   };
 
@@ -884,14 +903,24 @@ export const GatewaysAdminPanel: React.FC = () => {
               placeholder={bn ? 'এখানে মেসেজ লিখুন...' : 'Type your message...'}
               className={inputCls}
             />
-            <button
-              type="button"
-              onClick={handleSendUnifiedSms}
-              className="w-full py-2 bg-pink-700 hover:bg-pink-800 text-white font-bold rounded-xl text-xs cursor-pointer flex items-center justify-center gap-1.5"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>{bn ? 'এসএমএস পাঠান' : 'Send SMS'}</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleSendUnifiedSms}
+                className="py-2 bg-pink-700 hover:bg-pink-800 text-white font-bold rounded-xl text-xs cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{bn ? 'এসএমএস পাঠান' : 'Send SMS'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleTestUnifiedOtp}
+                className="py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>{bn ? 'ওটিপি টেস্ট করুন' : 'Test OTP'}</span>
+              </button>
+            </div>
             {sendMsg && <p className="text-[11px] font-bold text-pink-700 dark:text-pink-300">{sendMsg}</p>}
           </div>
         </div>

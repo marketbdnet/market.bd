@@ -29,7 +29,8 @@ import {
   Edit,
   X,
   FileText,
-  UserPlus
+  UserPlus,
+  MessageSquare
 } from 'lucide-react';
 
 export const CustomerManagementAdminPanel: React.FC = () => {
@@ -43,7 +44,8 @@ export const CustomerManagementAdminPanel: React.FC = () => {
     updateRegisteredUser,
     products,
     setFilters,
-    setActiveTab
+    setActiveTab,
+    openChatWithCustomer
   } = useMarket();
 
   // Search, Filter & Sort State
@@ -618,6 +620,17 @@ export const CustomerManagementAdminPanel: React.FC = () => {
                       {/* Admin Controls Column */}
                       <td className="py-4 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Direct Customer Chat */}
+                          <button
+                            type="button"
+                            onClick={() => openChatWithCustomer(user)}
+                            className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                            title={language === 'bn' ? 'কাস্টমারের সাথে সরাসরি চ্যাট করুন' : 'Chat with Customer'}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>{language === 'bn' ? 'চ্যাট' : 'Chat'}</span>
+                          </button>
+
                           {/* Inspect / View Full Details */}
                           <button
                             onClick={() => setInspectingUser(user)}
@@ -777,6 +790,15 @@ export const CustomerManagementAdminPanel: React.FC = () => {
 
                   {/* Action row */}
                   <div className="flex items-center justify-between gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => openChatWithCustomer(user)}
+                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>{language === 'bn' ? 'চ্যাট' : 'Chat'}</span>
+                    </button>
+
                     <button
                       onClick={() => setInspectingUser(user)}
                       className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs inline-flex items-center justify-center gap-1 cursor-pointer"
@@ -1108,8 +1130,21 @@ export const CustomerManagementAdminPanel: React.FC = () => {
               )}
             </div>
 
-            {/* Footer Close */}
-            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+            {/* Footer Actions */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = inspectingUser;
+                  setInspectingUser(null);
+                  openChatWithCustomer(target);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>{language === 'bn' ? 'কাস্টমারের সাথে চ্যাট করুন' : 'Chat with Customer'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setInspectingUser(null)}

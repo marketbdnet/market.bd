@@ -294,6 +294,7 @@ interface MarketContextType {
   editingAd: Product | null;
   setEditingAd: (ad: Product | null) => void;
   openChatForProduct: (product: Product) => string;
+  openChatWithCustomer: (customer: UserProfile, product?: Product) => string;
 
   // Dark Mode
   isDarkMode: boolean;
@@ -1659,6 +1660,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setSelectedProductState(null);
       return;
     }
+    if (tab !== 'product-details') {
+      setSelectedProductState(null);
+    }
     setTabHistory(prev => {
       if (prev[prev.length - 1] === tab) return prev;
       return [...prev, tab];
@@ -2459,6 +2463,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalPurpose, setAuthModalPurpose] = useState<'post-ad' | 'general' | 'chat'>('general');
+  const pendingChatProductRef = React.useRef<Product | null>(null);
 
   const openAuthModal = (purpose: 'post-ad' | 'general' | 'chat' = 'general') => {
     setAuthModalPurpose(purpose);
@@ -2786,9 +2791,57 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       syncToCloud('admin_active_session', sessionData);
     }
 
-    // If purpose was post-ad, automatically go to post-ad tab
+    // Resume intended flow after login
     if (authModalPurpose === 'post-ad') {
+      setSelectedProductState(null);
       setActiveTab('post-ad');
+    } else if (authModalPurpose === 'chat' || pendingChatProductRef.current) {
+      const pendingProduct = pendingChatProductRef.current;
+      pendingChatProductRef.current = null;
+      if (pendingProduct) {
+        const buyerId = profile.id || 'user-me';
+        const threadId = `thread-${pendingProduct.id}-${buyerId}`;
+        const existing = rawChatThreads.find(
+          t => !isDummyChatThread(t) && (t.id === threadId || (t.productId === pendingProduct.id && t.buyerId === buyerId))
+        );
+        if (existing) {
+          setActiveChat(existing);
+        } else {
+          const nowIso = new Date().toISOString();
+          const newThread: ChatThread = {
+            id: threadId,
+            productId: pendingProduct.id,
+            productTitle: language === 'bn' && pendingProduct.titleBn ? pendingProduct.titleBn : pendingProduct.title,
+            productImage: pendingProduct.images?.[0] || customLogoUrl || '/logo.jpg',
+            productPrice: pendingProduct.price || 0,
+            seller: pendingProduct.seller,
+            buyerId,
+            buyerName: profile.name || (language === 'bn' ? 'ক্রেতা' : 'Buyer'),
+            buyerPhone: profile.phone,
+            buyerEmail: profile.email,
+            lastMessage: '',
+            lastMessageTime: nowIso,
+            unreadCount: 0,
+            messages: []
+          };
+          setRawChatThreads(prev => {
+            const updated = [newThread, ...prev.filter(t => t.id !== threadId && !isDummyChatThread(t))];
+            storage.setItem('marketbd_chat_threads', JSON.stringify(updated));
+            return updated;
+          });
+          setActiveChat(newThread);
+          if (typeof fetch !== 'undefined') {
+            fetch('/api/chats/thread', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ thread: newThread })
+            }).catch(() => {});
+          }
+          safeFirestoreSetDoc(doc(db, 'chats', threadId), newThread, { merge: true }).catch(() => {});
+        }
+      }
+      setSelectedProductState(null);
+      setActiveTab('chat');
     }
   };
 
@@ -2924,79 +2977,146 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCompareList([]);
   };
 
-  // Sync chats from Express backend + subscribe to real-time SSE updates
+  // Sync chats from Express/Vercel API + Firestore real-time collection + SSE updates
   useEffect(() => {
     if (typeof window === 'undefined' || !isLoggedIn || !currentUser) return;
 
     let cancelled = false;
+    const mergeIncomingThreads = (incomingList: ChatThread[]) => {
+      if (cancelled || incomingList.length === 0) return;
+      const validIncoming = incomingList
+        .filter(t => t && !isDummyChatThread(t))
+        .map(t => ({
+          ...t,
+          messages: Array.isArray(t.messages) ? t.messages : [],
+          unreadCount: typeof t.unreadCount === 'number' ? t.unreadCount : 0,
+        }));
+      if (validIncoming.length === 0) return;
+
+      setRawChatThreads(prev => {
+        const mergedMap = new Map<string, ChatThread>();
+        for (const t of prev) {
+          if (!isDummyChatThread(t)) {
+            mergedMap.set(t.id, {
+              ...t,
+              messages: Array.isArray(t.messages) ? t.messages : [],
+            });
+          }
+        }
+        for (const inc of validIncoming) {
+          const cur = mergedMap.get(inc.id);
+          if (!cur) {
+            mergedMap.set(inc.id, inc);
+          } else {
+            const curLen = cur.messages?.length || 0;
+            const incLen = inc.messages?.length || 0;
+            const incNewer =
+              incLen > curLen ||
+              (incLen === curLen && String(inc.lastMessageTime || '') >= String(cur.lastMessageTime || ''));
+            if (incNewer) {
+              mergedMap.set(inc.id, inc);
+            }
+          }
+        }
+        const next = Array.from(mergedMap.values()).sort((a, b) =>
+          String(b.lastMessageTime || '').localeCompare(String(a.lastMessageTime || ''))
+        );
+        storage.setItem('marketbd_chat_threads', JSON.stringify(next));
+        return next;
+      });
+
+      setActiveChat(curr => {
+        if (!curr) return curr;
+        const match = validIncoming.find(t => t.id === curr.id);
+        if (!match) return curr;
+        const currLen = curr.messages?.length || 0;
+        const matchLen = match.messages?.length || 0;
+        return matchLen >= currLen ? match : curr;
+      });
+    };
+
     const params = new URLSearchParams();
     if (currentUser.id) params.set('userId', currentUser.id);
     if (currentUser.phone) params.set('phone', currentUser.phone);
     if (currentUser.email) params.set('email', currentUser.email);
 
     fetch(`/api/chats?${params.toString()}`)
-      .then(res => (res.ok ? res.json() : null))
+      .then(async res => {
+        const ct = res.headers.get('content-type') || '';
+        if (!res.ok || !ct.includes('application/json')) return null;
+        return res.json();
+      })
       .then(payload => {
-        if (cancelled || !payload || !Array.isArray(payload.data)) return;
-        const serverThreads: ChatThread[] = payload.data.filter((t: ChatThread) => !isDummyChatThread(t));
-        setRawChatThreads(prev => {
-          const mergedMap = new Map<string, ChatThread>();
-          for (const t of serverThreads) mergedMap.set(t.id, t);
-          for (const t of prev) {
-            if (isDummyChatThread(t)) continue;
-            const srv = mergedMap.get(t.id);
-            if (!srv || (t.messages?.length || 0) > (srv.messages?.length || 0)) {
-              mergedMap.set(t.id, t);
-            }
-          }
-          const next = Array.from(mergedMap.values());
-          storage.setItem('marketbd_chat_threads', JSON.stringify(next));
-          return next;
-        });
+        if (!cancelled && payload && Array.isArray(payload.data)) {
+          mergeIncomingThreads(payload.data);
+        }
       })
       .catch(() => {});
 
-    if (typeof EventSource === 'undefined') {
-      return () => {
-        cancelled = true;
-      };
+    // Real-time Firestore listener so buyer <-> seller <-> admin chats work across Web, Android & Vercel
+    let unsubFirestoreChats: (() => void) | null = null;
+    try {
+      unsubFirestoreChats = onSnapshot(
+        collection(db, 'chats'),
+        snapshot => {
+          if (cancelled) return;
+          const fsThreads: ChatThread[] = [];
+          snapshot.forEach(d => {
+            const data = d.data() as ChatThread;
+            if (data && data.id) {
+              fsThreads.push({
+                ...data,
+                messages: Array.isArray(data.messages) ? data.messages : [],
+              });
+            }
+          });
+          mergeIncomingThreads(fsThreads);
+        },
+        () => {}
+      );
+    } catch {
+      // Non-fatal if Firestore listener is unavailable
     }
 
-    const es = new EventSource('/api/chats/stream');
-    es.onmessage = evt => {
+    let es: EventSource | null = null;
+    if (typeof EventSource !== 'undefined') {
       try {
-        const data = JSON.parse(evt.data);
-        if (!data || !data.type) return;
+        es = new EventSource('/api/chats/stream');
+        es.onmessage = evt => {
+          try {
+            const data = JSON.parse(evt.data);
+            if (!data || !data.type) return;
 
-        if (data.type === 'chat:updated' && data.thread && !isDummyChatThread(data.thread)) {
-          const incoming: ChatThread = data.thread;
-          setRawChatThreads(prev => {
-            const existsIdx = prev.findIndex(t => t.id === incoming.id);
-            const next =
-              existsIdx >= 0
-                ? [incoming, ...prev.filter(t => t.id !== incoming.id)]
-                : [incoming, ...prev];
-            storage.setItem('marketbd_chat_threads', JSON.stringify(next));
-            return next;
-          });
-          setActiveChat(curr => (curr && curr.id === incoming.id ? incoming : curr));
-        } else if (data.type === 'chat:deleted' && data.threadId) {
-          const deletedId = String(data.threadId);
-          setRawChatThreads(prev => {
-            const next = prev.filter(t => t.id !== deletedId);
-            storage.setItem('marketbd_chat_threads', JSON.stringify(next));
-            return next;
-          });
-          setActiveChat(curr => (curr && curr.id === deletedId ? null : curr));
-        }
-      } catch {
-        // Ignore malformed keepalive/event frames
-      }
-    };
+            if (data.type === 'chat:updated' && data.thread && !isDummyChatThread(data.thread)) {
+              const incoming: ChatThread = {
+                ...data.thread,
+                messages: Array.isArray(data.thread.messages) ? data.thread.messages : [],
+              };
+              mergeIncomingThreads([incoming]);
+            } else if (data.type === 'chat:deleted' && data.threadId) {
+              const deletedId = String(data.threadId);
+              setRawChatThreads(prev => {
+                const next = prev.filter(t => t.id !== deletedId);
+                storage.setItem('marketbd_chat_threads', JSON.stringify(next));
+                return next;
+              });
+              setActiveChat(curr => (curr && curr.id === deletedId ? null : curr));
+            }
+          } catch {
+            // Ignore malformed keepalive/event frames
+          }
+        };
+        es.onerror = () => {
+          // Close cleanly on hosts without SSE streaming (e.g. static/serverless)
+          try { es?.close(); } catch {}
+        };
+      } catch {}
+    }
 
     return () => {
       cancelled = true;
-      es.close();
+      try { es?.close(); } catch {}
+      try { unsubFirestoreChats?.(); } catch {}
     };
   }, [isLoggedIn, currentUser?.id, currentUser?.phone, currentUser?.email]);
 
@@ -3031,6 +3151,22 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         body: JSON.stringify({ threadId, readerId })
       }).catch(() => {});
     }
+    const targetThread =
+      rawChatThreads.find(t => t.id === threadId) ||
+      (activeChat?.id === threadId ? activeChat : undefined);
+
+    if (targetThread) {
+      safeFirestoreSetDoc(
+        doc(db, 'chats', threadId),
+        {
+          id: threadId,
+          productId: targetThread.productId || 'general',
+          buyerId: targetThread.buyerId || readerId,
+          unreadCount: 0,
+        },
+        { merge: true }
+      ).catch(() => {});
+    }
   };
 
   const deleteChatThread = (threadId: string) => {
@@ -3045,9 +3181,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (typeof fetch !== 'undefined') {
       fetch(`/api/chats/${encodeURIComponent(threadId)}`, { method: 'DELETE' }).catch(() => {});
     }
-    if (auth.currentUser) {
-      safeFirestoreDeleteDoc(doc(db, 'chats', threadId)).catch(() => {});
-    }
+    safeFirestoreDeleteDoc(doc(db, 'chats', threadId)).catch(() => {});
   };
 
   useEffect(() => {
@@ -3056,7 +3190,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [activeChat?.id]);
 
-  // Real-time messaging (server-authoritative via /api/chats/message + SSE)
+  // Real-time messaging (server-authoritative via /api/chats/message + Firestore)
   const sendMessage = (threadId: string, text: string, offerAmount?: number, imageUrl?: string) => {
     const trimmedText = (text || '').trim();
     const displayMsg = trimmedText || (imageUrl ? (language === 'bn' ? '📷 [ছবি]' : '📷 [Photo]') : '');
@@ -3072,7 +3206,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const newMessage: ChatMessage = {
       id: msgId,
       senderId,
-      receiverId: currentThread?.seller?.id || 'seller',
+      receiverId:
+        currentThread?.seller?.id === senderId
+          ? currentThread?.buyerId || 'buyer'
+          : currentThread?.seller?.id || 'seller',
       productId: currentThread?.productId || '',
       text: displayMsg,
       image: imageUrl,
@@ -3093,13 +3230,17 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       : undefined;
 
     setRawChatThreads(prev => {
-      const updated = prev.map(thread => {
+      const hasThread = prev.some(t => t.id === threadId);
+      const source = hasThread ? prev : updatedSnapshot ? [updatedSnapshot, ...prev] : prev;
+      const updated = source.map(thread => {
         if (thread.id !== threadId) return thread;
+        const msgs = Array.isArray(thread.messages) ? thread.messages : [];
+        const nextMsgs = msgs.some(m => m.id === msgId) ? msgs : [...msgs, newMessage];
         const nextThread: ChatThread = {
           ...thread,
           lastMessage: displayMsg,
           lastMessageTime: nowIso,
-          messages: [...(thread.messages || []), newMessage]
+          messages: nextMsgs
         };
         updatedSnapshot = nextThread;
         return nextThread;
@@ -3110,11 +3251,12 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setActiveChat(curr => {
       if (!curr || curr.id !== threadId) return curr;
+      const currMsgs = Array.isArray(curr.messages) ? curr.messages : [];
       return {
         ...curr,
         lastMessage: displayMsg,
         lastMessageTime: nowIso,
-        messages: [...(curr.messages || []), newMessage]
+        messages: [...currMsgs, newMessage]
       };
     });
 
@@ -3128,10 +3270,18 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           threadSnapshot: currentThread
         })
       })
-        .then(res => (res.ok ? res.json() : null))
+        .then(async res => {
+          const ct = res.headers.get('content-type') || '';
+          if (!res.ok || !ct.includes('application/json')) return null;
+          return res.json();
+        })
         .then(payload => {
           if (!payload || !payload.data) return;
-          const serverThread: ChatThread = { ...payload.data, unreadCount: 0 };
+          const serverThread: ChatThread = {
+            ...payload.data,
+            messages: Array.isArray(payload.data.messages) ? payload.data.messages : [],
+            unreadCount: 0,
+          };
           setRawChatThreads(prev => {
             const next = prev.map(t => (t.id === threadId ? serverThread : t));
             storage.setItem('marketbd_chat_threads', JSON.stringify(next));
@@ -3142,26 +3292,34 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         .catch(() => {});
     }
 
-    if (auth.currentUser && updatedSnapshot) {
+    if (updatedSnapshot) {
       safeFirestoreSetDoc(doc(db, 'chats', threadId), updatedSnapshot, { merge: true }).catch(() => {});
     }
   };
 
   const openChatForProduct = (product: Product): string => {
     if (!isLoggedIn) {
+      pendingChatProductRef.current = product;
       openAuthModal('chat');
       return '';
     }
 
     const buyerId = currentUser?.id || 'user-me';
-    const existing = chatThreads.find(t => t.productId === product.id);
+    const existing = chatThreads.find(
+      t => t.productId === product.id && (t.buyerId === buyerId || t.seller?.id === buyerId)
+    );
     if (existing) {
-      setActiveChat(existing);
+      const normalized = {
+        ...existing,
+        messages: Array.isArray(existing.messages) ? existing.messages : [],
+      };
+      setActiveChat(normalized);
+      setSelectedProductState(null);
       setActiveTab('chat');
-      if (existing.unreadCount > 0) {
-        markChatThreadRead(existing.id);
+      if (normalized.unreadCount > 0) {
+        markChatThreadRead(normalized.id);
       }
-      return existing.id;
+      return normalized.id;
     }
 
     const threadId = `thread-${product.id}-${buyerId}`;
@@ -3170,11 +3328,13 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       id: threadId,
       productId: product.id,
       productTitle: language === 'bn' && product.titleBn ? product.titleBn : product.title,
-      productImage: product.images?.[0] || '',
-      productPrice: product.price,
+      productImage: product.images?.[0] || customLogoUrl || '/logo.jpg',
+      productPrice: product.price || 0,
       seller: product.seller,
       buyerId,
       buyerName: currentUser?.name || (language === 'bn' ? 'ক্রেতা' : 'Buyer'),
+      buyerPhone: currentUser?.phone,
+      buyerEmail: currentUser?.email,
       lastMessage: '',
       lastMessageTime: nowIso,
       unreadCount: 0,
@@ -3188,6 +3348,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     setActiveChat(newThread);
+    setSelectedProductState(null);
     setActiveTab('chat');
 
     if (typeof fetch !== 'undefined') {
@@ -3198,9 +3359,115 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }).catch(() => {});
     }
 
-    if (auth.currentUser) {
-      safeFirestoreSetDoc(doc(db, 'chats', threadId), newThread, { merge: true }).catch(() => {});
+    safeFirestoreSetDoc(doc(db, 'chats', threadId), newThread, { merge: true }).catch(() => {});
+
+    return threadId;
+  };
+
+  const openChatWithCustomer = (customer: UserProfile, product?: Product): string => {
+    if (!isLoggedIn) {
+      openAuthModal('chat');
+      return '';
     }
+
+    const safeCustomerId = String(customer.id || customer.phone || 'customer').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const threadId = product
+      ? `thread-${product.id}-${safeCustomerId}`
+      : `thread-customer-${safeCustomerId}`;
+
+    const existing = rawChatThreads.find(
+      t =>
+        !isDummyChatThread(t) &&
+        (t.id === threadId ||
+          t.buyerId === customer.id ||
+          (customer.phone && (t.buyerPhone === customer.phone || t.seller?.phone === customer.phone)))
+    );
+
+    if (existing) {
+      const normalized: ChatThread = {
+        ...existing,
+        messages: Array.isArray(existing.messages) ? existing.messages : [],
+      };
+      setActiveChat(normalized);
+      setSelectedProductState(null);
+      setActiveTab('chat');
+      if (normalized.unreadCount > 0) {
+        markChatThreadRead(normalized.id);
+      }
+      return normalized.id;
+    }
+
+    const nowIso = new Date().toISOString();
+    const isAdminInitiator = currentUser?.role === 'admin' || currentUser?.id === 'admin-master';
+    const isSupportThread = !product;
+    const senderSeller = isAdminInitiator
+      ? {
+          id: currentUser?.id || 'admin-master',
+          name: currentUser?.name || (language === 'bn' ? 'MarketBD সাপোর্ট ও এডমিন' : 'MarketBD Support & Admin'),
+          avatar: currentUser?.avatar || customLogoUrl || '/logo.jpg',
+          phone: currentUser?.phone || systemNotice.contactPhone || '01533830784',
+          hidePhone: false,
+          showPhoneNumber: true,
+          email: currentUser?.email || systemNotice.contactEmail || 'official.marketsbd@gmail.com',
+          memberSince: currentUser?.memberSince || '2024',
+          location: currentUser?.location || { division: 'Dhaka', district: 'Dhaka' },
+          isVerified: true,
+          rating: 5,
+          totalReviews: 0,
+        }
+      : {
+          id: 'admin-master',
+          name: language === 'bn' ? 'MarketBD সাপোর্ট ও এডমিন' : 'MarketBD Support & Admin',
+          avatar: customLogoUrl || '/logo.jpg',
+          phone: systemNotice.contactPhone || '01533830784',
+          hidePhone: false,
+          showPhoneNumber: true,
+          email: systemNotice.contactEmail || 'official.marketsbd@gmail.com',
+          memberSince: '2024',
+          location: { division: 'Dhaka', district: 'Dhaka' },
+          isVerified: true,
+          rating: 5,
+          totalReviews: 0,
+        };
+
+    const newThread: ChatThread = {
+      id: threadId,
+      productId: product?.id || 'customer-support',
+      productTitle: product
+        ? (language === 'bn' && product.titleBn ? product.titleBn : product.title)
+        : (language === 'bn' ? `কাস্টমার চ্যাট: ${customer.name || customer.phone}` : `Customer Chat: ${customer.name || customer.phone}`),
+      productImage: product?.images?.[0] || customer.avatar || customLogoUrl || '/logo.jpg',
+      productPrice: product?.price || 0,
+      seller: senderSeller,
+      buyerId: customer.id || safeCustomerId,
+      buyerName: customer.name || customer.phone || (language === 'bn' ? 'কাস্টমার' : 'Customer'),
+      buyerPhone: customer.phone,
+      buyerEmail: customer.email,
+      isCustomerCare: isSupportThread,
+      lastMessage: '',
+      lastMessageTime: nowIso,
+      unreadCount: 0,
+      messages: [],
+    };
+
+    setRawChatThreads(prev => {
+      const updated = [newThread, ...prev.filter(t => t.id !== threadId && !isDummyChatThread(t))];
+      storage.setItem('marketbd_chat_threads', JSON.stringify(updated));
+      return updated;
+    });
+
+    setActiveChat(newThread);
+    setSelectedProductState(null);
+    setActiveTab('chat');
+
+    if (typeof fetch !== 'undefined') {
+      fetch('/api/chats/thread', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thread: newThread })
+      }).catch(() => {});
+    }
+    safeFirestoreSetDoc(doc(db, 'chats', threadId), newThread, { merge: true }).catch(() => {});
 
     return threadId;
   };
@@ -4084,6 +4351,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         editingAd,
         setEditingAd,
         openChatForProduct,
+        openChatWithCustomer,
 
         // Dark Mode
         isDarkMode,

@@ -60,15 +60,29 @@ service cloud.firestore {
       allow delete: if isValidId(userId) && isAdmin();
     }
 
-    // Chat System & Direct Messages (Requires authenticated Firebase session)
+    function isValidChatThread(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.productId is string && data.productId.size() > 0 && data.productId.size() <= 128
+        && data.buyerId is string && data.buyerId.size() > 0 && data.buyerId.size() <= 128
+        && (!('buyerName' in data) || (data.buyerName is string && data.buyerName.size() <= 120))
+        && (!('lastMessage' in data) || (data.lastMessage is string && data.lastMessage.size() <= 2000))
+        && (!('messages' in data) || (data.messages is list && data.messages.size() <= 500));
+    }
+
+    // Chat System & Direct Messages (Buyer <-> Seller <-> Admin real-time sync)
     match /chats/{chatId} {
-      allow read: if isSignedIn();
-      allow create, update: if isValidId(chatId) && isSignedIn();
-      allow delete: if isValidId(chatId) && (isAdmin() || (isSignedIn() && resource.data.buyerId == request.auth.uid));
+      allow list: if true;
+      allow get: if isValidId(chatId);
+      allow create, update: if isValidId(chatId) && isValidChatThread(request.resource.data);
+      allow delete: if isValidId(chatId) && (isAdmin() || resource.data.buyerId is string);
 
       match /messages/{messageId} {
-        allow read: if isSignedIn();
-        allow write: if isValidId(chatId) && isValidId(messageId) && isSignedIn();
+        allow read: if isValidId(chatId);
+        allow create, update: if isValidId(chatId) && isValidId(messageId)
+          && request.resource.data.senderId is string
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 2000;
+        allow delete: if isValidId(chatId) && isValidId(messageId) && isAdmin();
       }
     }
 

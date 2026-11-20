@@ -216,23 +216,28 @@ function hintFor(g: { json: any; raw: string; httpStatus: number }): string {
   if (/not whitelisted|access denied/i.test(rawStr)) {
     return 'গেটওয়ে সার্ভারের IP ব্লক করেছে (IP Whitelist চালু আছে)। BulkSMS Dhaka ড্যাশবোর্ডে গিয়ে IP Whitelist বন্ধ (OFF) করুন।';
   }
-  const code = String(g.json?.Status ?? g.json?.response_code ?? g.json?.error ?? '');
+  const code = String(g.json?.Status ?? g.json?.response_code ?? g.json?.error_code ?? '');
   const base = GATEWAY_HINTS[code];
   if (base) return `কোড ${code}: ${base}`;
-  if (g.json?.Message || g.json?.error_message || g.json?.status_message) {
-    return `কোড ${code || '?'}: ${g.json.Message || g.json.error_message || g.json.status_message}`;
+  if (g.httpStatus === 401) {
+    return `কোড 401: API Key ভুল অথবা মেয়াদ শেষ (${g.json?.error || 'Unauthenticated'})।`;
+  }
+  if (g.json?.Message || g.json?.error_message || g.json?.status_message || g.json?.error || g.json?.message) {
+    return `কোড ${code || g.httpStatus || '?'}: ${g.json.Message || g.json.error_message || g.json.status_message || g.json.error || g.json.message}`;
   }
   return `গেটওয়ে অপ্রত্যাশিত উত্তর দিয়েছে (HTTP ${g.httpStatus}): ${rawStr.slice(0, 140)}`;
 }
 
 const isOk = (j: any, raw = '', httpStatus = 200): boolean => {
-  if (j) {
-    if (String(j.Success) === 'true' || String(j.Status) === '1000') return true;
+  if (j && typeof j === 'object') {
+    if (String(j.Success).toLowerCase() === 'false' || j.success === false) return false;
+    if (String(j.Success).toLowerCase() === 'true' || j.success === true || String(j.Status) === '1000') return true;
     if (Number(j.response_code) === 202 || String(j.response_code) === '202') return true;
     if (j.error === 0 || String(j.status).toUpperCase() === 'SUCCESS') return true;
     if (j.status_code === 200 && String(j.status).toLowerCase() === 'success') return true;
+    return false;
   }
-  if (httpStatus >= 200 && httpStatus < 300 && /ok:|sms submitted|success/i.test(raw)) {
+  if (httpStatus >= 200 && httpStatus < 300 && /(?:^|\s)ok:|sms submitted|sms sent successfully/i.test(raw)) {
     return true;
   }
   return false;
@@ -250,6 +255,14 @@ async function fetchGatewayUrl(url: string, init?: RequestInit) {
   return { httpStatus: r.status, json, raw: text };
 }
 
+function isFatalGatewayStop(g: { httpStatus: number; json: any; raw: string }): boolean {
+  if (g.httpStatus === 401) return true;
+  const code = String(g.json?.Status ?? g.json?.response_code ?? '');
+  if (['1015', '1018', '1013', '2001', '1010', '1009', '1008'].includes(code)) return true;
+  if (/not whitelisted|unauthenticated|invalid api key/i.test(String(g.raw || ''))) return true;
+  return false;
+}
+
 async function dispatchSmsByProvider(params: {
   providerId: SmsProviderId;
   apiUrl: string;
@@ -259,23 +272,56 @@ async function dispatchSmsByProvider(params: {
   phone: string;
   message: string;
   isOtp: boolean;
+  otpCode?: string;
 }) {
-  const { providerId, apiUrl, apiKey, senderId, sid, phone, message, isOtp } = params;
+  const { providerId, apiUrl, apiKey, senderId, sid, phone, message, isOtp, otpCode } = params;
   const cleanBase = apiUrl.replace(/\/+$/, '');
   const intlPhone = phone.startsWith('88') ? phone : `88${phone}`;
 
   if (providerId === 'bulksmsdhaka') {
     const base = cleanBase || SMS_PROVIDER_PRESETS.bulksmsdhaka.defaultApiUrl;
-    const endpoint = isOtp ? 'otpsend' : 'sendtext';
-    const qs1 = new URLSearchParams({ apikey: apiKey, number: phone, message, callerID: senderId || '1234' }).toString();
-    let g = await fetchGatewayUrl(`${base}/${endpoint}?${qs1}`);
+    let usedEndpoint = isOtp ? 'otpsend' : 'sendtext';
     let usedCaller = senderId || '1234';
-    if (!isOk(g.json, g.raw, g.httpStatus) && usedCaller !== '1234' && ['1003', '1006', '1011', '1012'].includes(String(g.json?.Status))) {
+
+    const qs1 = new URLSearchParams({ apikey: apiKey, number: phone, message, callerID: usedCaller }).toString();
+    let g = await fetchGatewayUrl(`${base}/${usedEndpoint}?${qs1}`);
+
+    // 1) If masking/custom senderId fails on non-fatal error, immediately retry Non-Masking callerID '1234'
+    if (!isOk(g.json, g.raw, g.httpStatus) && !isFatalGatewayStop(g) && usedCaller !== '1234') {
       const qs2 = new URLSearchParams({ apikey: apiKey, number: phone, message, callerID: '1234' }).toString();
-      g = await fetchGatewayUrl(`${base}/${endpoint}?${qs2}`);
-      usedCaller = '1234';
+      const g2 = await fetchGatewayUrl(`${base}/${usedEndpoint}?${qs2}`);
+      if (isOk(g2.json, g2.raw, g2.httpStatus) || !isFatalGatewayStop(g2)) {
+        g = g2;
+        usedCaller = '1234';
+      }
     }
-    return { g, usedCaller };
+
+    // 2) For OTP: if multiline/custom template is rejected by otpsend, retry clean single-line standard format
+    const cleanOtpCode = otpCode || (message.match(/\b(\d{4,8})\b/)?.[1] ?? '');
+    const cleanSingleLineOtp = cleanOtpCode ? `Your MarketBD.Net OTP is ${cleanOtpCode}` : message.replace(/\s+/g, ' ').trim();
+    if (
+      isOtp &&
+      !isOk(g.json, g.raw, g.httpStatus) &&
+      !isFatalGatewayStop(g) &&
+      cleanSingleLineOtp !== message
+    ) {
+      const qs3 = new URLSearchParams({ apikey: apiKey, number: phone, message: cleanSingleLineOtp, callerID: '1234' }).toString();
+      const g3 = await fetchGatewayUrl(`${base}/otpsend?${qs3}`);
+      g = g3;
+      usedCaller = '1234';
+      usedEndpoint = 'otpsend';
+    }
+
+    // 3) If otpsend still fails for non-fatal reasons, fall back cleanly to sendtext with callerID '1234'
+    if (isOtp && !isOk(g.json, g.raw, g.httpStatus) && !isFatalGatewayStop(g)) {
+      const qs4 = new URLSearchParams({ apikey: apiKey, number: phone, message: cleanSingleLineOtp, callerID: '1234' }).toString();
+      const g4 = await fetchGatewayUrl(`${base}/sendtext?${qs4}`);
+      g = g4;
+      usedCaller = '1234';
+      usedEndpoint = 'sendtext';
+    }
+
+    return { g, usedCaller, usedEndpoint };
   }
 
   if (providerId === 'bulksmsbd') {
@@ -421,30 +467,90 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
   const stored = readSecretsFile();
   const smsStored = stored.sms || {};
 
-  const effectiveApiKey = (smsStored.apiKey || process.env.SMS_API_KEY || '').trim();
+  const effectiveApiKey = (
+    smsStored.apiKey ||
+    process.env.SMS_API_KEY ||
+    process.env.BULKSMS_API_KEY ||
+    process.env.SMS_TOKEN ||
+    ''
+  ).trim();
   const effectiveAdminSecret = (process.env.SMS_ADMIN_SECRET || smsStored.adminSecret || '').trim() || undefined;
   const otpSecret = (process.env.SMS_OTP_SECRET || effectiveApiKey || effectiveAdminSecret || 'marketbd_otp_fallback_key').trim();
   const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
 
+  const resolveActiveConfig = async () => {
+    const remote = await readRemoteConfig();
+    const envProviderRaw = (process.env.SMS_PROVIDER_ID || process.env.SMS_PROVIDER || '').trim() as SmsProviderId | '';
+    const envProviderId = envProviderRaw && SMS_PROVIDER_PRESETS[envProviderRaw] ? envProviderRaw : undefined;
+    const providerId: SmsProviderId = smsStored.providerId || envProviderId || remote.providerId || 'bulksmsdhaka';
+    const preset = SMS_PROVIDER_PRESETS[providerId] || SMS_PROVIDER_PRESETS.custom;
+
+    const envApiUrl = (process.env.SMS_API_URL || '').trim();
+    const apiUrl = smsStored.apiUrl || envApiUrl || (!envProviderId ? remote.apiUrl : '') || preset.defaultApiUrl;
+
+    const envSenderId = (process.env.SMS_SENDER_ID || process.env.SMS_CALLER_ID || '').trim();
+    const envMasking =
+      process.env.SMS_MASKING_ENABLED === 'false'
+        ? false
+        : process.env.SMS_MASKING_ENABLED === 'true'
+        ? true
+        : undefined;
+    const masking =
+      smsStored.maskingEnabled ??
+      envMasking ??
+      (envSenderId ? envSenderId !== '1234' : undefined) ??
+      remote.masking ??
+      false;
+
+    const nonMaskingSender =
+      (smsStored.senderId && smsStored.senderId !== 'MarketBD.Net' ? smsStored.senderId : '') ||
+      (envSenderId && envSenderId !== 'MarketBD.Net' ? envSenderId : '') ||
+      '1234';
+    const senderId = masking
+      ? (smsStored.senderId || envSenderId || remote.senderId || 'MarketBD.Net')
+      : nonMaskingSender;
+
+    const envLive =
+      process.env.SMS_LIVE_MODE === 'false'
+        ? false
+        : process.env.SMS_LIVE_MODE === 'true'
+        ? true
+        : undefined;
+    const isLive = smsStored.isLiveMode ?? envLive ?? remote.isLiveMode ?? true;
+
+    const envTemplate = (process.env.SMS_OTP_TEMPLATE || '').replace(/\\n/g, '\n').trim();
+    const otpTemplate = (smsStored.otpTemplate || envTemplate || remote.template || DEFAULT_TEMPLATE).trim();
+    const sid = (smsStored.sid || process.env.SMS_SID || '').trim();
+
+    return {
+      providerId,
+      preset,
+      providerName: smsStored.providerName || preset.companyName,
+      apiUrl,
+      senderId,
+      sid,
+      masking,
+      isLive,
+      otpTemplate,
+    };
+  };
+
   try {
     // ---- 0a) Get non-secret SMS Gateway configuration -------------------
     if (action === 'get_config') {
-      const remote = await readRemoteConfig();
-      const providerId: SmsProviderId =
-        smsStored.providerId || remote.providerId || 'bulksmsdhaka';
-      const preset = SMS_PROVIDER_PRESETS[providerId] || SMS_PROVIDER_PRESETS.custom;
+      const cfg = await resolveActiveConfig();
 
       return res.status(200).json({
         ok: true,
         config: {
-          providerId,
-          providerName: smsStored.providerName || remote.providerName || preset.companyName,
-          apiUrl: smsStored.apiUrl || remote.apiUrl || preset.defaultApiUrl,
-          senderId: smsStored.senderId || remote.senderId || process.env.SMS_CALLER_ID || 'MarketBD.Net',
-          sid: smsStored.sid || '',
-          maskingEnabled: smsStored.maskingEnabled ?? remote.masking ?? true,
-          isLiveMode: smsStored.isLiveMode ?? remote.isLiveMode ?? true,
-          otpTemplate: smsStored.otpTemplate || remote.template || process.env.SMS_OTP_TEMPLATE || DEFAULT_TEMPLATE,
+          providerId: cfg.providerId,
+          providerName: cfg.providerName,
+          apiUrl: cfg.apiUrl,
+          senderId: cfg.senderId,
+          sid: cfg.sid,
+          maskingEnabled: cfg.masking,
+          isLiveMode: cfg.isLive,
+          otpTemplate: cfg.otpTemplate,
           hasApiKey: effectiveApiKey.length > 0,
           maskedApiKey: maskSecret(effectiveApiKey),
           hasAdminSecret: Boolean(effectiveAdminSecret),
@@ -525,24 +631,14 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         return res.status(429).json({ ok: false, error: 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।' });
       }
 
-      const remote = await readRemoteConfig();
-      const isLive = smsStored.isLiveMode ?? remote.isLiveMode ?? true;
-      const template = (smsStored.otpTemplate || remote.template || process.env.SMS_OTP_TEMPLATE || DEFAULT_TEMPLATE).trim();
-      const masking = smsStored.maskingEnabled ?? remote.masking ?? !!process.env.SMS_CALLER_ID;
-      const providerId: SmsProviderId = smsStored.providerId || remote.providerId || 'bulksmsdhaka';
-      const preset = SMS_PROVIDER_PRESETS[providerId] || SMS_PROVIDER_PRESETS.custom;
-      const apiUrl = smsStored.apiUrl || remote.apiUrl || preset.defaultApiUrl;
-      const senderId = masking
-        ? (smsStored.senderId || remote.senderId || process.env.SMS_CALLER_ID || 'MarketBD.Net')
-        : '1234';
-
+      const cfg = await resolveActiveConfig();
       const code = String(randomInt(100000, 1000000));
-      const message = template.replace(/\{otp\}/gi, code);
+      let message = cfg.otpTemplate.replace(/\{otp\}/gi, code);
       if (message.length > 70) {
-        return res.status(500).json({ ok: false, error: 'OTP মেসেজ ৭০ অক্ষরের বেশি। অ্যাডমিন প্যানেলে টেমপ্লেট ছোট করুন।' });
+        message = `Your MarketBD.Net OTP is ${code}`;
       }
 
-      if (isLive && !effectiveApiKey) {
+      if (cfg.isLive && !effectiveApiKey) {
         return res.status(503).json({
           ok: false,
           code: 'NOT_CONFIGURED',
@@ -550,17 +646,25 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         });
       }
 
-      if (isLive) {
-        const { g } = await dispatchSmsByProvider({
-          providerId,
-          apiUrl,
+      let usedCaller = cfg.senderId;
+      let usedEndpoint = 'otpsend';
+
+      if (cfg.isLive) {
+        const dispatched = await dispatchSmsByProvider({
+          providerId: cfg.providerId,
+          apiUrl: cfg.apiUrl,
           apiKey: effectiveApiKey,
-          senderId,
-          sid: smsStored.sid,
+          senderId: cfg.senderId,
+          sid: cfg.sid,
           phone,
           message,
           isOtp: true,
+          otpCode: code,
         });
+        const g = dispatched.g;
+        usedCaller = dispatched.usedCaller;
+        usedEndpoint = (dispatched as any).usedEndpoint || 'otpsend';
+
         if (!isOk(g.json, g.raw, g.httpStatus)) {
           const hint = hintFor(g);
           console.error('SMS gateway failure:', hint, g.raw);
@@ -569,6 +673,8 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
             ok: false,
             error: `এসএমএস পাঠানো যায়নি (${hint || `কোড ${statusCode}`})।`,
             hint,
+            usedCaller,
+            usedEndpoint,
             gateway: g.json || g.raw,
           });
         }
@@ -579,8 +685,10 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         ok: true,
         token: sign(otpSecret, phone, code, exp),
         exp,
-        providerName: smsStored.providerName || preset.companyName,
-        mode: isLive ? 'live' : 'sandbox',
+        providerName: cfg.providerName,
+        usedCaller,
+        usedEndpoint,
+        mode: cfg.isLive ? 'live' : 'sandbox',
       });
     }
 
@@ -614,13 +722,10 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         });
       }
 
-      const remote = await readRemoteConfig();
-      const providerId: SmsProviderId = smsStored.providerId || remote.providerId || 'bulksmsdhaka';
-      const preset = SMS_PROVIDER_PRESETS[providerId] || SMS_PROVIDER_PRESETS.custom;
-      const apiUrl = smsStored.apiUrl || remote.apiUrl || preset.defaultApiUrl;
+      const cfg = await resolveActiveConfig();
 
       if (action === 'balance') {
-        const resBal = await fetchBalanceByProvider(providerId, apiUrl, effectiveApiKey);
+        const resBal = await fetchBalanceByProvider(cfg.providerId, cfg.apiUrl, effectiveApiKey);
         return res.status(200).json({
           ok: resBal.ok,
           balance: resBal.balance,
@@ -633,16 +738,12 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       const message = String(body.message || '').trim();
       if (!phone || !message) return res.status(400).json({ ok: false, error: 'নম্বর ও মেসেজ দিন।' });
 
-      const masking = smsStored.maskingEnabled ?? remote.masking ?? !!process.env.SMS_CALLER_ID;
-      const senderId = masking
-        ? (smsStored.senderId || remote.senderId || process.env.SMS_CALLER_ID || 'MarketBD.Net')
-        : '1234';
       const { g, usedCaller } = await dispatchSmsByProvider({
-        providerId,
-        apiUrl,
+        providerId: cfg.providerId,
+        apiUrl: cfg.apiUrl,
         apiKey: effectiveApiKey,
-        senderId,
-        sid: smsStored.sid,
+        senderId: cfg.senderId,
+        sid: cfg.sid,
         phone,
         message,
         isOtp: false,
@@ -651,7 +752,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       return res.status(success ? 200 : 502).json({
         ok: success,
         usedCaller,
-        providerName: smsStored.providerName || preset.companyName,
+        providerName: cfg.providerName,
         hint: success ? undefined : hintFor(g),
         gateway: g.json || g.raw,
       });
