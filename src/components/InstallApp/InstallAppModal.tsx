@@ -21,7 +21,7 @@ import {
   FolderDown,
   AlertCircle
 } from 'lucide-react';
-import { downloadApkFile, formatDirectApkUrl } from '../../utils/apkDownloadHelper';
+import { downloadApkFile } from '../../utils/apkDownloadHelper';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -48,6 +48,7 @@ export const InstallAppModal: React.FC = () => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   // Capture PWA install prompt
   useEffect(() => {
@@ -99,6 +100,7 @@ export const InstallAppModal: React.FC = () => {
 
   const handleDirectApkDownload = async () => {
     setDownloadSuccess(false);
+    setDownloadError(null);
     setDownloadProgress(15);
 
     const progressTimer = setInterval(() => {
@@ -112,7 +114,7 @@ export const InstallAppModal: React.FC = () => {
     const fileName = `MarketBD_v${appRelease.version || '2.5.0'}.apk`;
 
     try {
-      await downloadApkFile({
+      const ok = await downloadApkFile({
         apkUrl: appRelease.apkDownloadUrl,
         version: appRelease.version || '2.5.0',
         fileName,
@@ -123,12 +125,31 @@ export const InstallAppModal: React.FC = () => {
           setTimeout(() => {
             setDownloadProgress(null);
             setDownloadSuccess(true);
-          }, 400);
+          }, 350);
+        },
+        onError: () => {
+          clearInterval(progressTimer);
+          setDownloadProgress(null);
+          setDownloadSuccess(false);
+          setDownloadError(
+            language === 'bn'
+              ? 'APK ফাইলটি এখনো সার্ভারে আপলোড করা হয়নি অথবা ডাউনলোড লিংক সেট করা নেই। অনুগ্রহ করে উপরের "১-ক্লিকে ইনস্টল (মোবাইল অ্যাপ)" ব্যবহার করুন অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।'
+              : 'APK file is not uploaded yet or download link is not configured. Please use "1-Click Direct Install (PWA App)" above or try again shortly.'
+          );
         }
       });
+      if (!ok) {
+        clearInterval(progressTimer);
+        setDownloadProgress(null);
+      }
     } catch (e) {
       clearInterval(progressTimer);
       setDownloadProgress(null);
+      setDownloadError(
+        language === 'bn'
+          ? 'APK ডাউনলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে উপরের ১-ক্লিকে ইনস্টল বাটন ব্যবহার করুন।'
+          : 'Failed to download APK. Please use the 1-Click Install option above.'
+      );
       console.error('APK Download failed:', e);
     }
   };
@@ -372,6 +393,26 @@ export const InstallAppModal: React.FC = () => {
                       className="bg-gradient-to-r from-amber-500 to-emerald-500 h-full transition-all duration-150 rounded-full"
                       style={{ width: `${downloadProgress}%` }}
                     />
+                  </div>
+                )}
+
+                {/* Download Error Card */}
+                {downloadError && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-400/60 rounded-xl text-xs text-rose-900 dark:text-rose-200 flex flex-col gap-2 animate-in fade-in">
+                    <div className="flex items-start gap-2 font-bold text-rose-700 dark:text-rose-300">
+                      <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                      <span>{downloadError}</span>
+                    </div>
+                    {!isInstalled && (
+                      <button
+                        type="button"
+                        onClick={handlePWAInstall}
+                        className="self-start text-[11px] font-black text-emerald-700 dark:text-emerald-300 underline flex items-center gap-1 hover:text-emerald-500 cursor-pointer"
+                      >
+                        <ArrowRight className="w-3.5 h-3.5" />
+                        <span>{language === 'bn' ? '১-ক্লিকে মোবাইল অ্যাপ ইনস্টল করুন' : 'Install via 1-Click App Instead'}</span>
+                      </button>
+                    )}
                   </div>
                 )}
 

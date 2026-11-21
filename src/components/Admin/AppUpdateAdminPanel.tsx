@@ -8,7 +8,6 @@ import {
   ShieldCheck,
   Download,
   AlertTriangle,
-  RefreshCw,
   Copy,
   Check,
   Camera,
@@ -23,8 +22,7 @@ import {
   HardDrive,
   Upload,
   Link2,
-  FileCheck,
-  Play
+  FileCheck
 } from 'lucide-react';
 import {
   checkAndRequestCamera,
@@ -48,11 +46,13 @@ export const AppUpdateAdminPanel: React.FC = () => {
   const [playStoreUrlInput, setPlayStoreUrlInput] = useState(appRelease.playStoreUrl || 'https://play.google.com/store/apps/details?id=com.marketbd.app');
 
   const [publishSuccess, setPublishSuccess] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [copiedManifest, setCopiedManifest] = useState(false);
   const [permissionTestResult, setPermissionTestResult] = useState<PermissionStatusResult | null>(null);
   const [testingPermission, setTestingPermission] = useState<string | null>(null);
   const [isTestingDownload, setIsTestingDownload] = useState(false);
   const [testDownloadSuccess, setTestDownloadSuccess] = useState(false);
+  const [testDownloadError, setTestDownloadError] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [uploadedFileSize, setUploadedFileSize] = useState<string | null>(null);
 
@@ -250,21 +250,25 @@ export const AppUpdateAdminPanel: React.FC = () => {
     setApkUrlInput(formatted);
   };
 
-  // Handle local APK file upload
+  // Handle local APK file selection (for local verification/preview only)
   const handleApkFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (!file.name.toLowerCase().endsWith('.apk')) {
-      alert(language === 'bn' ? '⚠️ অনুগ্রহ করে একটি বৈধ .apk ফাইল সিলেক্ট করুন।' : 'Please select a valid .apk file.');
+      setTestDownloadError(
+        language === 'bn' ? '⚠️ অনুগ্রহ করে একটি বৈধ .apk ফাইল সিলেক্ট করুন।' : 'Please select a valid .apk file.'
+      );
       return;
     }
 
+    setTestDownloadError(null);
+    setPublishError(null);
     const sizeInMb = (file.size / (1024 * 1024)).toFixed(2);
     setUploadedFileName(file.name);
     setUploadedFileSize(`${sizeInMb} MB`);
 
-    // Create a local Object URL for instant testing and download
+    // Create a local Object URL for instant local testing only (not shareable across users)
     const objectUrl = URL.createObjectURL(file);
     setApkUrlInput(objectUrl);
   };
@@ -273,10 +277,11 @@ export const AppUpdateAdminPanel: React.FC = () => {
   const handleTestDownload = async () => {
     setIsTestingDownload(true);
     setTestDownloadSuccess(false);
+    setTestDownloadError(null);
 
     try {
       const fileName = `MarketBD_v${versionInput || '2.5.0'}.apk`;
-      await downloadApkFile({
+      const ok = await downloadApkFile({
         apkUrl: apkUrlInput,
         version: versionInput || '2.5.0',
         fileName,
@@ -284,22 +289,49 @@ export const AppUpdateAdminPanel: React.FC = () => {
           setIsTestingDownload(false);
           setTestDownloadSuccess(true);
           setTimeout(() => setTestDownloadSuccess(false), 5000);
+        },
+        onError: () => {
+          setIsTestingDownload(false);
+          setTestDownloadSuccess(false);
+          setTestDownloadError(
+            language === 'bn'
+              ? '❌ এই লিংক/পাথে কোনো APK ফাইল পাওয়া যায়নি। public/MarketBD.apk ফোল্ডারে ফাইল রাখুন অথবা Google Drive / GitHub Releases লিংক দিন।'
+              : '❌ No APK file found at this path/URL. Place public/MarketBD.apk or paste a valid Google Drive / GitHub Releases link.'
+          );
         }
       });
+      if (!ok) {
+        setIsTestingDownload(false);
+      }
     } catch (err) {
       setIsTestingDownload(false);
+      setTestDownloadError(
+        language === 'bn' ? '❌ APK টেস্ট ডাউনলোড ব্যর্থ হয়েছে।' : '❌ APK test download failed.'
+      );
       console.error('Test download failed:', err);
     }
   };
 
   const handlePublishUpdate = (e: React.FormEvent) => {
     e.preventDefault();
+    setPublishError(null);
+
     if (!versionInput.trim()) {
-      alert(language === 'bn' ? 'অনুগ্রহ করে ভার্সন নম্বর প্রদান করুন।' : 'Please enter a version number.');
+      setPublishError(language === 'bn' ? 'অনুগ্রহ করে ভার্সন নম্বর প্রদান করুন।' : 'Please enter a version number.');
       return;
     }
 
-    const finalApkUrl = formatDirectApkUrl(apkUrlInput.trim());
+    const trimmedApkUrl = apkUrlInput.trim();
+    if (trimmedApkUrl.startsWith('blob:')) {
+      setPublishError(
+        language === 'bn'
+          ? '⚠️ আপনার কম্পিউটারের লোকাল ফাইল (blob:) গ্রাহকদের ফোনে ডাউনলোড হবে না। গ্রাহকদের জন্য লাইভ করতে Google Drive / GitHub Releases লিংক দিন অথবা প্রজেক্টের public/MarketBD.apk আপলোড করে "/MarketBD.apk" সেট করুন।'
+          : '⚠️ A local file (blob:) cannot be downloaded by other users. Upload your APK to Google Drive / GitHub Releases and paste the share link, or deploy public/MarketBD.apk and set "/MarketBD.apk".'
+      );
+      return;
+    }
+
+    const finalApkUrl = formatDirectApkUrl(trimmedApkUrl);
 
     updateAppRelease({
       version: versionInput.trim(),
@@ -545,6 +577,13 @@ export const AppUpdateAdminPanel: React.FC = () => {
         </div>
       )}
 
+      {publishError && (
+        <div className="p-4 bg-rose-500/10 border-2 border-rose-500 text-rose-700 dark:text-rose-300 rounded-2xl flex items-start gap-3 font-bold text-xs sm:text-sm animate-in fade-in">
+          <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+          <span>{publishError}</span>
+        </div>
+      )}
+
       {/* Main Form */}
       <form onSubmit={handlePublishUpdate} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column: Version & Settings */}
@@ -672,13 +711,27 @@ export const AppUpdateAdminPanel: React.FC = () => {
             </div>
 
             {uploadedFileName && (
-              <div className="p-2.5 bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 rounded-xl text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold">
-                  <FileCheck className="w-4 h-4 text-indigo-500 shrink-0" />
-                  <span className="truncate max-w-[200px]">{uploadedFileName}</span>
-                  <span className="text-[10px] bg-indigo-200 dark:bg-indigo-900 text-indigo-900 dark:text-indigo-200 px-1.5 py-0.2 rounded font-mono">{uploadedFileSize}</span>
+              <div className="p-2.5 bg-amber-50/90 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 rounded-xl text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-bold">
+                    <FileCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="truncate max-w-[200px]">{uploadedFileName}</span>
+                    <span className="text-[10px] bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200 px-1.5 py-0.2 rounded font-mono">{uploadedFileSize}</span>
+                  </div>
+                  <span className="text-[10px] text-amber-700 dark:text-amber-300 font-black">Local Test Only</span>
                 </div>
-                <span className="text-[10px] text-emerald-600 font-bold">Loaded</span>
+                <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-snug">
+                  {language === 'bn'
+                    ? 'লোকাল ফাইল শুধু আপনার এই ব্রাউজারে টেস্ট করার জন্য। গ্রাহকদের ডাউনলোডের জন্য ফাইলটি Google Drive বা GitHub Releases-এ দিয়ে লিংক এখানে বসান অথবা public/MarketBD.apk আপলোড করুন।'
+                    : 'Local file works only in your current browser tab for testing. To publish for all users, upload to Google Drive / GitHub Releases and paste the link here, or deploy public/MarketBD.apk.'}
+                </p>
+              </div>
+            )}
+
+            {testDownloadError && (
+              <div className="p-2.5 bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-300 rounded-xl text-xs font-bold flex items-start gap-2 animate-in fade-in">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{testDownloadError}</span>
               </div>
             )}
 
@@ -688,6 +741,25 @@ export const AppUpdateAdminPanel: React.FC = () => {
                 <span>{language === 'bn' ? '✅ এপিকে টেস্ট ডাউনলোড সফলভাবে শুরু হয়েছে!' : '✅ APK test download initiated successfully!'}</span>
               </div>
             )}
+
+            {/* Quick Publishing Guide for Running Ticker Banner */}
+            <div className="p-3 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] text-slate-600 dark:text-slate-300 space-y-1 leading-relaxed">
+              <div className="font-black text-slate-800 dark:text-white">
+                {language === 'bn' ? '📢 রানিং বিজ্ঞাপন ব্যানারে APK ডাউনলোড চালু করার ২টি সহজ উপায়:' : '📢 How to publish APK for Running Banner download:'}
+              </div>
+              <p>
+                <strong>{language === 'bn' ? '১) গুগল ড্রাইভ / গিটহাব রিলিজ:' : '1) Google Drive / GitHub Releases:'}</strong>{' '}
+                {language === 'bn'
+                  ? 'APK ফাইলটি Google Drive-এ আপলোড করে (Anyone with link) লিংকটি উপরের বক্সে পেস্ট করুন → Convert চাপুন → 🚀 প্রকাশ করুন। রানিং ব্যানার থেকে সাথে সাথে ডাউনলোড হবে।'
+                  : 'Upload APK to Google Drive (Anyone with link) or GitHub Releases, paste the URL above, and click Publish.'}
+              </p>
+              <p>
+                <strong>{language === 'bn' ? '২) নিজস্ব ডোমেইন (/MarketBD.apk):' : '2) Direct Domain (/MarketBD.apk):'}</strong>{' '}
+                {language === 'bn'
+                  ? 'প্রজেক্টের public/MarketBD.apk এ ফাইলটি রেখে Vercel-এ ডিপ্লয় করুন এবং এখানে "/MarketBD.apk" সেট করুন।'
+                  : 'Place MarketBD.apk in public/MarketBD.apk, deploy, and set "/MarketBD.apk" above.'}
+              </p>
+            </div>
           </div>
 
           <div>

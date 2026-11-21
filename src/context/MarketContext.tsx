@@ -2428,7 +2428,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     notesBn: '• গুগল প্লে স্টোরে অফিসিয়াল নতুন ভার্সন অবমুক্ত করা হয়েছে।\n• এডমিন নিরাপত্তার জন্য ৬ ডিজিটের ওটিপি ভেরিফিকেশন সিস্টেম চালু।\n• সাইটে রোবট, হ্যাকার ও ফেইক বট প্রতিরোধে WAF সিকিউরিটি প্রোটোকল একটিভ।\n• অ্যান্ড্রয়েড ইউজারদের জন্য প্লে স্টোর থেকে আপডেট উপলব্ধ।',
     notesEn: '• Official new version released on Google Play Store.\n• 6-Digit OTP Verification added for Admin Login security.\n• Bot, scraper & hacker protection protocol active.\n• Play Store update available for Android users.',
     isMandatory: false,
-    apkDownloadUrl: '/api/download/apk',
+    apkDownloadUrl: '/MarketBD.apk',
     playStoreUrl: 'https://play.google.com/store/apps/details?id=com.marketbd.app',
     publishedAt: new Date().toISOString()
   };
@@ -2440,7 +2440,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const parsed = JSON.parse(saved);
         // Fix legacy dead URLs
         if (parsed.apkDownloadUrl && (parsed.apkDownloadUrl.includes('.run.app') || parsed.apkDownloadUrl.includes('marketbd-release-v'))) {
-          parsed.apkDownloadUrl = '/api/download/apk';
+          parsed.apkDownloadUrl = '/MarketBD.apk';
         }
         return { ...defaultRelease, ...parsed };
       }

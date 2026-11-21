@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMarket } from '../../context/MarketContext';
-import { Download, Sparkles, CheckCircle2, ShieldCheck, RefreshCw, Smartphone, AlertOctagon, ExternalLink, FolderDown } from 'lucide-react';
+import { Download, Sparkles, CheckCircle2, ShieldCheck, RefreshCw, Smartphone, AlertOctagon, ExternalLink } from 'lucide-react';
 import { downloadApkFile } from '../../utils/apkDownloadHelper';
 
 export const isAndroidDevice = (): boolean => {
@@ -51,6 +51,7 @@ export const AppUpdateModal: React.FC = () => {
   const [updateComplete, setUpdateComplete] = useState(false);
   const [isDownloadingApk, setIsDownloadingApk] = useState(false);
   const [apkDownloadDone, setApkDownloadDone] = useState(false);
+  const [apkDownloadError, setApkDownloadError] = useState<string | null>(null);
 
   const isAndroid = isAndroidDevice();
   const isInsideAndroidApp = isAndroidAppWebView();
@@ -78,15 +79,28 @@ export const AppUpdateModal: React.FC = () => {
   const handleDownloadApk = async () => {
     setIsDownloadingApk(true);
     setApkDownloadDone(false);
-    await downloadApkFile({
+    setApkDownloadError(null);
+    const ok = await downloadApkFile({
       apkUrl: appRelease.apkDownloadUrl,
       version: appRelease.version || '2.5.0',
       fileName: `MarketBD_v${appRelease.version || '2.5.0'}.apk`,
       onComplete: () => {
         setIsDownloadingApk(false);
         setApkDownloadDone(true);
+      },
+      onError: () => {
+        setIsDownloadingApk(false);
+        setApkDownloadDone(false);
+        setApkDownloadError(
+          language === 'bn'
+            ? 'সরাসরি APK ফাইলটি এখনো পাওয়া যাচ্ছে না। অনুগ্রহ করে প্লে স্টোর থেকে আপডেট করুন।'
+            : 'Direct APK file is not available yet. Please update from Google Play Store.'
+        );
       }
     });
+    if (!ok) {
+      setIsDownloadingApk(false);
+    }
   };
 
   const handleSyncAfterUpdate = () => {
@@ -221,6 +235,12 @@ export const AppUpdateModal: React.FC = () => {
               {apkDownloadDone && (
                 <p className="text-[10px] text-emerald-500 font-bold text-center animate-in fade-in">
                   {language === 'bn' ? '✅ APK ডাউনলোড শুরু হয়েছে!' : '✅ APK download started!'}
+                </p>
+              )}
+
+              {apkDownloadError && (
+                <p className="text-[10px] text-rose-500 font-bold text-center animate-in fade-in">
+                  {apkDownloadError}
                 </p>
               )}
 

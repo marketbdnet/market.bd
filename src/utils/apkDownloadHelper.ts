@@ -1,7 +1,7 @@
 /**
  * APK Download Helper for MarketBD Android App
- * Handles direct APK downloads, Google Drive / Cloud URL conversion, and browser triggers
- * Ensures the web page is NEVER navigated away or replaced with a 404 error
+ * Handles direct APK downloads, Google Drive / GitHub Releases / Cloud URL conversion, and browser triggers.
+ * Verifies same-origin APK presence before reporting success so users never see fake completion on 404.
  */
 
 export interface ApkDownloadOptions {
@@ -19,22 +19,21 @@ export interface ApkDownloadOptions {
  */
 export function formatDirectApkUrl(rawUrl: string | undefined): string {
   if (!rawUrl || !rawUrl.trim()) {
-    return '/api/download/apk';
+    return '/MarketBD.apk';
   }
 
   const url = rawUrl.trim();
 
-  // If local path or legacy relative path
-  if (url === '/MarketBD.apk' || url === '/marketbd-release-v2.5.0.apk' || url.startsWith('/downloads/')) {
-    return '/api/download/apk';
+  // Map legacy dead paths to canonical static path
+  if (url === '/marketbd-release-v2.5.0.apk' || (url.includes('.run.app') && url.includes('.apk'))) {
+    return '/MarketBD.apk';
   }
 
-  // If legacy full Cloud Run URL pointing to old container
-  if (url.includes('.run.app') && url.includes('.apk')) {
-    return '/api/download/apk';
+  if (url === '/MarketBD.apk') {
+    return '/MarketBD.apk';
   }
 
-  // If local path or data URL, return directly
+  // If local path or data/blob URL, return directly
   if (url.startsWith('/') || url.startsWith('data:') || url.startsWith('blob:')) {
     return url;
   }
@@ -56,7 +55,7 @@ export function formatDirectApkUrl(rawUrl: string | undefined): string {
     return url.replace('dl=0', 'dl=1').replace('?dl=0', '?dl=1');
   }
 
-  // GitHub blob URL to raw URL
+  // GitHub blob URL to raw URL (keep /releases/download/ URLs untouched)
   if (url.includes('github.com') && url.includes('/blob/')) {
     return url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
   }
@@ -71,9 +70,38 @@ export function formatDirectApkUrl(rawUrl: string | undefined): string {
   return url;
 }
 
+function triggerAnchorDownload(href: string, downloadName: string, openInNewTab: boolean): void {
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = href;
+  if (openInNewTab) {
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+  } else {
+    a.download = downloadName;
+  }
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    if (document.body.contains(a)) {
+      document.body.removeChild(a);
+    }
+  }, 800);
+}
+
+function isSameOriginPath(url: string): boolean {
+  if (url.startsWith('/')) return true;
+  if (typeof window === 'undefined') return false;
+  try {
+    return new URL(url, window.location.origin).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Triggers a real APK file download on Android, desktop, or mobile browsers.
- * Guaranteed to NEVER navigate the current window or replace the app screen.
+ * Never navigates the current window to a broken page and never falsely reports success on 404.
  */
 export async function downloadApkFile(options: ApkDownloadOptions = {}): Promise<boolean> {
   const {
@@ -85,75 +113,88 @@ export async function downloadApkFile(options: ApkDownloadOptions = {}): Promise
     onError
   } = options;
 
+  const finalFileName = fileName.endsWith('.apk') ? fileName : `${fileName}.apk`;
   const directUrl = formatDirectApkUrl(apkUrl);
 
   try {
-    if (onProgress) onProgress(20);
+    if (onProgress) onProgress(25);
 
-    // Primary & Safe Method: Fetch as Blob and trigger object URL download
-    // This NEVER causes any page navigation or 404 replacement
-    try {
-      if (onProgress) onProgress(45);
-      const response = await fetch(directUrl, {
-        headers: {
-          'Accept': 'application/vnd.android.package-archive, application/octet-stream, */*'
-        }
-      });
-
-      if (response.ok) {
-        if (onProgress) onProgress(75);
-        const blobData = await response.blob();
-        const apkBlob = new Blob([blobData], { type: 'application/vnd.android.package-archive' });
-        const blobUrl = window.URL.createObjectURL(apkBlob);
-
-        if (onProgress) onProgress(90);
-
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = blobUrl;
-        a.download = fileName.endsWith('.apk') ? fileName : `${fileName}.apk`;
-        document.body.appendChild(a);
-        a.click();
-
-        setTimeout(() => {
-          if (document.body.contains(a)) {
-            document.body.removeChild(a);
-          }
-          window.URL.revokeObjectURL(blobUrl);
-          if (onProgress) onProgress(100);
-          if (onComplete) onComplete();
-        }, 500);
-
-        return true;
-      }
-    } catch (fetchErr) {
-      console.warn('Direct blob fetch failed, trying safe background iframe:', fetchErr);
+    // 1. Blob or data URLs (local admin preview/test)
+    if (directUrl.startsWith('blob:') || directUrl.startsWith('data:')) {
+      if (onProgress) onProgress(85);
+      triggerAnchorDownload(directUrl, finalFileName, false);
+      setTimeout(() => {
+        if (onProgress) onProgress(100);
+        if (onComplete) onComplete();
+      }, 300);
+      return true;
     }
 
-    // Secondary Safe Fallback: Hidden iframe download (prevents main frame navigation)
-    if (onProgress) onProgress(80);
+    // 2. Same-origin APK paths (/MarketBD.apk or /api/download/apk)
+    if (isSameOriginPath(directUrl)) {
+      if (onProgress) onProgress(55);
 
-    const hiddenIframe = document.createElement('iframe');
-    hiddenIframe.style.display = 'none';
-    hiddenIframe.style.width = '0px';
-    hiddenIframe.style.height = '0px';
-    hiddenIframe.style.border = 'none';
-    hiddenIframe.src = directUrl;
-    document.body.appendChild(hiddenIframe);
+      const candidates =
+        directUrl === '/MarketBD.apk'
+          ? ['/MarketBD.apk', '/api/download/apk']
+          : directUrl === '/api/download/apk'
+            ? ['/api/download/apk', '/MarketBD.apk']
+            : [directUrl];
 
-    setTimeout(() => {
-      if (document.body.contains(hiddenIframe)) {
-        document.body.removeChild(hiddenIframe);
+      let resolvedUrl: string | null = null;
+      let shouldOpenInNewTab = false;
+
+      for (const candidate of candidates) {
+        try {
+          const headRes = await fetch(candidate, { method: 'HEAD', redirect: 'manual' });
+          if (headRes.type === 'opaqueredirect' || (headRes.status >= 300 && headRes.status < 400)) {
+            resolvedUrl = candidate;
+            shouldOpenInNewTab = true;
+            break;
+          }
+          const contentType = (headRes.headers.get('content-type') || '').toLowerCase();
+          if (
+            headRes.ok &&
+            !contentType.includes('text/html') &&
+            !contentType.includes('application/json')
+          ) {
+            resolvedUrl = candidate;
+            shouldOpenInNewTab = false;
+            break;
+          }
+        } catch {
+          // Try next candidate
+        }
       }
+
+      if (!resolvedUrl) {
+        const missingErr = new Error('APK_NOT_AVAILABLE');
+        if (onError) onError(missingErr);
+        return false;
+      }
+
+      if (onProgress) onProgress(90);
+      triggerAnchorDownload(resolvedUrl, finalFileName, shouldOpenInNewTab);
+      setTimeout(() => {
+        if (onProgress) onProgress(100);
+        if (onComplete) onComplete();
+      }, 350);
+      return true;
+    }
+
+    // 3. External Cloud URL (Google Drive, GitHub Releases, Dropbox, OneDrive, CDN)
+    // Open via direct anchor click to avoid CORS failures and X-Frame-Options blocks
+    if (onProgress) onProgress(85);
+    triggerAnchorDownload(directUrl, finalFileName, true);
+    setTimeout(() => {
       if (onProgress) onProgress(100);
       if (onComplete) onComplete();
-    }, 1500);
-
+    }, 350);
     return true;
   } catch (err) {
     console.error('Error downloading APK:', err);
-    if (onError && err instanceof Error) {
-      onError(err);
+    if (onError) {
+      onError(err instanceof Error ? err : new Error('APK_DOWNLOAD_FAILED'));
     }
     return false;
   }
