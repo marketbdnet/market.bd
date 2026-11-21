@@ -107,7 +107,7 @@ export const AdminOptionsListView: React.FC<AdminOptionsListViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [isMobileListOpen, setIsMobileListOpen] = useState(false);
-  const [showAdditionalTools, setShowAdditionalTools] = useState(false);
+  const [showAdditionalTools, setShowAdditionalTools] = useState(true);
 
   // 16 Primary Admin Items strictly ordered and categorized as requested
   const primaryAdminOptions: AdminOptionItem[] = [
@@ -280,15 +280,16 @@ export const AdminOptionsListView: React.FC<AdminOptionsListViewProps> = ({
     {
       id: 'notice',
       indexNum: 13,
-      labelBn: '১৩. নোটিফিকেশন ও সিস্টেম নোটিশ (Notifications)',
-      labelEn: '13. Notifications & System Notices',
-      descBn: 'হেডারের জরুরি নোটিশ স্ক্রল, হেল্পলাইন কন্টাক্ট এবং পুশ নোটিফিকেশন এলার্ট বার্তা',
-      descEn: 'Manage live scrolling banner marquee, hotline phone, and push announcements',
+      labelBn: '১৩. রানিং বিজ্ঞাপন, অ্যাপ ব্যানার ও সিস্টেম নোটিশ (Running Ad)',
+      labelEn: '13. Running Ad Marquee & System Notices',
+      descBn: 'হেডারের ৩D রানিং বিজ্ঞাপন ব্যানার, APK ডাউনলোড লিংক, হেল্পলাইন কন্টাক্ট ও নোটিশ কন্ট্রোল',
+      descEn: 'Manage live 3D running banner marquee, APK download link, hotline phone, and notices',
       groupId: 'SYSTEM',
       groupBn: 'SYSTEM (সিস্টেম, সেটিংস ও সিকিউরিটি)',
       groupEn: 'SYSTEM & SETTINGS',
       icon: Bell,
-      badge: 'NOTICE'
+      badge: 'RUNNING AD',
+      highlight: true
     },
     {
       id: 'staff',
@@ -520,15 +521,16 @@ export const AdminOptionsListView: React.FC<AdminOptionsListViewProps> = ({
     {
       id: 'app-update',
       indexNum: 30,
-      labelBn: '📱 অ্যান্ড্রয়েড অ্যাপস ও পারমিশন',
-      labelEn: '📱 Android App & Permissions Center',
-      descBn: 'অ্যান্ড্রয়েড ১০টি পারমিশন, Manifest.xml, লাইভ টেস্টার ও স্বয়ংক্রিয় রিলিজ নোটস',
-      descEn: 'Android 10 permissions, Manifest.xml generator, and live release notes',
+      labelBn: '📱 অ্যান্ড্রয়েড অ্যাপস, APK আপলোড ও পারমিশন',
+      labelEn: '📱 Android App, APK Upload & Permissions Center',
+      descBn: 'অ্যান্ড্রয়েড APK লিংক/আপলোড, ১০টি পারমিশন, Manifest.xml ও স্বয়ংক্রিয় রিলিজ নোটস',
+      descEn: 'Android APK link/upload, 10 permissions, Manifest.xml generator, and live release notes',
       groupId: 'ADDITIONAL',
       groupBn: 'অতিরিক্ত সিস্টেম টুলস',
       groupEn: 'Additional Tools',
       icon: Smartphone,
-      badge: 'ANDROID'
+      badge: 'APK / APP',
+      highlight: true
     },
     {
       id: 'hosting',

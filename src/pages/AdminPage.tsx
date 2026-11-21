@@ -5,7 +5,7 @@ import { useMarket } from '../context/MarketContext';
 import { getRemainingAutoApproveTime } from '../utils/autoApprovalTimer';
 import { isProductPublicActive, isProductPending, isProductRejected } from '../utils/productStatus';
 import { WatermarkedImage } from '../components/Product/WatermarkedImage';
-import marketBdLogoImg from '../assets/images/market_bd_logo_1786102322044.jpg';
+import marketBdLogoImg from '../assets/images/marketbd_official_logo.jpg';
 import {
   ShieldAlert,
   CheckCircle,
@@ -1462,14 +1462,18 @@ export const AdminPage: React.FC = () => {
                   <img
                     src={logoInput || customLogoUrl}
                     alt="Logo Preview"
-                    className="h-10 w-auto max-w-[180px] object-contain rounded-xl border border-red-500 bg-slate-950 shadow-xs"
-                    onError={() => {}}
+                    className="h-10 w-10 object-cover rounded-xl border border-red-500 bg-black shadow-xs"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = marketBdLogoImg;
+                    }}
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-xl bg-slate-950 border-2 border-red-500 text-red-500 flex items-center justify-center font-black text-xl shadow-md relative shrink-0">
-                    <span className="relative z-10 font-black tracking-tighter text-red-500">M</span>
-                    <span className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-white"></span>
-                  </div>
+                  <img
+                    src={marketBdLogoImg}
+                    alt="MarketBD.Net Official Logo"
+                    className="h-10 w-10 object-cover rounded-xl border border-red-500 bg-black shadow-xs"
+                  />
                 )}
                 <div className="bg-slate-950 px-3 py-1 rounded-xl border border-slate-800 flex flex-col justify-center">
                   <span className="text-xl font-black flex items-center gap-0">
@@ -1488,15 +1492,15 @@ export const AdminPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setCustomLogoUrl('');
-                  setLogoInput('');
+                  setCustomLogoUrl(marketBdLogoImg);
+                  setLogoInput(marketBdLogoImg);
                   setLogoSuccessMsg(true);
                   setTimeout(() => setLogoSuccessMsg(false), 3000);
                 }}
                 className="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5"
               >
                 <RefreshCw className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-                <span>{language === 'bn' ? 'ডিফল্ট "M" লোগোতে রিকভার করুন' : 'Reset to Default M Icon'}</span>
+                <span>{language === 'bn' ? 'অফিসিয়াল নতুন লোগোতে রিকভার করুন' : 'Reset to Official Logo'}</span>
               </button>
             </div>
           </div>
@@ -1520,7 +1524,7 @@ export const AdminPage: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 {
-                  title: 'MarketBD.Net Official 3D Emblem',
+                  title: 'MarketBD.Net Official Emblem',
                   url: marketBdLogoImg
                 },
                 {

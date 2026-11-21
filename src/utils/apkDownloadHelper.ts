@@ -70,11 +70,15 @@ export function formatDirectApkUrl(rawUrl: string | undefined): string {
   return url;
 }
 
+function isMarketBdAndroidApp(): boolean {
+  return typeof navigator !== 'undefined' && /MarketBDAndroidApp/i.test(navigator.userAgent || '');
+}
+
 function triggerAnchorDownload(href: string, downloadName: string, openInNewTab: boolean): void {
   const a = document.createElement('a');
   a.style.display = 'none';
   a.href = href;
-  if (openInNewTab) {
+  if (openInNewTab && !isMarketBdAndroidApp()) {
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
   } else {
@@ -115,6 +119,7 @@ export async function downloadApkFile(options: ApkDownloadOptions = {}): Promise
 
   const finalFileName = fileName.endsWith('.apk') ? fileName : `${fileName}.apk`;
   const directUrl = formatDirectApkUrl(apkUrl);
+  const inAndroidApp = isMarketBdAndroidApp();
 
   try {
     if (onProgress) onProgress(25);
@@ -149,7 +154,7 @@ export async function downloadApkFile(options: ApkDownloadOptions = {}): Promise
           const headRes = await fetch(candidate, { method: 'HEAD', redirect: 'manual' });
           if (headRes.type === 'opaqueredirect' || (headRes.status >= 300 && headRes.status < 400)) {
             resolvedUrl = candidate;
-            shouldOpenInNewTab = true;
+            shouldOpenInNewTab = !inAndroidApp;
             break;
           }
           const contentType = (headRes.headers.get('content-type') || '').toLowerCase();
@@ -185,7 +190,7 @@ export async function downloadApkFile(options: ApkDownloadOptions = {}): Promise
     // 3. External Cloud URL (Google Drive, GitHub Releases, Dropbox, OneDrive, CDN)
     // Open via direct anchor click to avoid CORS failures and X-Frame-Options blocks
     if (onProgress) onProgress(85);
-    triggerAnchorDownload(directUrl, finalFileName, true);
+    triggerAnchorDownload(directUrl, finalFileName, !inAndroidApp);
     setTimeout(() => {
       if (onProgress) onProgress(100);
       if (onComplete) onComplete();

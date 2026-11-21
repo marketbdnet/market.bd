@@ -121,5 +121,41 @@ describe('apkDownloadHelper', () => {
       expect(fakeAnchor.href).toBe('/MarketBD.apk');
       expect(fakeAnchor.download).toBe('MarketBD_v2.5.0.apk');
     });
+
+    it('avoids target=_blank inside MarketBDAndroidApp WebView so DownloadListener saves APK to storage', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 302,
+        type: 'opaqueredirect',
+        headers: new Headers()
+      });
+      const clickSpy = vi.fn();
+      const fakeAnchor: any = { style: {}, click: clickSpy };
+      const bodyChildren = new Set<any>();
+
+      vi.stubGlobal('navigator', {
+        userAgent: 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 MarketBDAndroidApp/2.5.0'
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      vi.stubGlobal('window', { location: { origin: 'https://marketbd.net' } });
+      vi.stubGlobal('document', {
+        createElement: vi.fn(() => fakeAnchor),
+        body: {
+          appendChild: vi.fn((el: any) => bodyChildren.add(el)),
+          contains: vi.fn((el: any) => bodyChildren.has(el)),
+          removeChild: vi.fn((el: any) => bodyChildren.delete(el))
+        }
+      });
+
+      const result = await downloadApkFile({
+        apkUrl: '/api/download/apk',
+        version: '2.5.0'
+      });
+
+      expect(result).toBe(true);
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      expect(fakeAnchor.target).toBeUndefined();
+      expect(fakeAnchor.download).toBe('MarketBD_v2.5.0.apk');
+    });
   });
 });

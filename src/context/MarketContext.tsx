@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product, Language, Location, FilterState, ChatThread, AppNotification, ChatMessage, AppReleaseInfo, PaymentPartnerItem, PaymentAccountsConfig, SystemNoticeConfig, ClockSettings, Category, AdminActiveSession, AdminActivityLog, AdminActionType } from '../types';
 import { KNOWN_JUNK_PRODUCT_IDS } from '../utils/knownJunkProductIds';
 import { CATEGORIES } from '../data/bangladeshData';
-import marketBdLogoImg from '../assets/images/market_bd_logo_1786102322044.jpg';
+import officialMarketLogoImg from '../assets/images/marketbd_official_logo.jpg';
 import { storage } from '../utils/storage';
 import { validateBangladeshiPhone, isPhoneVisibleToBuyers } from '../utils/phoneUtils';
 import { setGlobalCategoryImageOverrides, getSecondLevelImageUrl, getSubcategoryImageUrl, getCategoryImageUrl } from '../utils/categoryImages';
@@ -105,11 +105,14 @@ export const DEFAULT_CLOCK_SETTINGS: ClockSettings = {
 
 export const DEFAULT_SYSTEM_NOTICE: SystemNoticeConfig = {
   isEnabled: true,
+  showAppPromo: true,
   showAdPromo: true,
   showFraudWarning: true,
   showCustomNotice: true,
   noticeBn: 'জরুরী ঘোষণা: MarketBD.Net প্ল্যাটফর্মে নতুন ও ব্যবহৃত পণ্য কেনাবেচা করার পূর্বে সরাসরি দেখা করে পণ্য ও কাগজপত্র যাচাই করুন।',
   noticeEn: 'Important Notice: Always inspect products & documents in person before making any transaction on MarketBD.Net.',
+  appPromoBn: '📱 মার্কেটবিডি অফিসিয়াল অ্যান্ড্রয়েড অ্যাপ এখনই ফ্রিতে ডাউনলোড ও ইনস্টল করুন! ১-ক্লিকে পান ৫ গুণ দ্রুত কেনাবেচার অভিজ্ঞতা।',
+  appPromoEn: '📱 Download MarketBD Official Android App for Free! 1-Click Install for 5x faster trading.',
   adPromoBn: '🚀 আপনার যেকোনো অব্যবহৃত বা নতুন পণ্য দ্রুত বিক্রি করতে আজই ১০০% ফ্রিতে বিজ্ঞাপন পোস্ট করুন! হাজারো প্রকৃত ক্রেতার কাছে সহজেই পৌঁছান।',
   adPromoEn: '🚀 Sell your new or used items faster! Post your ad for 100% FREE today and reach thousands of verified buyers instantly!',
   fraudWarningBn: '🛡️ প্রতারক হতে সতর্ক থাকুন: পণ্য ও আসল কাগজপত্র সরাসরি না দেখে বা পরীক্ষা না করে কাউকে অগ্রিম কুরিয়ার/বিকাশ/নগদে টাকা পাঠাবেন না!',
@@ -883,7 +886,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               return merged;
             });
           }
-          if (d.systemNotice) {
+          if (d.systemNotice && !('noticeTextBn' in d.systemNotice && d.systemNotice.isEnabled === false && !d.systemNotice.noticeBn)) {
             setSystemNoticeState(prev => {
               const merged = { ...prev, ...d.systemNotice };
               storage.setItem('marketbd_system_notice_v1', JSON.stringify(merged));
@@ -929,8 +932,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
           if (d.branding) {
             if (d.branding.customLogoUrl !== undefined) {
-              setCustomLogoUrlState(d.branding.customLogoUrl);
-              storage.setItem('marketbd_custom_logo', d.branding.customLogoUrl);
+              const cloudUrl = normalizeOfficialLogoUrl(d.branding.customLogoUrl, d.branding.logoVersion);
+              setCustomLogoUrlState(cloudUrl);
+              storage.setItem('marketbd_custom_logo', cloudUrl);
             }
             if (d.branding.watermarkText !== undefined) {
               setWatermarkTextState(d.branding.watermarkText);
@@ -1093,8 +1097,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const val = snapshot.data()?.value || snapshot.data();
           if (val) {
             if (val.customLogoUrl !== undefined) {
-              setCustomLogoUrlState(val.customLogoUrl);
-              storage.setItem('marketbd_custom_logo', val.customLogoUrl);
+              const cloudUrl = normalizeOfficialLogoUrl(val.customLogoUrl, val.logoVersion);
+              setCustomLogoUrlState(cloudUrl);
+              storage.setItem('marketbd_custom_logo', cloudUrl);
             }
             if (val.watermarkText !== undefined) {
               setWatermarkTextState(val.watermarkText);
@@ -2262,19 +2267,49 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const closeInstallAppModal = () => setIsInstallAppModalOpen(false);
 
   // Custom Logo & Watermark Options for Admin
-  const [customLogoUrl, setCustomLogoUrlState] = useState<string>(() => {
-    const saved = storage.getItem('marketbd_custom_logo');
-    if (saved && (saved.includes('blob:') || saved.includes('1785263882075'))) {
-      storage.removeItem('marketbd_custom_logo');
-      return '/logo.jpg';
+  function isLegacyLogoAssetUrl(url?: string | null): boolean {
+    if (!url || !url.trim()) return true;
+    const trimmed = url.trim();
+    return (
+      trimmed === '/logo.jpg' ||
+      trimmed === '/logo.jpg?v=2' ||
+      trimmed.includes('blob:') ||
+      trimmed.includes('1785263882075') ||
+      trimmed.includes('market_bd_logo_') ||
+      trimmed.includes('marketbd_new_logo') ||
+      trimmed.includes('marketbd_tight_logo') ||
+      trimmed.includes('partnership_badge_logo')
+    );
+  }
+
+  function normalizeOfficialLogoUrl(url?: string | null, logoVersion?: number): string {
+    if (!logoVersion || logoVersion < 3) {
+      return officialMarketLogoImg;
     }
-    return saved || '/logo.jpg';
+    return isLegacyLogoAssetUrl(url) ? officialMarketLogoImg : (url as string);
+  }
+
+  const [customLogoUrl, setCustomLogoUrlState] = useState<string>(() => {
+    const migrated = storage.getItem('marketbd_logo_migrated_v3') === '1';
+    if (!migrated) {
+      storage.setItem('marketbd_logo_migrated_v3', '1');
+      storage.setItem('marketbd_custom_logo', officialMarketLogoImg);
+      return officialMarketLogoImg;
+    }
+    const saved = storage.getItem('marketbd_custom_logo');
+    if (isLegacyLogoAssetUrl(saved)) {
+      storage.setItem('marketbd_custom_logo', officialMarketLogoImg);
+      return officialMarketLogoImg;
+    }
+    return saved || officialMarketLogoImg;
   });
 
   const setCustomLogoUrl = (url: string) => {
-    setCustomLogoUrlState(url);
-    storage.setItem('marketbd_custom_logo', url);
-    syncToCloud('branding', { customLogoUrl: url, watermarkText, watermarkOpacity, isWatermarkEnabled });
+    const safeUrl = !url || !url.trim() || url.trim() === '/logo.jpg' ? officialMarketLogoImg : url.trim();
+    setCustomLogoUrlState(safeUrl);
+    storage.setItem('marketbd_logo_migrated_v3', '1');
+    storage.setItem('marketbd_custom_logo', safeUrl);
+    syncToCloud('branding', { customLogoUrl: safeUrl, logoVersion: 3, watermarkText, watermarkOpacity, isWatermarkEnabled });
   };
 
   const [watermarkText, setWatermarkTextState] = useState<string>(() => {
@@ -2284,7 +2319,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const setWatermarkText = (text: string) => {
     setWatermarkTextState(text);
     storage.setItem('marketbd_watermark_text', text);
-    syncToCloud('branding', { customLogoUrl, watermarkText: text, watermarkOpacity, isWatermarkEnabled });
+    syncToCloud('branding', { customLogoUrl, logoVersion: 3, watermarkText: text, watermarkOpacity, isWatermarkEnabled });
   };
 
   const [watermarkOpacity, setWatermarkOpacityState] = useState<number>(() => {
@@ -2295,7 +2330,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const setWatermarkOpacity = (opacity: number) => {
     setWatermarkOpacityState(opacity);
     storage.setItem('marketbd_watermark_opacity', opacity.toString());
-    syncToCloud('branding', { customLogoUrl, watermarkText, watermarkOpacity: opacity, isWatermarkEnabled });
+    syncToCloud('branding', { customLogoUrl, logoVersion: 3, watermarkText, watermarkOpacity: opacity, isWatermarkEnabled });
   };
 
   const [isWatermarkEnabled, setIsWatermarkEnabledState] = useState<boolean>(() => {
@@ -2305,7 +2340,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const setIsWatermarkEnabled = (enabled: boolean) => {
     setIsWatermarkEnabledState(enabled);
     storage.setItem('marketbd_watermark_enabled', enabled ? 'true' : 'false');
-    syncToCloud('branding', { customLogoUrl, watermarkText, watermarkOpacity, isWatermarkEnabled: enabled });
+    syncToCloud('branding', { customLogoUrl, logoVersion: 3, watermarkText, watermarkOpacity, isWatermarkEnabled: enabled });
   };
   // Dark Mode State
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -4113,6 +4148,13 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const saved = storage.getItem('marketbd_system_notice_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
+        // Heal legacy broken placeholder from old /api/sync/state schema
+        if ('noticeTextBn' in parsed || 'noticeType' in parsed) {
+          delete parsed.noticeTextBn;
+          delete parsed.noticeTextEn;
+          delete parsed.noticeType;
+          parsed.isEnabled = true;
+        }
         if (parsed.contactPhone === '01634025151' || parsed.contactPhone === '33830784') {
           parsed.contactPhone = '01533830784';
         }

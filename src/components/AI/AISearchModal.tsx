@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { Sparkles, X, Send, Bot, User, CheckCircle } from 'lucide-react';
+import officialMarketLogoImg from '../../assets/images/marketbd_official_logo.jpg';
 
 export const AISearchModal: React.FC = () => {
   const { language, isAISearchOpen, setIsAISearchOpen, customLogoUrl } = useMarket();
@@ -66,14 +67,14 @@ export const AISearchModal: React.FC = () => {
         {/* Modal Header */}
         <div className="bg-slate-950 text-white p-4 flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-full">
+            <div className="h-9 w-9 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-full bg-black">
               <img
-                src={customLogoUrl || '/logo.jpg'}
+                src={customLogoUrl || officialMarketLogoImg}
                 alt="MarketBD.Net Logo"
                 className="w-full h-full object-cover shrink-0 rounded-full"
                 onError={(e) => {
                   e.currentTarget.onerror = null;
-                  e.currentTarget.src = '/logo.jpg';
+                  e.currentTarget.src = officialMarketLogoImg;
                 }}
               />
             </div>

@@ -268,11 +268,14 @@ export interface ClockSettings {
 
 export interface SystemNoticeConfig {
   isEnabled: boolean;
+  showAppPromo?: boolean;
   showAdPromo?: boolean;
   showFraudWarning?: boolean;
   showCustomNotice?: boolean;
   noticeBn: string;
   noticeEn: string;
+  appPromoBn?: string;
+  appPromoEn?: string;
   adPromoBn?: string;
   adPromoEn?: string;
   fraudWarningBn?: string;

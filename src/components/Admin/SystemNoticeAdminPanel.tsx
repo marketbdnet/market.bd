@@ -1,29 +1,42 @@
 import React, { useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import {
-  Megaphone,
   Check,
   PhoneCall,
   Mail,
-  Bell,
-  ShieldCheck,
   Sparkles,
   ShieldAlert,
   Flame,
   Zap,
   Sliders,
   Eye,
-  PlusCircle
+  PlusCircle,
+  Smartphone,
+  Download,
+  Link2,
+  AlertTriangle
 } from 'lucide-react';
+import { downloadApkFile, formatDirectApkUrl } from '../../utils/apkDownloadHelper';
 
 export const SystemNoticeAdminPanel: React.FC = () => {
-  const { language, systemNotice, updateSystemNotice } = useMarket();
+  const { language, systemNotice, updateSystemNotice, appRelease, updateAppRelease } = useMarket();
 
   // State management
   const [isEnabled, setIsEnabled] = useState(systemNotice.isEnabled !== false);
+  const [showAppPromo, setShowAppPromo] = useState(systemNotice.showAppPromo !== false);
   const [showAdPromo, setShowAdPromo] = useState(systemNotice.showAdPromo !== false);
   const [showFraudWarning, setShowFraudWarning] = useState(systemNotice.showFraudWarning !== false);
   const [showCustomNotice, setShowCustomNotice] = useState(systemNotice.showCustomNotice !== false);
+
+  const [appPromoBn, setAppPromoBn] = useState(
+    systemNotice.appPromoBn || '📱 মার্কেটবিডি অফিসিয়াল অ্যান্ড্রয়েড অ্যাপ এখনই ফ্রিতে ডাউনলোড ও ইনস্টল করুন! ১-ক্লিকে পান ৫ গুণ দ্রুত কেনাবেচার অভিজ্ঞতা।'
+  );
+  const [appPromoEn, setAppPromoEn] = useState(
+    systemNotice.appPromoEn || '📱 Download MarketBD Official Android App for Free! 1-Click Install for 5x faster trading.'
+  );
+  const [apkUrlInput, setApkUrlInput] = useState(appRelease?.apkDownloadUrl || '/MarketBD.apk');
+  const [isTestingApk, setIsTestingApk] = useState(false);
+  const [apkTestMsg, setApkTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [adPromoBn, setAdPromoBn] = useState(
     systemNotice.adPromoBn || '🚀 আপনার যেকোনো অব্যবহৃত বা নতুন পণ্য দ্রুত বিক্রি করতে আজই ১০০% ফ্রিতে বিজ্ঞাপন পোস্ট করুন! হাজারো প্রকৃত ক্রেতার কাছে সহজেই পৌঁছান।'
@@ -55,15 +68,60 @@ export const SystemNoticeAdminPanel: React.FC = () => {
   );
   const [contactEmail, setContactEmail] = useState(systemNotice.contactEmail || 'official.marketbd@gmail.com');
   const [statusMsg, setStatusMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleTestApkDownload = async () => {
+    setIsTestingApk(true);
+    setApkTestMsg(null);
+    const ok = await downloadApkFile({
+      apkUrl: apkUrlInput,
+      version: appRelease?.version || '2.5.0',
+      fileName: `MarketBD_v${appRelease?.version || '2.5.0'}.apk`,
+      onComplete: () => {
+        setIsTestingApk(false);
+        setApkTestMsg({
+          ok: true,
+          text: language === 'bn' ? '✅ APK টেস্ট ডাউনলোড শুরু হয়েছে!' : '✅ APK test download started!'
+        });
+      },
+      onError: () => {
+        setIsTestingApk(false);
+        setApkTestMsg({
+          ok: false,
+          text:
+            language === 'bn'
+              ? '❌ এই লিংকে কোনো APK ফাইল পাওয়া যায়নি। Google Drive / GitHub Releases লিংক দিন অথবা public/MarketBD.apk আপলোড করুন।'
+              : '❌ No APK found at this URL. Paste a Google Drive / GitHub Releases link or upload public/MarketBD.apk.'
+        });
+      }
+    });
+    if (!ok) {
+      setIsTestingApk(false);
+    }
+  };
 
   const handleSaveNotice = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg('');
+
+    const cleanApkUrl = apkUrlInput.trim();
+    if (cleanApkUrl.startsWith('blob:')) {
+      setErrorMsg(
+        language === 'bn'
+          ? '⚠️ লোকাল ফাইল (blob:) গ্রাহকদের জন্য সেভ করা যাবে না। অনুগ্রহ করে Google Drive / GitHub Releases লিংক অথবা "/MarketBD.apk" দিন।'
+          : '⚠️ Local blob: URLs cannot be published to users. Please paste a Google Drive / GitHub Releases URL or "/MarketBD.apk".'
+      );
+      return;
+    }
 
     updateSystemNotice({
       isEnabled,
+      showAppPromo,
       showAdPromo,
       showFraudWarning,
       showCustomNotice,
+      appPromoBn: appPromoBn.trim(),
+      appPromoEn: appPromoEn.trim(),
       adPromoBn: adPromoBn.trim(),
       adPromoEn: adPromoEn.trim(),
       fraudWarningBn: fraudWarningBn.trim(),
@@ -77,12 +135,22 @@ export const SystemNoticeAdminPanel: React.FC = () => {
       contactEmail: contactEmail.trim(),
     });
 
+    if (cleanApkUrl) {
+      const formattedApkUrl = formatDirectApkUrl(cleanApkUrl);
+      setApkUrlInput(formattedApkUrl);
+      updateAppRelease({
+        ...appRelease,
+        apkDownloadUrl: formattedApkUrl,
+        publishedAt: new Date().toISOString(),
+      });
+    }
+
     setStatusMsg(
       language === 'bn'
-        ? '✅ আপডেট সফল হয়েছে! (Update Successfully) - ৩D লাইটিং চলমান সাইট নোটিশ ও কন্টাক্ট তথ্য সেভ হয়েছে।'
-        : '✅ Update Successfully! - 3D Marquee Notice & Contact Settings Saved.'
+        ? '✅ আপডেট সফল হয়েছে! (Update Successfully) - ৩D রানিং বিজ্ঞাপন, APK ডাউনলোড লিংক ও কন্টাক্ট তথ্য সেভ হয়েছে।'
+        : '✅ Update Successfully! - 3D Running Banner, APK Download Link & Contact Settings Saved.'
     );
-    setTimeout(() => setStatusMsg(''), 3500);
+    setTimeout(() => setStatusMsg(''), 4000);
   };
 
   return (
@@ -119,9 +187,16 @@ export const SystemNoticeAdminPanel: React.FC = () => {
       </div>
 
       {statusMsg && (
-        <div className="p-4 bg-emerald-500/20 border-2 border-emerald-500 text-emerald-200 text-xs font-black rounded-2xl animate-in zoom-in-95 flex items-center gap-2 shadow-lg">
-          <Check className="w-5 h-5 text-emerald-400 shrink-0" />
+        <div className="p-4 bg-emerald-500/20 border-2 border-emerald-500 text-emerald-800 dark:text-emerald-200 text-xs font-black rounded-2xl animate-in zoom-in-95 flex items-center gap-2 shadow-lg">
+          <Check className="w-5 h-5 text-emerald-500 shrink-0" />
           <span>{statusMsg}</span>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="p-4 bg-rose-500/15 border-2 border-rose-500 text-rose-800 dark:text-rose-200 text-xs font-black rounded-2xl animate-in fade-in flex items-center gap-2 shadow-lg">
+          <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
+          <span>{errorMsg}</span>
         </div>
       )}
 
@@ -183,6 +258,109 @@ export const SystemNoticeAdminPanel: React.FC = () => {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Option 0: Android App & APK Download inside Running Banner */}
+          <div className="p-5 rounded-2xl border-2 border-emerald-300 dark:border-emerald-800/70 bg-emerald-50/60 dark:bg-emerald-950/25 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showAppPromo}
+                  onChange={(e) => setShowAppPromo(e.target.checked)}
+                  className="w-5 h-5 text-emerald-600 rounded cursor-pointer accent-emerald-600"
+                />
+                <span className="font-black text-xs text-emerald-950 dark:text-emerald-200 flex items-center gap-1.5">
+                  <Smartphone className="w-4 h-4 text-emerald-600" />
+                  <span>
+                    {language === 'bn'
+                      ? '০. রানিং বিজ্ঞাপন ব্যানারে অ্যান্ড্রয়েড অ্যাপ ও APK ডাউনলোড (App / APK Download Banner)'
+                      : '0. Android App & APK Download Promo in Running Banner'}
+                  </span>
+                </span>
+              </label>
+              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-600 text-white uppercase">
+                APK Download Live
+              </span>
+            </div>
+
+            {showAppPromo && (
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-300 mb-1">
+                      বাংলা অ্যাপ ডাউনলোড বার্তা (Bangla App Promo):
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={appPromoBn}
+                      onChange={(e) => setAppPromoBn(e.target.value)}
+                      className="w-full p-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-300 mb-1">
+                      English App Promo Text:
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={appPromoEn}
+                      onChange={(e) => setAppPromoEn(e.target.value)}
+                      className="w-full p-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Direct APK URL & Test inside Running Banner Settings */}
+                <div className="p-3.5 bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-2.5">
+                  <label className="block text-[11px] font-black text-slate-800 dark:text-slate-200">
+                    {language === 'bn'
+                      ? 'গ্রাহকদের ডাউনলোডের জন্য APK লিংক (Google Drive / GitHub Releases / /MarketBD.apk):'
+                      : 'APK Download URL for Customers (Google Drive / GitHub Releases / /MarketBD.apk):'}
+                  </label>
+                  <input
+                    type="text"
+                    value={apkUrlInput}
+                    onChange={(e) => setApkUrlInput(e.target.value)}
+                    placeholder="https://drive.google.com/file/d/... অথবা /MarketBD.apk"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    {apkUrlInput.includes('drive.google.com') && (
+                      <button
+                        type="button"
+                        onClick={() => setApkUrlInput(formatDirectApkUrl(apkUrlInput))}
+                        className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 border border-amber-500/40 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Link2 className="w-3.5 h-3.5" />
+                        <span>{language === 'bn' ? 'ড্রাইভ লিংক ডিরেক্ট করুন' : 'Convert Drive Link'}</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setApkUrlInput('/MarketBD.apk')}
+                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-[11px] font-bold cursor-pointer"
+                    >
+                      /MarketBD.apk সেট করুন
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleTestApkDownload}
+                      disabled={isTestingApk}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{isTestingApk ? 'টেস্ট হচ্ছে...' : (language === 'bn' ? 'টেস্ট ডাউনলোড' : 'Test Download')}</span>
+                    </button>
+                  </div>
+                  {apkTestMsg && (
+                    <p className={`text-[11px] font-bold ${apkTestMsg.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      {apkTestMsg.text}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Option 1: Ad Posting Encouragement */}

@@ -2,6 +2,7 @@ import React from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { ShieldCheck, Phone, Mail, MapPin, Smartphone, Award, HeartHandshake } from 'lucide-react';
 import { PaymentPartnersWidget, PartnershipBadgeLogo } from '../Common/BrandLogos';
+import officialMarketLogoImg from '../../assets/images/marketbd_official_logo.jpg';
 
 export const Footer: React.FC = () => {
   const { language, setFilters, setActiveTab, customLogoUrl, userRole, currentUser, systemNotice } = useMarket();
@@ -73,16 +74,16 @@ export const Footer: React.FC = () => {
           {/* Brand Col */}
           <div className="col-span-2">
             <div className="flex items-center gap-2.5 mb-3">
-              <div className="h-11 w-11 sm:h-13 sm:w-13 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-full">
+              <div className="h-11 w-11 sm:h-13 sm:w-13 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-full bg-black">
                 <img
-                  src={customLogoUrl || '/logo.jpg'}
+                  src={customLogoUrl || officialMarketLogoImg}
                   alt="MarketBD.Net Logo"
                   className="w-full h-full object-cover shrink-0 rounded-full"
                   loading="lazy"
                   decoding="async"
                   onError={(e) => {
                     e.currentTarget.onerror = null;
-                    e.currentTarget.src = '/logo.jpg';
+                    e.currentTarget.src = officialMarketLogoImg;
                   }}
                 />
               </div>

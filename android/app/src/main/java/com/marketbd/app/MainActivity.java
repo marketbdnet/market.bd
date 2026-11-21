@@ -3,10 +3,14 @@ package com.marketbd.app;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.DownloadManager;
+import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.net.ConnectivityManager;
@@ -27,6 +31,7 @@ import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
 import android.webkit.SslErrorHandler;
+import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -37,9 +42,11 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -80,6 +87,56 @@ public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> filePathCallback;
     private Uri cameraImageUri;
     private long pausedAtMs = 0;
+    private long activeApkDownloadId = -1L;
+
+    private final BroadcastReceiver apkDownloadReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null || !DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) {
+                return;
+            }
+            long completedId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L);
+            if (completedId == -1L || completedId != activeApkDownloadId) {
+                return;
+            }
+            activeApkDownloadId = -1L;
+            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            if (dm == null) return;
+
+            DownloadManager.Query query = new DownloadManager.Query();
+            query.setFilterById(completedId);
+            try (Cursor cursor = dm.query(query)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                    int status = statusIdx >= 0 ? cursor.getInt(statusIdx) : -1;
+                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                        Uri downloadedUri = dm.getUriForDownloadedFile(completedId);
+                        if (downloadedUri != null) {
+                            Toast.makeText(
+                                    MainActivity.this,
+                                    "Download ফোল্ডারে APK সেভ হয়েছে! ইনস্টলার চালু হচ্ছে...",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                            Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                            installIntent.setDataAndType(downloadedUri, "application/vnd.android.package-archive");
+                            installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            try {
+                                startActivity(installIntent);
+                            } catch (Exception ignored) {
+                            }
+                        }
+                    } else {
+                        Toast.makeText(
+                                MainActivity.this,
+                                "APK ডাউনলোড সম্পন্ন হয়নি। পুনরায় চেষ্টা করুন।",
+                                Toast.LENGTH_LONG
+                        ).show();
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    };
 
     // Modern AndroidX ActivityResultLauncher for Camera/Gallery file selection
     private final ActivityResultLauncher<Intent> fileChooserLauncher = registerForActivityResult(
@@ -327,7 +384,19 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 6. Modern AndroidX Back Navigation
+        // 6. Native Android DownloadListener (saves APK directly into phone Downloads folder + triggers Install)
+        webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) ->
+                startApkOrFileDownload(url, userAgent, contentDisposition, mimetype)
+        );
+
+        ContextCompat.registerReceiver(
+                this,
+                apkDownloadReceiver,
+                new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                ContextCompat.RECEIVER_EXPORTED
+        );
+
+        // 7. Modern AndroidX Back Navigation
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -340,14 +409,14 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 7. Request Android 13+ Notification Permission
+        // 8. Request Android 13+ Notification Permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
             }
         }
 
-        // 8. Initial Page Load using standard HTTP cache (instant open on repeat launches)
+        // 9. Initial Page Load using standard HTTP cache (instant open on repeat launches)
         if (savedInstanceState == null) {
             loadPage(TARGET_URL, false);
         } else {
@@ -383,6 +452,15 @@ public class MainActivity extends AppCompatActivity {
         int pad = dpToPx(24);
         centerBox.setPadding(pad, pad, pad, pad);
 
+        ImageView splashLogo = new ImageView(this);
+        splashLogo.setImageResource(R.drawable.marketbd_logo);
+        splashLogo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(
+                dpToPx(92), dpToPx(92)
+        );
+        logoParams.bottomMargin = dpToPx(14);
+        splashLogo.setLayoutParams(logoParams);
+
         TextView brandTitle = new TextView(this);
         brandTitle.setText("MarketBD.Net");
         brandTitle.setTextColor(Color.parseColor("#B91C1C"));
@@ -417,6 +495,7 @@ public class MainActivity extends AppCompatActivity {
         retryButton.setLayoutParams(btnParams);
         retryButton.setOnClickListener(v -> loadPage(TARGET_URL, true));
 
+        centerBox.addView(splashLogo);
         centerBox.addView(brandTitle);
         centerBox.addView(loadingSpinner);
         centerBox.addView(loadingStatusText);
@@ -574,6 +653,12 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
 
+        if (isDirectApkUri(uri)) {
+            String ua = webView != null ? webView.getSettings().getUserAgentString() : null;
+            startApkOrFileDownload(uri.toString(), ua, null, "application/vnd.android.package-archive");
+            return true;
+        }
+
         if (host != null && (host.equalsIgnoreCase("marketbd.net") || host.endsWith(".marketbd.net"))) {
             return false;
         }
@@ -584,6 +669,93 @@ public class MainActivity extends AppCompatActivity {
             return true;
         } catch (Exception ignored) {
             return false;
+        }
+    }
+
+    private boolean isDirectApkUri(Uri uri) {
+        if (uri == null) return false;
+        String urlStr = uri.toString().toLowerCase(Locale.US);
+        String path = uri.getPath() != null ? uri.getPath().toLowerCase(Locale.US) : "";
+        return path.endsWith(".apk")
+                || path.startsWith("/api/download/apk")
+                || (urlStr.contains("drive.google.com") && urlStr.contains("export=download"))
+                || (urlStr.contains("dropbox.com") && urlStr.contains("dl=1"));
+    }
+
+    private void startApkOrFileDownload(String url, String userAgent, String contentDisposition, String mimetype) {
+        if (url == null || url.isEmpty()) return;
+
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            } catch (Exception ignored) {
+            }
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1002);
+            Toast.makeText(
+                    this,
+                    "ফাইল সেভ করতে স্টোরেজ পারমিশন দিন এবং পুনরায় ডাউনলোড চাপুন।",
+                    Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+
+        String lowerUrl = url.toLowerCase(Locale.US);
+        String lowerMime = mimetype != null ? mimetype.toLowerCase(Locale.US) : "";
+        boolean isApk = lowerMime.contains("android.package-archive")
+                || lowerUrl.contains(".apk")
+                || lowerUrl.contains("/api/download/apk")
+                || (lowerUrl.contains("drive.google.com") && lowerUrl.contains("export=download"));
+
+        String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
+        if (isApk && (fileName == null || !fileName.toLowerCase(Locale.US).endsWith(".apk"))) {
+            fileName = "MarketBD.apk";
+        }
+
+        try {
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+            String cookies = CookieManager.getInstance().getCookie(url);
+            if (cookies != null && !cookies.isEmpty()) {
+                request.addRequestHeader("Cookie", cookies);
+            }
+            if (userAgent != null && !userAgent.isEmpty()) {
+                request.addRequestHeader("User-Agent", userAgent);
+            }
+            request.setTitle(fileName);
+            request.setDescription(isApk
+                    ? "MarketBD.Net অ্যাপ ডাউনলোড হচ্ছে (Download ফোল্ডার)..."
+                    : "MarketBD.Net ফাইল ডাউনলোড হচ্ছে...");
+            if (isApk) {
+                request.setMimeType("application/vnd.android.package-archive");
+            } else if (mimetype != null && !mimetype.isEmpty()) {
+                request.setMimeType(mimetype);
+            }
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+
+            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            if (dm != null) {
+                long downloadId = dm.enqueue(request);
+                if (isApk) {
+                    activeApkDownloadId = downloadId;
+                }
+                Toast.makeText(
+                        this,
+                        "Download ফোল্ডারে " + fileName + " সেভ হচ্ছে...",
+                        Toast.LENGTH_LONG
+                ).show();
+                return;
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (Exception ignored) {
         }
     }
 
@@ -670,6 +842,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         cancelLoadWatchdog();
+        try {
+            unregisterReceiver(apkDownloadReceiver);
+        } catch (Exception ignored) {
+        }
         if (webView != null) {
             webView.destroy();
         }

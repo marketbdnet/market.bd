@@ -7,9 +7,9 @@
     <meta name="description" content="MarketBD.Net - বাংলাদেশের সবচেয়ে বড় এবং নিরাপদ অনলাইন মার্কেটপ্লেস। ঢাকা, চট্টগ্রাম, সিলেট সহ ৬৪ জেলায় সহজে নতুন ও সেকেন্ড হ্যান্ড মোবাইল, ল্যাপটপ, গাড়ি, ফ্ল্যাট ও ঘড়ি ক্রয়-বিক্রয় করুন।" />
     <meta name="keywords" content="MarketBD.Net, MarketBD, online shopping Bangladesh, buy sell mobiles, laptop price BD, used cars Dhaka, property Bangladesh, verified sellers Bangladesh" />
     <link rel="canonical" href="https://marketbd.net/" />
-    <link rel="icon" type="image/jpeg" href="/favicon.jpg" />
-    <link rel="shortcut icon" type="image/jpeg" href="/favicon.jpg" />
-    <link rel="apple-touch-icon" href="/logo.jpg" />
+    <link rel="icon" type="image/jpeg" href="/favicon.jpg?v=3" />
+    <link rel="shortcut icon" type="image/jpeg" href="/favicon.jpg?v=3" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
     
     <!-- Open Graph / Facebook & WhatsApp Preview (1200x630 Branded Banner) -->
     <meta property="og:site_name" content="MarketBD.Net" />
@@ -78,6 +78,10 @@
               localStorage.removeItem('marketbd_site_maintenance_v1');
             }
           }
+          if (localStorage.getItem('marketbd_logo_migrated_v3') !== '1') {
+            localStorage.setItem('marketbd_logo_migrated_v3', '1');
+            localStorage.removeItem('marketbd_custom_logo');
+          }
         } catch (e) {}
       })();
     </script>
@@ -133,7 +137,7 @@
   <body>
     <div id="root">
       <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;font-family:system-ui,-apple-system,sans-serif;padding:24px;text-align:center;">
-        <img src="/logo.jpg" alt="MarketBD.Net" width="76" height="76" style="border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,0.1);margin-bottom:14px;object-fit:cover;" />
+        <img src="/logo.jpg?v=3" alt="MarketBD.Net" width="84" height="84" style="border-radius:999px;background:#000;box-shadow:0 8px 24px rgba(0,0,0,0.18);margin-bottom:14px;object-fit:cover;" />
         <div style="font-size:20px;font-weight:800;color:#b91c1c;letter-spacing:-0.3px;">MarketBD.Net</div>
         <div style="font-size:12px;color:#64748b;margin-top:4px;font-weight:600;">লোড হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন</div>
         <div style="width:140px;height:4px;background:#fee2e2;border-radius:999px;overflow:hidden;margin-top:16px;">

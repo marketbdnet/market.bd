@@ -1,5 +1,5 @@
 import React from 'react';
-import partnershipBadgeImg from '../../assets/images/market_bd_logo_1786102322044.jpg';
+import partnershipBadgeImg from '../../assets/images/marketbd_official_logo.jpg';
 import paymentPartnersImg from '../../assets/images/payment_partners_1786191207981.jpg';
 import { useMarket } from '../../context/MarketContext';
 

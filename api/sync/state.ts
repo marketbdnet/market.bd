@@ -21,10 +21,14 @@ export default function handler(req: VercelRequest | any, res: VercelResponse | 
         allowedAdminIps: []
       },
       systemNotice: {
-        isEnabled: false,
-        noticeTextBn: '',
-        noticeTextEn: '',
-        noticeType: 'info'
+        isEnabled: true,
+        showAppPromo: true,
+        showAdPromo: true,
+        showFraudWarning: true,
+        showCustomNotice: true,
+        scrollSpeed: 'medium',
+        contactPhone: '01533830784',
+        contactEmail: 'official.marketbd@gmail.com'
       },
       paymentAccounts: {
         bkashMerchant: '01700000000',

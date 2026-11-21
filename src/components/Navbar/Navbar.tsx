@@ -3,6 +3,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { useMarket } from '../../context/MarketContext';
 import { UserProfileModal } from '../Auth/UserProfileModal';
 import { LiveClockWidget } from '../Common/LiveClockWidget';
+import officialMarketLogoImg from '../../assets/images/marketbd_official_logo.jpg';
 import {
   MapPin,
   Search,
@@ -121,16 +122,16 @@ export const Navbar: React.FC = () => {
               className="flex items-center gap-1.5 text-left group cursor-pointer shrink-0 select-none py-0"
               title="MarketBD.Net Home"
             >
-              <div className="h-7.5 w-7.5 sm:h-8 sm:w-8 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-lg border-2 border-white shadow-sm bg-white">
+              <div className="h-8 w-8 sm:h-9 sm:w-9 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-full border-2 border-white/90 shadow-sm bg-black">
                 <img
-                  src={customLogoUrl || '/logo.jpg'}
+                  src={customLogoUrl || officialMarketLogoImg}
                   alt="MarketBD.Net Logo"
-                  className="w-full h-full object-cover shrink-0"
+                  className="w-full h-full object-cover shrink-0 rounded-full"
                   loading="eager"
                   decoding="async"
                   onError={(e) => {
                     e.currentTarget.onerror = null;
-                    e.currentTarget.src = '/logo.jpg';
+                    e.currentTarget.src = officialMarketLogoImg;
                   }}
                 />
               </div>
@@ -391,16 +392,16 @@ export const Navbar: React.FC = () => {
             className="flex items-center gap-1.5 text-left group cursor-pointer shrink-0 select-none"
             title="MarketBD.Net Home"
           >
-            <div className="h-7 w-7 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-md border-2 border-white shadow-sm bg-white">
+            <div className="h-8 w-8 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-full border-2 border-white/90 shadow-sm bg-black">
               <img
-                src={customLogoUrl || '/logo.jpg'}
+                src={customLogoUrl || officialMarketLogoImg}
                 alt="MarketBD.Net Logo"
-                className="w-full h-full object-cover shrink-0"
+                className="w-full h-full object-cover shrink-0 rounded-full"
                 loading="eager"
                 decoding="async"
                 onError={(e) => {
                   e.currentTarget.onerror = null;
-                  e.currentTarget.src = '/logo.jpg';
+                  e.currentTarget.src = officialMarketLogoImg;
                 }}
               />
             </div>
@@ -679,8 +680,8 @@ export const Navbar: React.FC = () => {
               {/* Header inside drawer */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border border-pink-500 shadow-md">
-                    <img src={customLogoUrl || '/logo.jpg'} alt="Logo" className="w-full h-full object-cover" />
+                  <div className="w-8 h-8 rounded-full overflow-hidden border border-red-500 bg-black shadow-md">
+                    <img src={customLogoUrl || officialMarketLogoImg} alt="Logo" className="w-full h-full object-cover rounded-full" />
                   </div>
                   <div>
                     <span className="font-black text-sm text-white flex items-center gap-1">
