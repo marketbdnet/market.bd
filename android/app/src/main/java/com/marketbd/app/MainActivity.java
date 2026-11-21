@@ -194,13 +194,22 @@ public class MainActivity extends AppCompatActivity {
             webSettings.setSafeBrowsingEnabled(true);
         }
 
-        // Layout & Viewport Configuration
+        // Layout & Viewport Configuration (match Desktop 1:1 scale & palette)
         webSettings.setSupportZoom(true);
         webSettings.setBuiltInZoomControls(false);
         webSettings.setDisplayZoomControls(false);
         webSettings.setUseWideViewPort(true);
         webSettings.setLoadWithOverviewMode(true);
+        webSettings.setTextZoom(100);
         webSettings.setMediaPlaybackRequiresUserGesture(false);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            webSettings.setAlgorithmicDarkeningAllowed(false);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            @SuppressWarnings("deprecation")
+            int forceDarkOff = WebSettings.FORCE_DARK_OFF;
+            webSettings.setForceDark(forceDarkOff);
+        }
 
         String defaultUa = webSettings.getUserAgentString();
         webSettings.setUserAgentString(defaultUa + APP_USER_AGENT_SUFFIX);

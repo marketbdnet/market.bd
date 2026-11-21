@@ -243,15 +243,49 @@ export const MobileCategoryGrid: React.FC = () => {
     return language === 'bn' ? `${toBengaliNumber(val)}টি` : `${val} ads`;
   };
 
-  // Chunk categories into rows of 4 so tapping any item expands its subcategories directly below its row
-  const categoryRows: Array<typeof categories> = [];
-  for (let i = 0; i < categories.length; i += 4) {
-    categoryRows.push(categories.slice(i, i + 4));
+  // Merge Business & Industry into Jobs on mobile so all 16 categories sit in a clean 4x4 grid
+  const businessCat = categories.find(c => c.id === 'business_industry');
+  const mobileCategories = categories
+    .filter(c => c.id !== 'business_industry')
+    .map(cat => {
+      if (cat.id === 'jobs' && businessCat) {
+        const mergedSubs = [
+          ...(Array.isArray(cat.subcategories) ? cat.subcategories : []).map(sub => ({
+            ...sub,
+            parentCatId: cat.id
+          })),
+          ...(Array.isArray(businessCat.subcategories) ? businessCat.subcategories : []).map(sub => ({
+            ...sub,
+            parentCatId: businessCat.id
+          }))
+        ];
+        return {
+          ...cat,
+          nameBn: 'চাকরি ও ব্যবসা',
+          nameEn: 'Jobs & Business',
+          mergedBusinessId: businessCat.id,
+          mergedSubcategories: mergedSubs
+        };
+      }
+      return {
+        ...cat,
+        mergedBusinessId: undefined as string | undefined,
+        mergedSubcategories: (Array.isArray(cat.subcategories) ? cat.subcategories : []).map(sub => ({
+          ...sub,
+          parentCatId: cat.id
+        }))
+      };
+    });
+
+  // Chunk into rows of 4 (16 items = 4 full rows of 4)
+  const categoryRows: Array<typeof mobileCategories> = [];
+  for (let i = 0; i < mobileCategories.length; i += 4) {
+    categoryRows.push(mobileCategories.slice(i, i + 4));
   }
 
   return (
     <div className="w-full relative">
-      {/* Header matching Bikroy/MarketBD mobile top section */}
+      {/* Header */}
       <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-2 min-w-0">
           <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -276,7 +310,7 @@ export const MobileCategoryGrid: React.FC = () => {
       <div className="space-y-2">
         {categoryRows.map((rowCats, rowIdx) => {
           const activeRowCat = rowCats.find(
-            c => c.id === expandedCatId && Array.isArray(c.subcategories) && c.subcategories.length > 0
+            c => c.id === expandedCatId && c.mergedSubcategories.length > 0
           );
 
           return (
@@ -284,7 +318,7 @@ export const MobileCategoryGrid: React.FC = () => {
               <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                 {rowCats.map(cat => {
                   const catSingleImage = getCategoryImageUrl(cat.id, cat.image);
-                  const hasSubs = Array.isArray(cat.subcategories) && cat.subcategories.length > 0;
+                  const hasSubs = cat.mergedSubcategories.length > 0;
                   const isExpanded = expandedCatId === cat.id;
 
                   return (
@@ -302,37 +336,37 @@ export const MobileCategoryGrid: React.FC = () => {
                       aria-label={`${language === 'bn' ? cat.nameBn : cat.nameEn}${
                         hasSubs ? (language === 'bn' ? ' - সাব-ক্যাটাগরি দেখুন' : ' - View subcategories') : ''
                       }`}
-                      className={`min-h-[88px] flex flex-col items-center justify-between p-1.5 sm:p-2 rounded-xl border text-center transition-all duration-150 cursor-pointer active:scale-[0.97] ${
+                      className={`flex flex-col items-center justify-between p-1 rounded-xl border-2 text-center transition-all duration-150 cursor-pointer active:scale-[0.97] overflow-hidden ${
                         isExpanded
-                          ? 'border-emerald-600 dark:border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 shadow-sm'
-                          : 'border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-emerald-400 dark:hover:border-emerald-700'
+                          ? 'border-emerald-600 dark:border-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 shadow-sm'
+                          : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-emerald-500 dark:hover:border-emerald-500'
                       }`}
                     >
-                      {/* Category Image Top */}
-                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                      {/* Large Category Image filling close to border lines */}
+                      <div className="w-full aspect-square rounded-lg bg-white dark:bg-slate-800/90 flex items-center justify-center overflow-hidden">
                         <img
-                          src={getOptimizedImageUrl(catSingleImage, 160)}
+                          src={getOptimizedImageUrl(catSingleImage, 240)}
                           alt={language === 'bn' ? cat.nameBn : cat.nameEn}
                           loading="eager"
                           decoding="async"
                           referrerPolicy="no-referrer"
-                          className="w-full h-full object-contain"
+                          className="w-full h-full object-contain scale-[1.06]"
                           onError={(e) => {
                             const target = e.currentTarget;
                             if (!target.dataset.retried) {
                               target.dataset.retried = 'true';
-                              target.src = getOptimizedImageUrl(getCategoryImageUrl('business_industry'), 160);
+                              target.src = getOptimizedImageUrl(getCategoryImageUrl('business_industry'), 240);
                             }
                           }}
                         />
                       </div>
 
                       {/* Category Name + Subcategory Disclosure Arrow Below Image */}
-                      <div className="w-full mt-1.5 flex items-center justify-center gap-0.5 min-w-0">
+                      <div className="w-full pt-1 pb-0.5 px-0.5 flex items-center justify-center gap-0.5 min-w-0">
                         <span
-                          className={`text-[10.5px] sm:text-xs font-semibold leading-tight line-clamp-2 break-words ${
+                          className={`text-[10.5px] sm:text-xs font-bold leading-tight line-clamp-2 break-words ${
                             isExpanded
-                              ? 'text-emerald-800 dark:text-emerald-300 font-bold'
+                              ? 'text-emerald-800 dark:text-emerald-300'
                               : 'text-slate-800 dark:text-slate-100'
                           }`}
                         >
@@ -340,7 +374,7 @@ export const MobileCategoryGrid: React.FC = () => {
                         </span>
                         {hasSubs && (
                           <ChevronDown
-                            className={`w-3 h-3 shrink-0 transition-transform duration-150 ${
+                            className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${
                               isExpanded
                                 ? 'rotate-180 text-emerald-700 dark:text-emerald-300'
                                 : 'text-emerald-600 dark:text-emerald-400'
@@ -355,14 +389,20 @@ export const MobileCategoryGrid: React.FC = () => {
 
               {/* Expanded Subcategory Drawer directly under the tapped 4-column row */}
               {activeRowCat && (
-                <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/80 bg-slate-50/90 dark:bg-slate-800/50 p-2.5 animate-in fade-in duration-150">
+                <div className="rounded-xl border-2 border-emerald-500/70 dark:border-emerald-500/60 bg-slate-50/95 dark:bg-slate-800/60 p-2.5 animate-in fade-in duration-150">
                   <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-200/80 dark:border-slate-700/80">
                     <div className="min-w-0 flex items-center gap-1.5">
                       <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
                         {language === 'bn' ? activeRowCat.nameBn : activeRowCat.nameEn}
                       </span>
                       <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums shrink-0">
-                        · {formatAdCount(getLiveCategoryCount(products, activeRowCat.id))}
+                        ·{' '}
+                        {formatAdCount(
+                          getLiveCategoryCount(products, activeRowCat.id) +
+                            (activeRowCat.mergedBusinessId
+                              ? getLiveCategoryCount(products, activeRowCat.mergedBusinessId)
+                              : 0)
+                        )}
                       </span>
                     </div>
 
@@ -379,7 +419,7 @@ export const MobileCategoryGrid: React.FC = () => {
                         type="button"
                         onClick={() => setExpandedCatId(null)}
                         aria-label={language === 'bn' ? 'বন্ধ করুন' : 'Close subcategories'}
-                        className="min-w-[32px] min-h-[32px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white flex items-center justify-center cursor-pointer"
+                        className="min-w-[32px] min-h-[32px] rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white flex items-center justify-center cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -387,30 +427,31 @@ export const MobileCategoryGrid: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                    {activeRowCat.subcategories.map(sub => {
-                      const activeCatImage = getCategoryImageUrl(activeRowCat.id, activeRowCat.image);
-                      const subImg = getSubcategoryImageUrl(activeRowCat.id, sub.id, sub.image);
-                      const subLiveCount = getLiveSubcategoryCount(products, activeRowCat.id, sub.id);
+                    {activeRowCat.mergedSubcategories.map(sub => {
+                      const parentCatId = sub.parentCatId || activeRowCat.id;
+                      const parentImg = getCategoryImageUrl(parentCatId, activeRowCat.image);
+                      const subImg = getSubcategoryImageUrl(parentCatId, sub.id, sub.image);
+                      const subLiveCount = getLiveSubcategoryCount(products, parentCatId, sub.id);
 
                       return (
                         <button
-                          key={sub.id}
+                          key={`${parentCatId}-${sub.id}`}
                           type="button"
-                          onClick={() => handleCategoryClick(activeRowCat.id, sub.id)}
-                          className="min-h-[48px] flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 hover:border-emerald-500 dark:hover:border-emerald-500 transition text-left cursor-pointer group/sub active:scale-[0.98]"
+                          onClick={() => handleCategoryClick(parentCatId, sub.id)}
+                          className="min-h-[50px] flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300/90 dark:border-slate-600/80 hover:border-emerald-500 dark:hover:border-emerald-500 transition text-left cursor-pointer group/sub active:scale-[0.98]"
                         >
                           <img
-                            src={getOptimizedImageUrl(subImg, 120)}
+                            src={getOptimizedImageUrl(subImg, 160)}
                             alt={language === 'bn' ? sub.nameBn : sub.nameEn}
                             loading="eager"
                             decoding="async"
                             referrerPolicy="no-referrer"
-                            className="w-9 h-9 rounded-md object-cover bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 shrink-0"
+                            className="w-10 h-10 rounded-md object-cover bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0"
                             onError={(e) => {
                               const target = e.currentTarget;
                               if (!target.dataset.retried) {
                                 target.dataset.retried = 'true';
-                                target.src = getOptimizedImageUrl(activeCatImage, 120);
+                                target.src = getOptimizedImageUrl(parentImg, 160);
                               }
                             }}
                           />

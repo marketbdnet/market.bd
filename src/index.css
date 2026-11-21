@@ -11,6 +11,7 @@
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   html, body {
@@ -19,6 +20,7 @@
     min-height: 100vh;
     max-width: 100vw;
     overflow-x: hidden;
+    overflow-x: clip;
     padding-top: env(safe-area-inset-top, 0px);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: auto;

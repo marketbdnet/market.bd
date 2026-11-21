@@ -1240,7 +1240,7 @@ export const Navbar: React.FC = () => {
 
       return (
         <>
-          {/* Floating Dark Search Pill matching reference screenshot */}
+          {/* Floating Dark Search Pill */}
           <AnimatePresence>
             {isFloatingSearchOpen && (
               <motion.form
@@ -1252,7 +1252,7 @@ export const Navbar: React.FC = () => {
                   handleSearchSubmit(e);
                   setIsFloatingSearchOpen(false);
                 }}
-                className="fixed bottom-[82px] left-3.5 right-3.5 mx-auto max-w-md z-50 md:hidden mb-[env(safe-area-inset-bottom)] h-12 px-3.5 rounded-full bg-[#151519]/95 backdrop-blur-xl border border-white/12 shadow-[0_14px_34px_rgba(0,0,0,0.48)] flex items-center gap-2.5"
+                className="fixed bottom-[calc(82px+env(safe-area-inset-bottom,0px))] left-2.5 right-2.5 sm:left-3.5 sm:right-3.5 mx-auto max-w-md z-50 md:hidden h-12 px-3.5 rounded-full bg-[#151519]/95 backdrop-blur-md border border-white/12 shadow-[0_14px_34px_rgba(0,0,0,0.48)] flex items-center gap-2.5 transform-gpu"
                 role="search"
                 aria-label={language === 'bn' ? 'পণ্য খুঁজুন' : 'Search products'}
               >
@@ -1292,13 +1292,13 @@ export const Navbar: React.FC = () => {
           {/* Floating Animated Capsule Navigation Dock */}
           <nav
             aria-label="Mobile Navigation"
-            className="fixed bottom-2.5 left-3 right-3 mx-auto max-w-md z-50 md:hidden mb-[env(safe-area-inset-bottom)] select-none"
+            className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,0px))] left-2.5 right-2.5 sm:left-3 sm:right-3 mx-auto max-w-md z-50 md:hidden select-none transform-gpu"
           >
             <div
-              className={`relative rounded-full transition-colors duration-300 ${
+              className={`relative rounded-full overflow-hidden p-1.5 transition-colors duration-300 ${
                 isDarkMode
-                  ? 'bg-[#141418]/95 border border-white/10 shadow-[0_16px_40px_-6px_rgba(0,0,0,0.82)] px-2 pt-1.5 pb-2 overflow-hidden backdrop-blur-xl'
-                  : 'bg-white/95 border border-slate-200/90 shadow-[0_14px_36px_-6px_rgba(15,23,42,0.22)] p-1.5 backdrop-blur-xl'
+                  ? 'bg-[#141418]/[0.97] border border-white/10 shadow-[0_16px_40px_-6px_rgba(0,0,0,0.82)] backdrop-blur-md'
+                  : 'bg-white/[0.97] border border-slate-200/90 shadow-[0_14px_36px_-6px_rgba(15,23,42,0.22)] backdrop-blur-md'
               }`}
             >
               {/* Dark mode bottom continuous crimson accent rail */}
@@ -1320,7 +1320,7 @@ export const Navbar: React.FC = () => {
                       onClick={item.onClick}
                       whileTap={shouldReduceMotion ? undefined : { scale: 0.93 }}
                       aria-current={isActive ? 'page' : undefined}
-                      className={`relative flex-1 min-w-0 min-h-[48px] flex flex-col items-center justify-center gap-0.5 rounded-full px-1 cursor-pointer focus:outline-none ${
+                      className={`relative flex-1 min-w-0 h-[48px] flex flex-col items-center justify-center gap-1 rounded-full px-0.5 sm:px-1 cursor-pointer focus:outline-none ${
                         isDarkMode
                           ? isActive
                             ? 'text-[#FF2E4C]'
@@ -1375,7 +1375,7 @@ export const Navbar: React.FC = () => {
                       )}
 
                       {/* Icon + Optional Unread Notification Dot */}
-                      <span className="relative z-10 inline-flex items-center justify-center">
+                      <span className="relative z-10 inline-flex items-center justify-center shrink-0">
                         {renderDockIcon(item.icon, isActive)}
                         {item.badge !== undefined && item.badge > 0 && (
                           <span
@@ -1390,9 +1390,9 @@ export const Navbar: React.FC = () => {
                         )}
                       </span>
 
-                      {/* Crisp Label */}
+                      {/* Crisp Single-Line Label Centered Consistently Across Android & Desktop */}
                       <span
-                        className={`relative z-10 text-[10px] leading-tight truncate max-w-full transition-colors ${
+                        className={`relative z-10 text-[9.5px] sm:text-[10px] leading-none whitespace-nowrap truncate max-w-full transition-colors ${
                           isActive ? 'font-extrabold' : 'font-semibold'
                         }`}
                       >
