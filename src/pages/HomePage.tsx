@@ -334,6 +334,19 @@ export const HomePage: React.FC = () => {
                   );
                 })}
               </div>
+            ) : products.length === 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
+                {[0, 1, 2, 3, 4].map((slot) => (
+                  <div
+                    key={slot}
+                    className="rounded-xl p-2 border border-amber-200/60 dark:border-amber-800/40 bg-slate-50 dark:bg-slate-800/60 animate-pulse space-y-2"
+                  >
+                    <div className="w-full h-24 sm:h-28 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
+                  </div>
+                ))}
+              </div>
             ) : (
               <p className="text-xs text-slate-500 text-center py-4 font-bold">
                 {language === 'bn' ? 'বর্তমানে কোন ফিচার্ড বিজ্ঞাপন নেই' : 'No featured ads currently available.'}

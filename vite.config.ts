@@ -14,6 +14,10 @@ export default defineConfig(() => {
     },
     build: {
       chunkSizeWarningLimit: 1500,
+      modulePreload: {
+        resolveDependencies: (_filename, deps) =>
+          deps.filter((dep) => !dep.includes('catalog-products')),
+      },
       rollupOptions: {
         output: {
           manualChunks(id) {

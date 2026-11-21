@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product, Language, Location, FilterState, ChatThread, AppNotification, ChatMessage, AppReleaseInfo, PaymentPartnerItem, PaymentAccountsConfig, SystemNoticeConfig, ClockSettings, Category, AdminActiveSession, AdminActivityLog, AdminActionType } from '../types';
-import { INITIAL_PRODUCTS } from '../data/mockProducts';
 import { KNOWN_JUNK_PRODUCT_IDS } from '../utils/knownJunkProductIds';
 import { CATEGORIES } from '../data/bangladeshData';
 import marketBdLogoImg from '../assets/images/market_bd_logo_1786102322044.jpg';
@@ -566,22 +565,57 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const canonicalIdMap = React.useMemo(() => {
-    const m = new Map<string, Product>();
-    INITIAL_PRODUCTS.forEach((p) => {
-      if (p && p.id) m.set(p.id, p);
-    });
-    return m;
+  const canonicalProductsCacheRef = React.useRef<Product[] | null>(null);
+  const canonicalIdMapRef = React.useRef<Map<string, Product>>(new Map());
+  const canonicalLoadPromiseRef = React.useRef<Promise<Product[]> | null>(null);
+
+  const ensureCanonicalProducts = React.useCallback((): Promise<Product[]> => {
+    if (canonicalProductsCacheRef.current) {
+      return Promise.resolve(canonicalProductsCacheRef.current);
+    }
+    if (!canonicalLoadPromiseRef.current) {
+      canonicalLoadPromiseRef.current = import('../data/mockProducts').then((mod) => {
+        const list = Array.isArray(mod.INITIAL_PRODUCTS) ? mod.INITIAL_PRODUCTS : [];
+        canonicalProductsCacheRef.current = list;
+        const idMap = new Map<string, Product>();
+        list.forEach((p) => {
+          if (p && p.id) idMap.set(p.id, p);
+        });
+        canonicalIdMapRef.current = idMap;
+        return list;
+      });
+    }
+    return canonicalLoadPromiseRef.current;
   }, []);
 
   const persistCompactProductsCache = (list: Product[]) => {
     try {
       storage.removeItem('marketbd_products_v4');
+
+      // Store a tiny 16-item fast-boot snapshot (<15KB) for 0ms repeat launches on Android
+      const activeFastSeed = list
+        .filter((p) => p && p.id && isProductPublicActive(p))
+        .slice(0, 16)
+        .map((p) => ({
+          ...p,
+          images: Array.isArray(p.images)
+            ? p.images.filter((img) => typeof img === 'string' && img.length < 32768).slice(0, 1)
+            : [],
+        }));
+      if (activeFastSeed.length > 0) {
+        storage.setItem('marketbd_fast_seed_v1', JSON.stringify(activeFastSeed));
+      }
+
+      // Wait until the canonical catalog chunk has loaded before writing delta cache
+      if (canonicalIdMapRef.current.size === 0) {
+        return;
+      }
+
       const customOrModified: Product[] = [];
       const presentCanonicalIds = new Set<string>();
       for (const p of list) {
         if (!p || !p.id) continue;
-        const base = canonicalIdMap.get(p.id);
+        const base = canonicalIdMapRef.current.get(p.id);
         const isModified =
           !base || p.status !== 'active' || p.title !== base.title || p.price !== base.price;
         if (isModified) {
@@ -598,7 +632,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
       const deletedCanonicalIds: string[] = [];
-      canonicalIdMap.forEach((_v, id) => {
+      canonicalIdMapRef.current.forEach((_v, id) => {
         if (!presentCanonicalIds.has(id)) deletedCanonicalIds.push(id);
       });
       storage.setItem(
@@ -631,24 +665,24 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const nowTime = Date.now();
     const oneYearLater = new Date(nowTime + 365 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Foundational 400 canonical listings - strictly preserved without dynamic mutations
-    INITIAL_PRODUCTS.forEach((p) => {
-      if (p && p.id) {
-        map.set(p.id, {
-          ...p,
-          status: p.status || 'active',
-          isApproved: p.isApproved ?? true,
-          isActive: p.isActive ?? true,
-          moderationStatus: p.moderationStatus || 'approved',
-          postedAt: p.postedAt || '2026-09-01T12:00:00.000Z',
-          createdAt: p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
-          updatedAt: p.updatedAt || p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
-          expiresAt: p.expiresAt || oneYearLater
-        });
+    // Instant 0ms boot seed from compact storage (avoids blocking initial render on 977KB catalog chunk)
+    const fastSeedSaved = storage.getItem('marketbd_fast_seed_v1');
+    if (fastSeedSaved) {
+      try {
+        const parsedSeed = JSON.parse(fastSeedSaved);
+        if (Array.isArray(parsedSeed)) {
+          parsedSeed.forEach((p: Product) => {
+            if (p && p.id && p.title && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
+              map.set(p.id, p);
+            }
+          });
+        }
+      } catch {
+        storage.removeItem('marketbd_fast_seed_v1');
       }
-    });
+    }
 
-    // Load compact custom/modified delta cache (and migrate once if legacy key existed)
+    // Load compact custom/modified delta cache immediately
     const compactSaved = storage.getItem('marketbd_custom_products_v5');
     if (compactSaved) {
       try {
@@ -704,6 +738,67 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     return normalizeProductsList(Array.from(map.values()));
   });
+
+  // Load the canonical 400-item catalog right after initial paint so first screen appears instantly
+  useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(() => {
+      ensureCanonicalProducts().then((baseList) => {
+        if (cancelled || !Array.isArray(baseList) || baseList.length === 0) return;
+        const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        setProducts((prev) => {
+          const map = new Map<string, Product>();
+          baseList.forEach((p) => {
+            if (p && p.id) {
+              map.set(p.id, {
+                ...p,
+                status: p.status || 'active',
+                isApproved: p.isApproved ?? true,
+                isActive: p.isActive ?? true,
+                moderationStatus: p.moderationStatus || 'approved',
+                postedAt: p.postedAt || '2026-09-01T12:00:00.000Z',
+                createdAt: p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
+                updatedAt: p.updatedAt || p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
+                expiresAt: p.expiresAt || oneYearLater
+              });
+            }
+          });
+          // Apply local deleted/custom cache
+          const compactSaved = storage.getItem('marketbd_custom_products_v5');
+          if (compactSaved) {
+            try {
+              const parsed = JSON.parse(compactSaved);
+              if (Array.isArray(parsed?.deleted)) {
+                parsed.deleted.forEach((id: string) => map.delete(id));
+              }
+              if (Array.isArray(parsed?.custom)) {
+                parsed.custom.forEach((p: Product) => {
+                  if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
+                    const existing = map.get(p.id);
+                    map.set(p.id, existing ? { ...existing, ...p } : p);
+                  }
+                });
+              }
+            } catch {}
+          }
+          // Preserve any Firestore/user items already in `prev`
+          prev.forEach((p) => {
+            if (p && p.id && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
+              const existing = map.get(p.id);
+              map.set(p.id, existing ? { ...existing, ...p } : p);
+            }
+          });
+          const merged = normalizeProductsList(Array.from(map.values()));
+          if (areProductListsEquivalent(prev, merged)) return prev;
+          return merged;
+        });
+      }).catch(() => {});
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [ensureCanonicalProducts]);
 
   // Registered Customer Database State (Synced with Firestore & Server)
   const [registeredUsers, setRegisteredUsersState] = useState<UserProfile[]>(() => {
@@ -874,26 +969,25 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
           }
           if (d.marketplace_products && Array.isArray(d.marketplace_products) && d.marketplace_products.length > 0) {
-            setProducts(prev => {
-              // Same fix as the main products-collection listener: don't
-              // carry forward stale prev/local state, or deleted items can
-              // never disappear for a browser that already cached them.
-              const map = new Map<string, Product>();
-              INITIAL_PRODUCTS.forEach(p => { if (p && p.id) map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true }); });
-              d.marketplace_products.forEach((p: Product) => {
-                if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
-                  const existing = map.get(p.id);
-                  map.set(p.id, existing ? { ...existing, ...p } : p);
-                }
+            ensureCanonicalProducts().then((baseList) => {
+              setProducts(prev => {
+                const map = new Map<string, Product>();
+                baseList.forEach(p => { if (p && p.id) map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true }); });
+                d.marketplace_products.forEach((p: Product) => {
+                  if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
+                    const existing = map.get(p.id);
+                    map.set(p.id, existing ? { ...existing, ...p } : p);
+                  }
+                });
+                const rawMerged = Array.from(map.values()).sort((a, b) => 
+                  new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
+                );
+                const merged = normalizeProductsList(rawMerged);
+                if (areProductListsEquivalent(prev, merged)) return prev;
+                persistCompactProductsCache(merged);
+                return merged;
               });
-              const rawMerged = Array.from(map.values()).sort((a, b) => 
-                new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
-              );
-              const merged = normalizeProductsList(rawMerged);
-              if (areProductListsEquivalent(prev, merged)) return prev;
-              persistCompactProductsCache(merged);
-              return merged;
-            });
+            }).catch(() => {});
           }
           if (d.registered_users && Array.isArray(d.registered_users) && d.registered_users.length > 0) {
             setRegisteredUsersState(prev => {
@@ -1108,43 +1202,31 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           console.warn('Realtime live notification check note:', e);
         }
 
-        setProducts(prev => {
-          // FIX: previously this also merged in `prev` (the browser's own
-          // last React state, which could still be carrying stale entries
-          // from localStorage or an earlier session). That meant a product
-          // deleted from Firestore could keep "ghost" living forever in a
-          // browser/device that had already cached it locally -- which is
-          // exactly why different browsers/devices could show different ad
-          // counts even with this realtime listener running. Firestore
-          // (cloudAds) plus the baked-in canonical catalog are now the only
-          // two sources of truth, so every client converges on the same
-          // Firestore document, live -- matching WEBSITE POST + ANDROID
-          // POST -> same Firestore doc -> WEBSITE LIVE + ANDROID LIVE.
-          const map = new Map<string, Product>();
-          INITIAL_PRODUCTS.forEach(p => { if (p && p.id) map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true }); });
-          cloudAds.forEach(ca => {
-            if (ca && ca.id && ca.title && ca.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(ca.id)) {
-              const existing = map.get(ca.id);
-              map.set(ca.id, existing ? { ...existing, ...ca } : ca);
-            }
-          });
-          // Any canonical/seed product that was deliberately removed from
-          // Firestore (e.g. admin deleted it) should also disappear, not
-          // just custom ads -- so drop the special-case exemption here too.
-          docChanges.forEach(change => {
-            if (change.type === 'removed') {
-              map.delete(change.doc.id);
-            }
-          });
+        ensureCanonicalProducts().then((baseList) => {
+          setProducts(prev => {
+            const map = new Map<string, Product>();
+            baseList.forEach(p => { if (p && p.id) map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true }); });
+            cloudAds.forEach(ca => {
+              if (ca && ca.id && ca.title && ca.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(ca.id)) {
+                const existing = map.get(ca.id);
+                map.set(ca.id, existing ? { ...existing, ...ca } : ca);
+              }
+            });
+            docChanges.forEach(change => {
+              if (change.type === 'removed') {
+                map.delete(change.doc.id);
+              }
+            });
 
-          const rawMerged = Array.from(map.values()).sort((a, b) => 
-            new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
-          );
-          const merged = normalizeProductsList(rawMerged);
-          if (areProductListsEquivalent(prev, merged)) return prev;
-          persistCompactProductsCache(merged);
-          return merged;
-        });
+            const rawMerged = Array.from(map.values()).sort((a, b) => 
+              new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
+            );
+            const merged = normalizeProductsList(rawMerged);
+            if (areProductListsEquivalent(prev, merged)) return prev;
+            persistCompactProductsCache(merged);
+            return merged;
+          });
+        }).catch(() => {});
       }, (err) => console.log('Products collection listener notice:', err));
       unsubs.push(unsubProductsCol);
 
@@ -1425,8 +1507,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const data = await res.json();
         const productArray = Array.isArray(data.data) ? data.data : (Array.isArray(data.products) ? data.products : (Array.isArray(data) ? data : null));
         if (productArray && productArray.length > 0) {
+          const baseList = await ensureCanonicalProducts();
           const map = new Map<string, Product>();
-          INITIAL_PRODUCTS.forEach(p => { if (p && p.id) map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true }); });
+          baseList.forEach(p => { if (p && p.id) map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true }); });
           productArray.forEach((p: Product) => {
             if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
               const existing = map.get(p.id);

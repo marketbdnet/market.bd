@@ -12,13 +12,18 @@ export interface PushNotificationPayload {
   url?: string;
 }
 
-// Auto-register ServiceWorker on client boot for Android push notification handling
+// Auto-register ServiceWorker immediately on client boot for instant app-shell caching & Android push notifications
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
+  const registerSw = () => {
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch((err) => {
       console.log('SW registration note:', err);
     });
-  });
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', registerSw, { once: true });
+  } else {
+    registerSw();
+  }
 }
 
 /**

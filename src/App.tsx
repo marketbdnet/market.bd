@@ -2,13 +2,10 @@ import React, { Suspense } from 'react';
 import { MarketProvider, useMarket } from './context/MarketContext';
 import { Navbar } from './components/Navbar/Navbar';
 import { Live3DTickerBar } from './components/Navbar/Live3DTickerBar';
-import { LocationModal } from './components/Navbar/LocationModal';
-import { AuthModal } from './components/Auth/AuthModal';
 import { Footer } from './components/Footer/Footer';
 import { InAppNotificationBanner } from './components/Common/InAppNotificationBanner';
 import { OfflineModal } from './components/Common/OfflineModal';
 import { HomePage } from './pages/HomePage';
-import { SearchPage } from './pages/SearchPage';
 import { MaintenanceScreen } from './components/Maintenance/MaintenanceScreen';
 import { MasterLockdownScreen } from './components/Maintenance/MasterLockdownScreen';
 import { ArrowLeft, ArrowRight, Home, Wrench, ShieldAlert, CheckCircle2, Zap } from 'lucide-react';
@@ -37,6 +34,9 @@ function resilientLazy<T extends React.ComponentType<any>>(
 }
 
 // Code-split heavy secondary views & modals for instant initial launch on Android mobile
+const SearchPage = resilientLazy(() => import('./pages/SearchPage'), 'SearchPage');
+const LocationModal = resilientLazy(() => import('./components/Navbar/LocationModal'), 'LocationModal');
+const AuthModal = resilientLazy(() => import('./components/Auth/AuthModal'), 'AuthModal');
 const ProductDetailModal = resilientLazy(() => import('./components/Product/ProductDetailModal'), 'ProductDetailModal');
 const CategoryForms = resilientLazy(() => import('./components/Forms/CategoryForms'), 'CategoryForms');
 const ChatDrawer = resilientLazy(() => import('./components/Chat/ChatDrawer'), 'ChatDrawer');
@@ -68,6 +68,8 @@ const MainContent: React.FC = () => {
     userRole,
     currentUser,
     isAISearchOpen,
+    isAuthModalOpen,
+    isLocationModalOpen,
     adToDelete,
     isInstallAppModalOpen
   } = useMarket();
@@ -85,7 +87,11 @@ const MainContent: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 font-sans">
         <MasterLockdownScreen />
-        <AuthModal />
+        {isAuthModalOpen && (
+          <Suspense fallback={null}>
+            <AuthModal />
+          </Suspense>
+        )}
       </div>
     );
   }
@@ -98,7 +104,11 @@ const MainContent: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 font-sans">
         <MaintenanceScreen />
-        <AuthModal />
+        {isAuthModalOpen && (
+          <Suspense fallback={null}>
+            <AuthModal />
+          </Suspense>
+        )}
       </div>
     );
   }
@@ -285,9 +295,9 @@ const MainContent: React.FC = () => {
 
       {/* Global Modals & Support */}
       <InAppNotificationBanner />
-      <LocationModal />
-      <AuthModal />
       <Suspense fallback={null}>
+        {isLocationModalOpen && <LocationModal />}
+        {isAuthModalOpen && <AuthModal />}
         <AppUpdateModal />
         {isAISearchOpen && <AISearchModal />}
         <CustomerCareChat />
