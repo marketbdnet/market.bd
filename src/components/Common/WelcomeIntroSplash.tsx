@@ -8,10 +8,11 @@ declare global {
   }
 }
 
-const WORDMARK = 'MarketBD.Net';
-const CHARS = WORDMARK.split(''); // Index 0 = 'M', Indices 1..11 = 'a','r','k','e','t','B','D','.','N','e','t'
+const WORDMARK = 'MarketBD';
+const CHARS = WORDMARK.split(''); // Index 0 = 'M' (Red #E50914), Indices 1..7 = 'a','r','k','e','t','B','D' (White #FFFFFF)
 const TOTAL_DURATION_MS = 7800; // Matches the 8s slow-motion reference video
 const HOLD_BEFORE_EXIT_MS = 700;
+const BRAND_RED = '#E50914';
 
 // Approximate stroke perimeters for fontSize=82 heavy geometric sans (calibrated for zero dead-time)
 const CHAR_DASH_LENGTHS: Record<string, number> = {
@@ -22,14 +23,12 @@ const CHAR_DASH_LENGTHS: Record<string, number> = {
   e: 310,
   t: 230,
   B: 420,
-  D: 360,
-  '.': 75,
-  N: 360
+  D: 360
 };
 
 // Proportional fallback offsets at fontSize=82 before webfont measurement settles
-const DEFAULT_CHAR_XS = [0, 74, 125, 160, 211, 261, 297, 358, 421, 444, 511, 561];
-const DEFAULT_TOTAL_WIDTH = 598;
+const DEFAULT_CHAR_XS = [0, 74, 125, 160, 211, 261, 297, 358];
+const DEFAULT_TOTAL_WIDTH = 421;
 
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -117,7 +116,7 @@ export const WelcomeIntroSplash: React.FC = () => {
           xs.push(textEl.getStartPositionOfChar(i).x);
         }
         const total = textEl.getComputedTextLength();
-        if (xs.length === CHARS.length && total > 100) {
+        if (xs.length === CHARS.length && total > 80) {
           setCharLayout({ xs, totalWidth: total });
         }
       } catch {
@@ -131,7 +130,7 @@ export const WelcomeIntroSplash: React.FC = () => {
     }
   }, [isVisible]);
 
-  // 60fps Video-Matched Slow-Motion Timeline (7.8s pure white outline -> progressive fill -> hopping M -> landing)
+  // 60fps Video-Matched Slow-Motion Timeline (7.8s: White sweep & outline->fill on arketBD + Red hopping/landing M)
   useEffect(() => {
     if (!isVisible) return;
 
@@ -174,18 +173,18 @@ export const WelcomeIntroSplash: React.FC = () => {
         pathEl.style.opacity = visibleLen > 0.5 ? String(sweepOpacity) : '0';
       });
 
-      // 2. Per-letter slow-motion white outline tracing (0.09 -> 0.43)
-      //    followed by progressive left-to-right solid white fill (0.42 -> 0.78)
+      // 2. Per-letter slow-motion white outline tracing (0.09 -> 0.42)
+      //    followed by progressive left-to-right solid white fill (0.42 -> 0.77)
       for (let i = 1; i < CHARS.length; i++) {
-        const idx = i - 1; // 0..10
+        const idx = i - 1; // 0..6 ('a'..'D')
         const ch = CHARS[i];
         const dashLen = CHAR_DASH_LENGTHS[ch] ?? 320;
 
-        const outlineStart = 0.09 + idx * 0.021;
-        const outlineFrac = easeInOutCubic((p - outlineStart) / 0.11);
+        const outlineStart = 0.09 + idx * 0.032;
+        const outlineFrac = easeInOutCubic((p - outlineStart) / 0.12);
 
-        const fillStart = 0.42 + idx * 0.026;
-        const fillFrac = easeInOutCubic((p - fillStart) / 0.1);
+        const fillStart = 0.42 + idx * 0.036;
+        const fillFrac = easeInOutCubic((p - fillStart) / 0.12);
 
         const strokeAlpha =
           outlineFrac <= 0 ? 0 : fillFrac >= 1 ? 0 : Math.max(0, 1 - fillFrac * 0.9);
@@ -203,7 +202,7 @@ export const WelcomeIntroSplash: React.FC = () => {
         });
       }
 
-      // 3. Slow-Motion Bouncing "M" Arc Across Tops & Final Left Landing (0.43 -> 0.91)
+      // 3. Slow-Motion Bouncing RED "M" Arc Across Tops of "arketBD" & Final Left Landing (0.43 -> 0.92)
       let mOpacity = 0;
       let mX = 0;
       let mY = 0;
@@ -214,13 +213,13 @@ export const WelcomeIntroSplash: React.FC = () => {
       const mStartX = charLayout.xs[0] ?? 0;
       const mSlotCenter = mStartX + 32;
       const hopLeftX = (charLayout.xs[1] ?? 74) + 18 - mSlotCenter; // Above 'a'/'r'
-      const hopMidX = wordW * 0.52 - mSlotCenter; // Above 't'/'B'
-      const hopRightX = wordW * 0.84 - mSlotCenter; // Above 'N'/'e'
+      const hopMidX = wordW * 0.54 - mSlotCenter; // Above 'e'/'t'
+      const hopRightX = wordW * 0.86 - mSlotCenter; // Above 'B'/'D'
 
       if (p < 0.43) {
         mOpacity = 0;
       } else if (p < 0.49) {
-        // Emerge upright above first solid white letters (00:04 frame)
+        // Emerge upright above first solid white letters
         const k = easeOutCubic((p - 0.43) / 0.06);
         mOpacity = k;
         mX = hopLeftX;
@@ -229,9 +228,9 @@ export const WelcomeIntroSplash: React.FC = () => {
         mScaleY = lerp(0.32, 0.41, k);
         mRot = 0;
       } else if (p < 0.62) {
-        // Hop arc rightward across middle letters tilting clockwise (00:05 frame)
+        // Hop arc rightward across middle letters tilting clockwise
         const k = (p - 0.49) / 0.13;
-        const arcLift = Math.sin(k * Math.PI) * 32;
+        const arcLift = Math.sin(k * Math.PI) * 30;
         mOpacity = 1;
         mX = lerp(hopLeftX, hopMidX, easeInOutCubic(k));
         mY = lerp(-78, -94, k) - arcLift;
@@ -239,7 +238,7 @@ export const WelcomeIntroSplash: React.FC = () => {
         mScaleY = lerp(0.41, 0.38, k);
         mRot = lerp(0, 19, easeInOutCubic(k));
       } else if (p < 0.74) {
-        // Continue right over '.Net' tilting further clockwise (00:06 frame)
+        // Continue right over 'BD' tilting further clockwise
         const k = (p - 0.62) / 0.12;
         const arcLift = Math.sin(k * Math.PI) * 24;
         mOpacity = 1;
@@ -249,10 +248,10 @@ export const WelcomeIntroSplash: React.FC = () => {
         mScaleY = 0.37;
         mRot = lerp(19, 27, easeInOutCubic(k));
       } else if (p < 0.87) {
-        // Swoop back leftward in a tall arc growing to full 1.0x size (00:07 frame)
+        // Swoop back leftward in a tall arc growing to full 1.0x size
         const k = (p - 0.74) / 0.13;
         const eased = easeInOutCubic(k);
-        const arcLift = Math.sin(k * Math.PI) * 58;
+        const arcLift = Math.sin(k * Math.PI) * 56;
         mOpacity = 1;
         mX = lerp(hopRightX, 0, eased);
         mY = lerp(-84, 0, eased) - arcLift;
@@ -261,7 +260,7 @@ export const WelcomeIntroSplash: React.FC = () => {
         mScaleY = sc;
         mRot = k < 0.55 ? lerp(27, -16, k / 0.55) : lerp(-16, 0, (k - 0.55) / 0.45);
       } else if (p < 0.92) {
-        // Subtle tactile landing squash & settle (00:08 frame)
+        // Subtle tactile landing squash & settle
         const k = (p - 0.87) / 0.05;
         mOpacity = 1;
         mX = 0;
@@ -342,7 +341,7 @@ export const WelcomeIntroSplash: React.FC = () => {
         style={reducedMotion ? { opacity: 0 } : undefined}
       />
 
-      {/* Bouncing & Landing "M" */}
+      {/* Bouncing & Landing RED "M" */}
       <g
         ref={(el) => {
           if (isReflection) targetsRef.current.mGroupRef = el;
@@ -350,12 +349,12 @@ export const WelcomeIntroSplash: React.FC = () => {
         }}
         style={reducedMotion ? { opacity: 1 } : { opacity: 0 }}
       >
-        <text x={charLayout.xs[0] ?? 0} y={94} fill="#FFFFFF" style={sharedTextStyle}>
+        <text x={charLayout.xs[0] ?? 0} y={94} fill={BRAND_RED} style={sharedTextStyle}>
           M
         </text>
       </g>
 
-      {/* Progressive White Outline -> Progressive Solid White Fill ("arketBD.Net") */}
+      {/* Progressive White Outline -> Progressive Solid White Fill ("arketBD") */}
       {CHARS.slice(1).map((ch, sliceIdx) => {
         const charIdx = sliceIdx + 1;
         return (
@@ -385,7 +384,7 @@ export const WelcomeIntroSplash: React.FC = () => {
   return (
     <div
       role="dialog"
-      aria-label="Welcome to MarketBD.Net"
+      aria-label="Welcome to MarketBD"
       onClick={handleDismiss}
       className={`fixed inset-0 z-[99999] bg-black flex flex-col items-center justify-center overflow-hidden select-none px-4 transition-all duration-400 ease-out ${
         isFadingOut ? 'opacity-0 scale-[1.01] pointer-events-none' : 'opacity-100 scale-100'
@@ -411,7 +410,7 @@ export const WelcomeIntroSplash: React.FC = () => {
       </svg>
 
       {/* Central Stage */}
-      <div className="relative z-10 flex flex-col items-center justify-center w-full max-w-5xl">
+      <div className="relative z-10 flex flex-col items-center justify-center w-full max-w-4xl">
         {/* Small Crisp White "Welcome to" */}
         <p
           className={`text-white font-semibold tracking-[0.22em] text-xs sm:text-sm md:text-base mb-1 sm:mb-2 text-center ${
@@ -422,12 +421,12 @@ export const WelcomeIntroSplash: React.FC = () => {
           Welcome to
         </p>
 
-        {/* Video-Matched Pure White Wordmark + Synchronized Mirror Floor Reflection */}
+        {/* Video-Matched Red M + White arketBD + Synchronized Mirror Floor Reflection */}
         <div className="relative w-full flex justify-center">
           <svg
             viewBox={`-12 0 ${svgWidth.toFixed(1)} 168`}
-            className="overflow-visible w-full max-w-[350px] sm:max-w-[540px] md:max-w-[680px] h-auto"
-            aria-label="MarketBD.Net"
+            className="overflow-visible w-full max-w-[300px] sm:max-w-[440px] md:max-w-[540px] h-auto"
+            aria-label="MarketBD"
           >
             <defs>
               <linearGradient
@@ -457,7 +456,7 @@ export const WelcomeIntroSplash: React.FC = () => {
             <g>{renderWordmarkSet(false)}</g>
 
             {/* Synchronized Floor Mirror Reflection (Directly touching baseline) */}
-            <g mask="url(#mbd-mirror-mask)" opacity="0.52">
+            <g mask="url(#mbd-mirror-mask)" opacity="0.54">
               <g transform="translate(0, 190) scale(1, -1)">{renderWordmarkSet(true)}</g>
             </g>
           </svg>

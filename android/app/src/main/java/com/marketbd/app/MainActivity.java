@@ -647,11 +647,12 @@ public class MainActivity extends AppCompatActivity {
      *   6) Real-time synchronized vertical mirror floor reflection underneath
      */
     private static final class VideoMatchedSplashView extends View {
-        private static final String WORDMARK = "MarketBD.Net";
+        private static final String WORDMARK = "MarketBD";
         private static final long ANIM_DURATION_MS = 7800L;
         private static final long HOLD_DURATION_MS = 650L;
 
         private final Paint welcomePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint mFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint sweepPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -697,6 +698,13 @@ public class MainActivity extends AppCompatActivity {
             fillPaint.setTypeface(heavyTf);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 fillPaint.setLetterSpacing(-0.02f);
+            }
+
+            mFillPaint.setColor(Color.parseColor("#E50914"));
+            mFillPaint.setStyle(Paint.Style.FILL);
+            mFillPaint.setTypeface(heavyTf);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mFillPaint.setLetterSpacing(-0.02f);
             }
 
             strokePaint.setColor(Color.WHITE);
@@ -761,8 +769,8 @@ public class MainActivity extends AppCompatActivity {
             super.onSizeChanged(w, h, oldw, oldh);
             if (w <= 0 || h <= 0) return;
 
-            float targetWidth = w * 0.84f;
-            float testSize = Math.min(w * 0.135f, 56f * density);
+            float targetWidth = w * 0.80f;
+            float testSize = Math.min(w * 0.165f, 64f * density);
             fillPaint.setTextSize(testSize);
             float measured = fillPaint.measureText(WORDMARK);
             if (measured > targetWidth && measured > 0f) {
@@ -770,6 +778,7 @@ public class MainActivity extends AppCompatActivity {
                 fillPaint.setTextSize(testSize);
                 measured = fillPaint.measureText(WORDMARK);
             }
+            mFillPaint.setTextSize(testSize);
             wordWidth = measured;
             mAdvance = fillPaint.measureText(WORDMARK, 0, 1);
 
@@ -813,19 +822,19 @@ public class MainActivity extends AppCompatActivity {
             float wordLeftX = (w - wordWidth) * 0.5f;
             float baselineY = h * 0.50f;
 
-            // 1. Small Crisp White "Welcome to" centered neatly above MarketBD.Net
+            // 1. Small Crisp White "Welcome to" centered neatly above MarketBD
             float welcomeAlpha = clamp01(animProgress / 0.14f);
             float welcomeDropY = lerp(-6f * density, 0f, easeOutCubic(welcomeAlpha));
             welcomePaint.setAlpha(Math.round(255f * welcomeAlpha));
             float welcomeY = baselineY - capHeight - 18f * density + welcomeDropY;
             canvas.drawText("Welcome to", w * 0.5f, welcomeY, welcomePaint);
 
-            // 2. Upright Primary Wordmark
+            // 2. Upright Primary Wordmark (Red M + White arketBD)
             drawWordmarkPass(canvas, wordLeftX, baselineY, false, 1f);
 
             // 3. Synchronized Floor Mirror Reflection (directly below baseline)
             float reflectBaselineY = baselineY + Math.max(2f, 1.5f * density);
-            drawWordmarkPass(canvas, wordLeftX, reflectBaselineY, true, 0.52f);
+            drawWordmarkPass(canvas, wordLeftX, reflectBaselineY, true, 0.54f);
 
             // 4. Smooth Black Floor Mirror Fade Gradient
             float maskBottom = reflectBaselineY + capHeight * 0.92f;
@@ -859,7 +868,7 @@ public class MainActivity extends AppCompatActivity {
             if (p <= 0.37f) {
                 reusablePm.setPath(sweepPath, false);
                 float totalSweepLen = reusablePm.getLength();
-                float headFrac = easeOutCubic(clamp01(p / 0.14f));
+                float headFrac = easeOutCubic(clamp01(p / 0.16f));
                 float tailFrac = p <= 0.15f ? 0f : easeInOutCubic(clamp01((p - 0.15f) / 0.21f));
                 float headPx = headFrac * totalSweepLen;
                 float tailPx = tailFrac * totalSweepLen;
@@ -871,15 +880,15 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
-            // B. Left-to-Right Per-Letter White Outline Tracing (0.09 -> 0.43)
-            //    followed by Progressive Solid White Fill (0.42 -> 0.78)
+            // B. Left-to-Right Per-Letter White Outline Tracing (0.09 -> 0.42)
+            //    followed by Progressive Solid White Fill (0.42 -> 0.77) on "arketBD"
             for (int i = 1; i < WORDMARK.length(); i++) {
-                int idx = i - 1; // 0..10
-                float outlineStart = 0.09f + idx * 0.021f;
-                float outlineFrac = easeInOutCubic((p - outlineStart) / 0.11f);
+                int idx = i - 1; // 0..6 ('a'..'D')
+                float outlineStart = 0.09f + idx * 0.032f;
+                float outlineFrac = easeInOutCubic((p - outlineStart) / 0.12f);
 
-                float fillStart = 0.42f + idx * 0.026f;
-                float fillFrac = easeInOutCubic((p - fillStart) / 0.10f);
+                float fillStart = 0.42f + idx * 0.036f;
+                float fillFrac = easeInOutCubic((p - fillStart) / 0.12f);
 
                 if (outlineFrac > 0f && fillFrac < 0.99f) {
                     float targetDist = charPathLengths[i] * outlineFrac;
@@ -910,7 +919,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
-            // C. Slow-Motion Bouncing "M" Arc Across Tops & Final Left Landing (0.43 -> 0.91)
+            // C. Slow-Motion Bouncing RED "M" Arc Across Tops & Final Left Landing (0.43 -> 0.92)
             if (p >= 0.43f) {
                 float mAlpha;
                 float mX = 0f;
@@ -921,8 +930,8 @@ public class MainActivity extends AppCompatActivity {
 
                 float mPivotX = charXs[0] + mAdvance * 0.5f;
                 float hopLeftX = (charXs[1] + capHeight * 0.3f) - mPivotX;
-                float hopMidX = wordWidth * 0.52f - mPivotX;
-                float hopRightX = wordWidth * 0.84f - mPivotX;
+                float hopMidX = wordWidth * 0.54f - mPivotX;
+                float hopRightX = wordWidth * 0.86f - mPivotX;
 
                 if (p < 0.49f) {
                     float k = easeOutCubic((p - 0.43f) / 0.06f);
@@ -935,7 +944,7 @@ public class MainActivity extends AppCompatActivity {
                     mRot = 0f;
                 } else if (p < 0.62f) {
                     float k = (p - 0.49f) / 0.13f;
-                    float arcLift = (float) Math.sin(k * Math.PI) * (capHeight * 0.52f);
+                    float arcLift = (float) Math.sin(k * Math.PI) * (capHeight * 0.50f);
                     mAlpha = 1f;
                     mX = lerp(hopLeftX, hopMidX, easeInOutCubic(k));
                     mY = lerp(-capHeight * 1.24f, -capHeight * 1.48f, k) - arcLift;
@@ -955,7 +964,7 @@ public class MainActivity extends AppCompatActivity {
                 } else if (p < 0.87f) {
                     float k = (p - 0.74f) / 0.13f;
                     float eased = easeInOutCubic(k);
-                    float arcLift = (float) Math.sin(k * Math.PI) * (capHeight * 0.92f);
+                    float arcLift = (float) Math.sin(k * Math.PI) * (capHeight * 0.88f);
                     mAlpha = 1f;
                     mX = lerp(hopRightX, 0f, eased);
                     mY = lerp(-capHeight * 1.32f, 0f, eased) - arcLift;
@@ -983,8 +992,8 @@ public class MainActivity extends AppCompatActivity {
                 canvas.translate(mX, mY);
                 canvas.rotate(mRot, mPivotX, -capHeight * 0.42f);
                 canvas.scale(mScaleX, mScaleY, mPivotX, 0f);
-                fillPaint.setAlpha(Math.round(255f * mAlpha * baseOpacity));
-                canvas.drawPath(charPaths[0], fillPaint);
+                mFillPaint.setAlpha(Math.round(255f * mAlpha * baseOpacity));
+                canvas.drawPath(charPaths[0], mFillPaint);
                 canvas.restore();
             }
 
