@@ -31,7 +31,9 @@ import {
   checkAndRequestMicrophone,
   PermissionStatusResult
 } from '../../utils/permissionUtils';
-import { downloadApkFile, formatDirectApkUrl } from '../../utils/apkDownloadHelper';
+import { downloadApkFile, formatDirectApkUrl, uploadApkFileToServer } from '../../utils/apkDownloadHelper';
+import { getAdminAuthStatus, verifyAdminPassword, claimAdminPassword } from '../../utils/adminAuth';
+import { downloadIosAppProfile, formatDirectIosUrl } from '../../utils/iosDownloadHelper';
 
 export const AppUpdateAdminPanel: React.FC = () => {
   const { language, appRelease, updateAppRelease, userInstalledVersion } = useMarket();
@@ -44,6 +46,8 @@ export const AppUpdateAdminPanel: React.FC = () => {
   const [isMandatoryInput, setIsMandatoryInput] = useState(appRelease.isMandatory);
   const [apkUrlInput, setApkUrlInput] = useState(appRelease.apkDownloadUrl || '/MarketBD.apk');
   const [playStoreUrlInput, setPlayStoreUrlInput] = useState(appRelease.playStoreUrl || 'https://play.google.com/store/apps/details?id=com.marketbd.app');
+  const [iosUrlInput, setIosUrlInput] = useState(appRelease.iosDownloadUrl || '/api/download/ios');
+  const [iosAppStoreUrlInput, setIosAppStoreUrlInput] = useState(appRelease.iosAppStoreUrl || '');
 
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -55,6 +59,11 @@ export const AppUpdateAdminPanel: React.FC = () => {
   const [testDownloadError, setTestDownloadError] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [uploadedFileSize, setUploadedFileSize] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadCompletedOnServer, setUploadCompletedOnServer] = useState(false);
+  const [pendingApkFile, setPendingApkFile] = useState<File | null>(null);
+  const [needsAdminPasscode, setNeedsAdminPasscode] = useState<'verify' | 'claim' | null>(null);
+  const [inlineAdminPasscode, setInlineAdminPasscode] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -250,10 +259,58 @@ export const AppUpdateAdminPanel: React.FC = () => {
     setApkUrlInput(formatted);
   };
 
-  // Handle local APK file selection (for local verification/preview only)
-  const handleApkFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload selected .apk directly to server so every customer can download & install it
+  const performRealApkUpload = async (file: File, adminPasscode?: string) => {
+    setTestDownloadError(null);
+    setPublishError(null);
+    setUploadCompletedOnServer(false);
+    setUploadProgress(5);
+    const sizeInMb = (file.size / (1024 * 1024)).toFixed(2);
+    setUploadedFileName(file.name);
+    setUploadedFileSize(`${sizeInMb} MB`);
+
+    const result = await uploadApkFileToServer(file, {
+      adminPassword: adminPasscode,
+      onProgress: (pct) => setUploadProgress(pct)
+    });
+
+    setUploadProgress(null);
+
+    if (result.ok) {
+      const liveUrl = result.downloadUrl || '/api/download/apk';
+      setPendingApkFile(null);
+      setNeedsAdminPasscode(null);
+      setInlineAdminPasscode('');
+      setApkUrlInput(liveUrl);
+      setUploadCompletedOnServer(true);
+
+      updateAppRelease({
+        ...appRelease,
+        version: versionInput.trim() || appRelease.version,
+        apkDownloadUrl: liveUrl,
+        publishedAt: new Date().toISOString()
+      });
+      return;
+    }
+
+    if (result.code === 'ADMIN_AUTH_REQUIRED' || result.code === 'CLAIM_REQUIRED') {
+      setPendingApkFile(file);
+      const authStatus = await getAdminAuthStatus();
+      setNeedsAdminPasscode(authStatus.canClaim ? 'claim' : 'verify');
+      return;
+    }
+
+    setTestDownloadError(
+      language === 'bn'
+        ? `❌ APK আপলোড হয়নি: ${result.error || 'অবৈধ .apk ফাইল।'}`
+        : `❌ APK upload failed: ${result.error || 'Invalid .apk archive.'}`
+    );
+  };
+
+  const handleApkFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = '';
 
     if (!file.name.toLowerCase().endsWith('.apk')) {
       setTestDownloadError(
@@ -262,15 +319,30 @@ export const AppUpdateAdminPanel: React.FC = () => {
       return;
     }
 
-    setTestDownloadError(null);
-    setPublishError(null);
-    const sizeInMb = (file.size / (1024 * 1024)).toFixed(2);
-    setUploadedFileName(file.name);
-    setUploadedFileSize(`${sizeInMb} MB`);
+    await performRealApkUpload(file);
+  };
 
-    // Create a local Object URL for instant local testing only (not shareable across users)
-    const objectUrl = URL.createObjectURL(file);
-    setApkUrlInput(objectUrl);
+  const handleUnlockAndRetryUpload = async () => {
+    const pass = inlineAdminPasscode.trim();
+    if (pass.length < 4 || !pendingApkFile) return;
+
+    if (needsAdminPasscode === 'claim') {
+      const claimRes = await claimAdminPassword(pass);
+      if (!claimRes.ok) {
+        setTestDownloadError(claimRes.error || 'Passcode setup failed.');
+        return;
+      }
+    } else {
+      const valid = await verifyAdminPassword(pass);
+      if (!valid) {
+        setTestDownloadError(
+          language === 'bn' ? '❌ অ্যাডমিন পাসকোড সঠিক নয়।' : '❌ Incorrect admin passcode.'
+        );
+        return;
+      }
+    }
+
+    await performRealApkUpload(pendingApkFile, pass);
   };
 
   // Test downloading the current configured APK
@@ -332,6 +404,7 @@ export const AppUpdateAdminPanel: React.FC = () => {
     }
 
     const finalApkUrl = formatDirectApkUrl(trimmedApkUrl);
+    const finalIosUrl = formatDirectIosUrl(iosUrlInput);
 
     updateAppRelease({
       version: versionInput.trim(),
@@ -344,6 +417,8 @@ export const AppUpdateAdminPanel: React.FC = () => {
       isMandatory: isMandatoryInput,
       apkDownloadUrl: finalApkUrl,
       playStoreUrl: playStoreUrlInput.trim(),
+      iosDownloadUrl: finalIosUrl,
+      iosAppStoreUrl: iosAppStoreUrlInput.trim(),
       publishedAt: new Date().toISOString()
     });
 
@@ -680,20 +755,25 @@ export const AppUpdateAdminPanel: React.FC = () => {
                 <span>{language === 'bn' ? 'হোস্টের মূল APK ফাইল সেট করুন (/MarketBD.apk)' : 'Use Default Host APK (/MarketBD.apk)'}</span>
               </button>
 
-              {/* Upload Local APK File Button */}
+              {/* Upload Real APK File to Server Button */}
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                disabled={uploadProgress !== null}
+                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-60"
               >
                 <Upload className="w-3.5 h-3.5" />
-                <span>{language === 'bn' ? 'কম্পিউটার/ফোন থেকে .APK আপলোড' : 'Upload Local .APK File'}</span>
+                <span>
+                  {uploadProgress !== null
+                    ? `${language === 'bn' ? 'সার্ভারে আপলোড হচ্ছে...' : 'Uploading...'} ${uploadProgress}%`
+                    : (language === 'bn' ? 'কম্পিউটার/ফোন থেকে .APK আপলোড' : 'Upload .APK to Server')}
+                </span>
               </button>
 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".apk"
+                accept=".apk,application/vnd.android.package-archive"
                 onChange={handleApkFileUpload}
                 className="hidden"
               />
@@ -702,7 +782,7 @@ export const AppUpdateAdminPanel: React.FC = () => {
               <button
                 type="button"
                 onClick={handleTestDownload}
-                disabled={isTestingDownload}
+                disabled={isTestingDownload || uploadProgress !== null}
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
               >
                 <Download className={`w-3.5 h-3.5 ${isTestingDownload ? 'animate-bounce' : ''}`} />
@@ -710,21 +790,72 @@ export const AppUpdateAdminPanel: React.FC = () => {
               </button>
             </div>
 
-            {uploadedFileName && (
-              <div className="p-2.5 bg-amber-50/90 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 rounded-xl text-xs space-y-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-bold">
-                    <FileCheck className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span className="truncate max-w-[200px]">{uploadedFileName}</span>
-                    <span className="text-[10px] bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200 px-1.5 py-0.2 rounded font-mono">{uploadedFileSize}</span>
-                  </div>
-                  <span className="text-[10px] text-amber-700 dark:text-amber-300 font-black">Local Test Only</span>
-                </div>
-                <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-snug">
-                  {language === 'bn'
-                    ? 'লোকাল ফাইল শুধু আপনার এই ব্রাউজারে টেস্ট করার জন্য। গ্রাহকদের ডাউনলোডের জন্য ফাইলটি Google Drive বা GitHub Releases-এ দিয়ে লিংক এখানে বসান অথবা public/MarketBD.apk আপলোড করুন।'
-                    : 'Local file works only in your current browser tab for testing. To publish for all users, upload to Google Drive / GitHub Releases and paste the link here, or deploy public/MarketBD.apk.'}
+            {uploadProgress !== null && (
+              <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-indigo-500 to-emerald-500 h-full transition-all duration-150 rounded-full"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            )}
+
+            {needsAdminPasscode && pendingApkFile && (
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-300 dark:border-indigo-700 rounded-xl text-xs space-y-2">
+                <p className="font-bold text-indigo-900 dark:text-indigo-200">
+                  {needsAdminPasscode === 'claim'
+                    ? (language === 'bn'
+                        ? '🔐 নিরাপদ APK আপলোডের জন্য একটি অ্যাডমিন পাসকোড সেট করুন (কমপক্ষে ৪ অক্ষর):'
+                        : '🔐 Set a one-time Admin Passcode (min 4 chars) to upload APKs:')
+                    : (language === 'bn'
+                        ? '🔐 সার্ভারে APK আপলোড নিশ্চিত করতে আপনার অ্যাডমিন পাসওয়ার্ড দিন:'
+                        : '🔐 Enter your Admin Password to authorize APK upload:')}
                 </p>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={inlineAdminPasscode}
+                    onChange={(e) => setInlineAdminPasscode(e.target.value)}
+                    placeholder={language === 'bn' ? 'অ্যাডমিন পাসকোড লিখুন...' : 'Enter admin passcode...'}
+                    className="flex-1 px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleUnlockAndRetryUpload}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black cursor-pointer"
+                  >
+                    {language === 'bn' ? 'যাচাই ও আপলোড' : 'Verify & Upload'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {uploadedFileName && (
+              <div className={`p-2.5 rounded-xl text-xs space-y-1 border ${
+                uploadCompletedOnServer
+                  ? 'bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-400 dark:border-emerald-700'
+                  : 'bg-amber-50/90 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className={`flex items-center gap-2 font-bold ${
+                    uploadCompletedOnServer ? 'text-emerald-800 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-300'
+                  }`}>
+                    <FileCheck className="w-4 h-4 shrink-0" />
+                    <span className="truncate max-w-[200px]">{uploadedFileName}</span>
+                    <span className="text-[10px] bg-white/70 dark:bg-slate-900/70 px-1.5 py-0.2 rounded font-mono">{uploadedFileSize}</span>
+                  </div>
+                  <span className={`text-[10px] font-black ${
+                    uploadCompletedOnServer ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'
+                  }`}>
+                    {uploadCompletedOnServer ? '✅ Live on Server' : 'Pending Verification'}
+                  </span>
+                </div>
+                {uploadCompletedOnServer && (
+                  <p className="text-[11px] text-emerald-800 dark:text-emerald-200 leading-snug">
+                    {language === 'bn'
+                      ? '✅ .APK ফাইল সফলভাবে সার্ভারে আপলোড হয়ে লাইভ হয়েছে! এখন যেকোনো গ্রাহক রানিং বিজ্ঞাপন থেকে ডাউনলোড করে ইনস্টল করতে পারবেন।'
+                      : '✅ .APK file uploaded and live! Customers can now download and install it directly from the Running Banner.'}
+                  </p>
+                )}
               </div>
             )}
 
@@ -759,6 +890,58 @@ export const AppUpdateAdminPanel: React.FC = () => {
                   ? 'প্রজেক্টের public/MarketBD.apk এ ফাইলটি রেখে Vercel-এ ডিপ্লয় করুন এবং এখানে "/MarketBD.apk" সেট করুন।'
                   : 'Place MarketBD.apk in public/MarketBD.apk, deploy, and set "/MarketBD.apk" above.'}
               </p>
+            </div>
+          </div>
+
+          {/* iPhone / iOS Profile & App Store Config */}
+          <div className="p-4 bg-sky-50/70 dark:bg-sky-950/30 rounded-2xl border border-sky-200 dark:border-sky-800/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Download className="w-4 h-4 text-sky-600" />
+                <span>{language === 'bn' ? 'আইফোন (iPhone / iOS) অ্যাপ ডাউনলোড লিংক' : 'iPhone / iOS App Download URL'}</span>
+              </label>
+              <span className="text-[10px] font-bold text-sky-700 bg-sky-100 dark:bg-sky-950/70 dark:text-sky-300 px-2 py-0.5 rounded-full">
+                .mobileconfig / iOS
+              </span>
+            </div>
+
+            <input
+              type="text"
+              value={iosUrlInput}
+              onChange={e => setIosUrlInput(e.target.value)}
+              placeholder="/api/download/ios"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:border-sky-500"
+            />
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIosUrlInput('/api/download/ios')}
+                className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-[11px] font-bold transition cursor-pointer"
+              >
+                {language === 'bn' ? 'বিল্ট-ইন iPhone প্রোফাইল (/api/download/ios)' : 'Use Built-in iOS Profile (/api/download/ios)'}
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadIosAppProfile({ iosUrl: iosUrlInput })}
+                className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-[11px] font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{language === 'bn' ? '⬇️ টেস্ট iOS ডাউনলোড' : 'Test iOS Download'}</span>
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                {language === 'bn' ? 'অ্যাপল অ্যাপ স্টোর / TestFlight লিংক (ঐচ্ছিক)' : 'Apple App Store / TestFlight URL (Optional)'}
+              </label>
+              <input
+                type="url"
+                value={iosAppStoreUrlInput}
+                onChange={e => setIosAppStoreUrlInput(e.target.value)}
+                placeholder="https://apps.apple.com/app/id..."
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:border-sky-500"
+              />
             </div>
           </div>
 

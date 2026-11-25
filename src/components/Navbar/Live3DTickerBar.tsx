@@ -21,20 +21,20 @@ export const Live3DTickerBar: React.FC = () => {
   // Compile active ticker items (alternating Bangla & English)
   const tickerItems: { id: string; type: 'app' | 'promo' | 'fraud' | 'custom' | 'general'; textBn: string; textEn: string; icon: React.ReactNode; badgeBn: string; badgeEn: string; color: string; onClick?: () => void }[] = [];
 
-  // 0. Android App Download Promo Ticker Item
+  // 0. Android APK & iPhone (iOS) App Download Promo Ticker Item
   if (systemNotice.showAppPromo !== false) {
     tickerItems.push({
       id: 'app-download',
       type: 'app',
       textBn:
         systemNotice.appPromoBn ||
-        '📱 মার্কেটবিডি অফিসিয়াল অ্যান্ড্রয়েড অ্যাপ এখনই ফ্রিতে ডাউনলোড ও ইনস্টল করুন! ১-ক্লিকে পান ৫ গুণ দ্রুত কেনাবেচার অভিজ্ঞতা।',
+        '📱 মার্কেটবিডি অফিসিয়াল অ্যান্ড্রয়েড (APK) ও আইফোন (iPhone) অ্যাপ এখনই ফ্রিতে ডাউনলোড ও ইনস্টল করুন! ১-ক্লিকে পান ৫ গুণ দ্রুত কেনাবেচার অভিজ্ঞতা।',
       textEn:
         systemNotice.appPromoEn ||
-        '📱 Download MarketBD Official Android App for Free! 1-Click Install for 5x faster trading.',
+        '📱 Download MarketBD Official Android (APK) & iPhone (iOS) App for Free! 1-Click Install for 5x faster trading.',
       icon: <Smartphone className="w-4 h-4 text-emerald-300 animate-bounce" />,
-      badgeBn: '📱 অ্যান্ড্রয়েড অ্যাপ ডাউনলোড',
-      badgeEn: '📱 ANDROID APP DOWNLOAD',
+      badgeBn: '📱 APK ও আইফোন অ্যাপ',
+      badgeEn: '📱 APK & IPHONE APP',
       color: 'from-emerald-600 to-teal-600',
       onClick: openInstallAppModal
     });
@@ -180,16 +180,16 @@ export const Live3DTickerBar: React.FC = () => {
           </div>
         </div>
 
-        {/* Sticky Quick APK / App Download Button on Right Edge of Running Banner */}
+        {/* Sticky Quick APK / iPhone App Download Button on Right Edge of Running Banner */}
         {systemNotice.showAppPromo !== false && (
           <button
             type="button"
             onClick={openInstallAppModal}
             className="shrink-0 z-20 flex items-center gap-1.5 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 px-2.5 py-1 rounded-xl shadow-[0_4px_14px_rgba(245,158,11,0.45)] border border-amber-200/80 text-[11px] sm:text-xs font-black tracking-tight transition-transform hover:scale-105 active:scale-95 cursor-pointer"
-            title={language === 'bn' ? 'অ্যান্ড্রয়েড অ্যাপ ও APK ডাউনলোড' : 'Download Android App & APK'}
+            title={language === 'bn' ? 'অ্যান্ড্রয়েড APK ও আইফোন অ্যাপ ডাউনলোড' : 'Download Android APK & iPhone App'}
           >
             <Download className="w-3.5 h-3.5 shrink-0" />
-            <span>{language === 'bn' ? 'অ্যাপ / APK' : 'App / APK'}</span>
+            <span>{language === 'bn' ? 'APK • আইফোন' : 'APK • iPhone'}</span>
           </button>
         )}
 

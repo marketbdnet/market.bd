@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import {
   Check,
@@ -14,9 +14,12 @@ import {
   Smartphone,
   Download,
   Link2,
-  AlertTriangle
+  AlertTriangle,
+  Upload
 } from 'lucide-react';
-import { downloadApkFile, formatDirectApkUrl } from '../../utils/apkDownloadHelper';
+import { downloadApkFile, formatDirectApkUrl, uploadApkFileToServer } from '../../utils/apkDownloadHelper';
+import { getAdminAuthStatus, verifyAdminPassword, claimAdminPassword } from '../../utils/adminAuth';
+import { downloadIosAppProfile, formatDirectIosUrl } from '../../utils/iosDownloadHelper';
 
 export const SystemNoticeAdminPanel: React.FC = () => {
   const { language, systemNotice, updateSystemNotice, appRelease, updateAppRelease } = useMarket();
@@ -29,14 +32,20 @@ export const SystemNoticeAdminPanel: React.FC = () => {
   const [showCustomNotice, setShowCustomNotice] = useState(systemNotice.showCustomNotice !== false);
 
   const [appPromoBn, setAppPromoBn] = useState(
-    systemNotice.appPromoBn || '📱 মার্কেটবিডি অফিসিয়াল অ্যান্ড্রয়েড অ্যাপ এখনই ফ্রিতে ডাউনলোড ও ইনস্টল করুন! ১-ক্লিকে পান ৫ গুণ দ্রুত কেনাবেচার অভিজ্ঞতা।'
+    systemNotice.appPromoBn || '📱 মার্কেটবিডি অফিসিয়াল অ্যান্ড্রয়েড (APK) ও আইফোন (iPhone) অ্যাপ এখনই ফ্রিতে ডাউনলোড ও ইনস্টল করুন! ১-ক্লিকে পান ৫ গুণ দ্রুত কেনাবেচার অভিজ্ঞতা।'
   );
   const [appPromoEn, setAppPromoEn] = useState(
-    systemNotice.appPromoEn || '📱 Download MarketBD Official Android App for Free! 1-Click Install for 5x faster trading.'
+    systemNotice.appPromoEn || '📱 Download MarketBD Official Android (APK) & iPhone (iOS) App for Free! 1-Click Install for 5x faster trading.'
   );
   const [apkUrlInput, setApkUrlInput] = useState(appRelease?.apkDownloadUrl || '/MarketBD.apk');
+  const [iosUrlInput, setIosUrlInput] = useState(appRelease?.iosDownloadUrl || '/api/download/ios');
   const [isTestingApk, setIsTestingApk] = useState(false);
   const [apkTestMsg, setApkTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [apkUploadProgress, setApkUploadProgress] = useState<number | null>(null);
+  const [pendingNoticeApk, setPendingNoticeApk] = useState<File | null>(null);
+  const [needsNoticePasscode, setNeedsNoticePasscode] = useState<'verify' | 'claim' | null>(null);
+  const [noticeAdminPass, setNoticeAdminPass] = useState('');
+  const apkFileInputRef = useRef<HTMLInputElement>(null);
 
   const [adPromoBn, setAdPromoBn] = useState(
     systemNotice.adPromoBn || '🚀 আপনার যেকোনো অব্যবহৃত বা নতুন পণ্য দ্রুত বিক্রি করতে আজই ১০০% ফ্রিতে বিজ্ঞাপন পোস্ট করুন! হাজারো প্রকৃত ক্রেতার কাছে সহজেই পৌঁছান।'
@@ -70,6 +79,83 @@ export const SystemNoticeAdminPanel: React.FC = () => {
   const [statusMsg, setStatusMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const uploadNoticeApk = async (file: File, adminPass?: string) => {
+    setApkTestMsg(null);
+    setApkUploadProgress(8);
+    const res = await uploadApkFileToServer(file, {
+      adminPassword: adminPass,
+      onProgress: (pct) => setApkUploadProgress(pct)
+    });
+    setApkUploadProgress(null);
+
+    if (res.ok) {
+      const liveUrl = res.downloadUrl || '/api/download/apk';
+      setPendingNoticeApk(null);
+      setNeedsNoticePasscode(null);
+      setNoticeAdminPass('');
+      setApkUrlInput(liveUrl);
+      updateAppRelease({
+        ...appRelease,
+        apkDownloadUrl: liveUrl,
+        publishedAt: new Date().toISOString()
+      });
+      setApkTestMsg({
+        ok: true,
+        text: language === 'bn'
+          ? `✅ ${file.name} সফলভাবে আপলোড হয়েছে! রানিং ব্যানার থেকে এখন সরাসরি APK ডাউনলোড ও ইনস্টল হবে।`
+          : `✅ ${file.name} uploaded! Customers can now download & install from the Running Banner.`
+      });
+      return;
+    }
+
+    if (res.code === 'ADMIN_AUTH_REQUIRED' || res.code === 'CLAIM_REQUIRED') {
+      setPendingNoticeApk(file);
+      const authStatus = await getAdminAuthStatus();
+      setNeedsNoticePasscode(authStatus.canClaim ? 'claim' : 'verify');
+      return;
+    }
+
+    setApkTestMsg({
+      ok: false,
+      text: language === 'bn'
+        ? `❌ APK আপলোড ব্যর্থ: ${res.error || 'অবৈধ ফাইল'}`
+        : `❌ APK upload failed: ${res.error || 'Invalid file'}`
+    });
+  };
+
+  const handleNoticeApkSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    if (!file.name.toLowerCase().endsWith('.apk')) {
+      setApkTestMsg({
+        ok: false,
+        text: language === 'bn' ? '⚠️ অনুগ্রহ করে একটি .apk ফাইল সিলেক্ট করুন।' : 'Please select an .apk file.'
+      });
+      return;
+    }
+    await uploadNoticeApk(file);
+  };
+
+  const handleUnlockAndRetryNoticeApk = async () => {
+    const pass = noticeAdminPass.trim();
+    if (pass.length < 4 || !pendingNoticeApk) return;
+    if (needsNoticePasscode === 'claim') {
+      const claimRes = await claimAdminPassword(pass);
+      if (!claimRes.ok) {
+        setApkTestMsg({ ok: false, text: claimRes.error || 'Passcode setup failed.' });
+        return;
+      }
+    } else {
+      const valid = await verifyAdminPassword(pass);
+      if (!valid) {
+        setApkTestMsg({ ok: false, text: language === 'bn' ? '❌ অ্যাডমিন পাসকোড সঠিক নয়।' : '❌ Invalid admin passcode.' });
+        return;
+      }
+    }
+    await uploadNoticeApk(pendingNoticeApk, pass);
+  };
+
   const handleTestApkDownload = async () => {
     setIsTestingApk(true);
     setApkTestMsg(null);
@@ -90,8 +176,8 @@ export const SystemNoticeAdminPanel: React.FC = () => {
           ok: false,
           text:
             language === 'bn'
-              ? '❌ এই লিংকে কোনো APK ফাইল পাওয়া যায়নি। Google Drive / GitHub Releases লিংক দিন অথবা public/MarketBD.apk আপলোড করুন।'
-              : '❌ No APK found at this URL. Paste a Google Drive / GitHub Releases link or upload public/MarketBD.apk.'
+              ? '❌ এখনো সার্ভারে APK ফাইল আপলোড হয়নি। উপরের ".APK আপলোড করুন" চাপুন অথবা Google Drive / GitHub Releases লিংক দিন।'
+              : '❌ No APK uploaded yet. Click "Upload .APK" above or paste a Google Drive / GitHub Releases link.'
         });
       }
     });
@@ -135,12 +221,15 @@ export const SystemNoticeAdminPanel: React.FC = () => {
       contactEmail: contactEmail.trim(),
     });
 
-    if (cleanApkUrl) {
-      const formattedApkUrl = formatDirectApkUrl(cleanApkUrl);
+    if (cleanApkUrl || iosUrlInput.trim()) {
+      const formattedApkUrl = cleanApkUrl ? formatDirectApkUrl(cleanApkUrl) : appRelease.apkDownloadUrl;
+      const formattedIosUrl = formatDirectIosUrl(iosUrlInput);
       setApkUrlInput(formattedApkUrl);
+      setIosUrlInput(formattedIosUrl);
       updateAppRelease({
         ...appRelease,
         apkDownloadUrl: formattedApkUrl,
+        iosDownloadUrl: formattedIosUrl,
         publishedAt: new Date().toISOString(),
       });
     }
@@ -274,13 +363,13 @@ export const SystemNoticeAdminPanel: React.FC = () => {
                   <Smartphone className="w-4 h-4 text-emerald-600" />
                   <span>
                     {language === 'bn'
-                      ? '০. রানিং বিজ্ঞাপন ব্যানারে অ্যান্ড্রয়েড অ্যাপ ও APK ডাউনলোড (App / APK Download Banner)'
-                      : '0. Android App & APK Download Promo in Running Banner'}
+                      ? '০. রানিং বিজ্ঞাপন ব্যানারে অ্যান্ড্রয়েড (APK) ও আইফোন (iOS) অ্যাপ ডাউনলোড'
+                      : '0. Android (APK) & iPhone (iOS) App Download Promo in Running Banner'}
                   </span>
                 </span>
               </label>
               <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-600 text-white uppercase">
-                APK Download Live
+                APK &amp; iPhone Live
               </span>
             </div>
 
@@ -338,6 +427,26 @@ export const SystemNoticeAdminPanel: React.FC = () => {
                     )}
                     <button
                       type="button"
+                      onClick={() => apkFileInputRef.current?.click()}
+                      disabled={apkUploadProgress !== null}
+                      className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer disabled:opacity-60"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>
+                        {apkUploadProgress !== null
+                          ? `${language === 'bn' ? 'আপলোড হচ্ছে...' : 'Uploading...'} ${apkUploadProgress}%`
+                          : (language === 'bn' ? '.APK আপলোড করুন' : 'Upload .APK')}
+                      </span>
+                    </button>
+                    <input
+                      ref={apkFileInputRef}
+                      type="file"
+                      accept=".apk,application/vnd.android.package-archive"
+                      onChange={handleNoticeApkSelected}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
                       onClick={() => setApkUrlInput('/MarketBD.apk')}
                       className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-[11px] font-bold cursor-pointer"
                     >
@@ -346,18 +455,81 @@ export const SystemNoticeAdminPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleTestApkDownload}
-                      disabled={isTestingApk}
+                      disabled={isTestingApk || apkUploadProgress !== null}
                       className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>{isTestingApk ? 'টেস্ট হচ্ছে...' : (language === 'bn' ? 'টেস্ট ডাউনলোড' : 'Test Download')}</span>
                     </button>
                   </div>
+                  {apkUploadProgress !== null && (
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-indigo-500 to-emerald-500 h-full transition-all duration-150 rounded-full"
+                        style={{ width: `${apkUploadProgress}%` }}
+                      />
+                    </div>
+                  )}
+                  {needsNoticePasscode && pendingNoticeApk && (
+                    <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-300 dark:border-indigo-700 rounded-xl text-xs space-y-2">
+                      <p className="font-bold text-indigo-900 dark:text-indigo-200">
+                        {needsNoticePasscode === 'claim'
+                          ? (language === 'bn'
+                              ? '🔐 প্রথমবার APK আপলোডের জন্য অ্যাডমিন পাসকোড সেট করুন (কমপক্ষে ৪ অক্ষর):'
+                              : '🔐 Set an Admin Passcode (min 4 chars) to upload APKs:')
+                          : (language === 'bn'
+                              ? '🔐 APK আপলোড করতে অ্যাডমিন পাসওয়ার্ড দিন:'
+                              : '🔐 Enter Admin Password to upload APK:')}
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          value={noticeAdminPass}
+                          onChange={(e) => setNoticeAdminPass(e.target.value)}
+                          placeholder={language === 'bn' ? 'পাসকোড...' : 'Passcode...'}
+                          className="flex-1 px-2.5 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleUnlockAndRetryNoticeApk}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black cursor-pointer"
+                        >
+                          {language === 'bn' ? 'আপলোড' : 'Upload'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {apkTestMsg && (
                     <p className={`text-[11px] font-bold ${apkTestMsg.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                       {apkTestMsg.text}
                     </p>
                   )}
+
+                  {/* iPhone / iOS Profile URL inside Running Banner Settings */}
+                  <div className="pt-2.5 mt-2 border-t border-slate-200 dark:border-slate-700 space-y-2">
+                    <label className="block text-[11px] font-black text-slate-800 dark:text-slate-200">
+                      {language === 'bn'
+                        ? 'আইফোন (iPhone / iOS) অ্যাপ ডাউনলোড লিংক (/api/download/ios বা App Store URL):'
+                        : 'iPhone / iOS App Download URL (/api/download/ios or App Store URL):'}
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        value={iosUrlInput}
+                        onChange={(e) => setIosUrlInput(e.target.value)}
+                        placeholder="/api/download/ios"
+                        className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:border-sky-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => downloadIosAppProfile({ iosUrl: iosUrlInput })}
+                        className="px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-[11px] font-black flex items-center justify-center gap-1 cursor-pointer shrink-0"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>{language === 'bn' ? 'টেস্ট iOS ডাউনলোড' : 'Test iOS Download'}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

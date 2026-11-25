@@ -1,5 +1,5 @@
 // MarketBD.Net Progressive Web App, Instant Asset Cache & Push Notification Service Worker
-const CACHE_NAME = 'marketbd-app-v5';
+const CACHE_NAME = 'marketbd-app-v6';
 const SHELL_PRECACHE = [
   '/',
   '/logo.jpg',

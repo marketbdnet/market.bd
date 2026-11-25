@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatDirectApkUrl, downloadApkFile } from '../src/utils/apkDownloadHelper';
+import { formatDirectApkUrl, downloadApkFile, uploadApkFileToServer } from '../src/utils/apkDownloadHelper';
 
 describe('apkDownloadHelper', () => {
   beforeEach(() => {
@@ -86,13 +86,36 @@ describe('apkDownloadHelper', () => {
       expect(onError).toHaveBeenCalledTimes(1);
     });
 
-    it('triggers anchor download when /MarketBD.apk returns binary content-type', async () => {
-      const fetchMock = vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        type: 'basic',
-        headers: new Headers({ 'content-type': 'application/vnd.android.package-archive' })
+    it('rejects stale blob: URLs by default instead of failing silently', async () => {
+      const onError = vi.fn();
+      const onComplete = vi.fn();
+
+      const result = await downloadApkFile({
+        apkUrl: 'blob:https://marketbd.net/1234-5678',
+        onError,
+        onComplete
       });
+
+      expect(result).toBe(false);
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onComplete).not.toHaveBeenCalled();
+    });
+
+    it('triggers anchor download when /MarketBD.apk returns binary content-type (or 405 HEAD -> 206 GET)', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 405,
+          type: 'basic',
+          headers: new Headers()
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 206,
+          type: 'basic',
+          headers: new Headers({ 'content-type': 'application/vnd.android.package-archive' })
+        });
       const clickSpy = vi.fn();
       const fakeAnchor: any = { style: {}, click: clickSpy };
       const bodyChildren = new Set<any>();
@@ -156,6 +179,18 @@ describe('apkDownloadHelper', () => {
       expect(clickSpy).toHaveBeenCalledTimes(1);
       expect(fakeAnchor.target).toBeUndefined();
       expect(fakeAnchor.download).toBe('MarketBD_v2.5.0.apk');
+    });
+  });
+
+  describe('uploadApkFileToServer', () => {
+    it('rejects files without PK/ZIP magic signature before network upload', async () => {
+      const fakeNotZip = new File([new Uint8Array(2048).fill(0x41)], 'fake.apk', {
+        type: 'application/vnd.android.package-archive'
+      });
+
+      const res = await uploadApkFileToServer(fakeNotZip);
+      expect(res.ok).toBe(false);
+      expect(res.code).toBe('INVALID_APK_SIGNATURE');
     });
   });
 });

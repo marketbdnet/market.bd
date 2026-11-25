@@ -275,3 +275,128 @@
 
 /* Hide Google reCAPTCHA badge (no Firebase branding for customers) */
 .grecaptcha-badge { visibility: hidden !important; }
+
+/* ========================================================
+   WELCOME INTRO SPLASH ANIMATION (Video-Matched Motion)
+   ======================================================== */
+@keyframes mbdWelcomeFade {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  20%, 100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mbdSweepLine {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.95;
+  }
+  42% {
+    transform: translateX(0%);
+    opacity: 0.85;
+  }
+  65%, 100% {
+    transform: translateX(15%);
+    opacity: 0;
+  }
+}
+
+@keyframes mbdSvgStrokeAndRedFill {
+  0% {
+    fill: rgba(229, 9, 20, 0);
+    stroke: rgba(255, 255, 255, 0.95);
+    stroke-width: 2.2px;
+    stroke-dasharray: 460;
+    stroke-dashoffset: 460;
+  }
+  38% {
+    fill: rgba(229, 9, 20, 0);
+    stroke: rgba(255, 80, 92, 0.98);
+    stroke-width: 2.2px;
+    stroke-dasharray: 460;
+    stroke-dashoffset: 0;
+  }
+  58% {
+    fill: rgba(229, 9, 20, 1);
+    stroke: rgba(229, 9, 20, 0.85);
+    stroke-width: 1px;
+    stroke-dasharray: 460;
+    stroke-dashoffset: 0;
+  }
+  100% {
+    fill: rgba(229, 9, 20, 1);
+    stroke: rgba(229, 9, 20, 0);
+    stroke-width: 0px;
+    stroke-dasharray: 460;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes mbdBouncingM {
+  0%, 30% {
+    opacity: 0;
+    transform: translate(40px, -110px) scale(0.32) rotate(-18deg);
+    filter: blur(2px);
+  }
+  38% {
+    opacity: 1;
+    transform: translate(115px, -85px) scale(0.42) rotate(12deg);
+    filter: blur(0.6px);
+  }
+  52% {
+    opacity: 1;
+    transform: translate(235px, -118px) scale(0.46) rotate(26deg);
+    filter: blur(0.8px);
+  }
+  66% {
+    opacity: 1;
+    transform: translate(85px, -108px) scale(0.58) rotate(-14deg);
+    filter: blur(0.4px);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(0px, 4px) scale(1.06, 0.92) rotate(0deg);
+    filter: blur(0px);
+  }
+  88% {
+    opacity: 1;
+    transform: translate(0px, -5px) scale(0.98, 1.03) rotate(0deg);
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0px, 0px) scale(1) rotate(0deg);
+    filter: blur(0px);
+  }
+}
+
+.mbd-welcome-text {
+  animation: mbdWelcomeFade 2.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.mbd-sweep-line {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.95) 55%, #e50914 100%);
+  animation: mbdSweepLine 1.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.mbd-svg-wordmark {
+  animation: mbdSvgStrokeAndRedFill 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.mbd-svg-wordmark-static {
+  fill: #e50914;
+  stroke: none;
+}
+
+.mbd-bouncing-m {
+  transform-origin: center bottom;
+  animation: mbdBouncingM 2.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+

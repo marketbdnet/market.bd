@@ -11,9 +11,12 @@ import { getPageMetadata, injectSeoIntoHtml } from './server_seo';
 import { isDummyChatThread } from './src/utils/chatUtils';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDocs, collection, deleteDoc, onSnapshot, setLogLevel } from 'firebase/firestore';
-import adminAuthHandler from './api/admin-auth';
+import { scryptSync, randomBytes as nodeRandomBytes } from 'crypto';
+import adminAuthHandler, { signAdminToken, verifyAdminRequest, safeCompareStrings } from './api/admin-auth';
 import smsHandler from './api/sms';
 import paymentGatewayHandler from './api/payment-gateway';
+import iosDownloadHandler from './api/download/ios';
+import apkDownloadHandler, { normalizeExternalApkUrl, getConfiguredExternalApkUrl } from './api/download/apk';
 
 try {
   setLogLevel('error');
@@ -260,14 +263,15 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
   // Synchronized state endpoints for live syncing between Android App and Website
   app.get('/api/sync/state', (req, res) => {
+    const { adminPasswordHash: _hiddenHash, ...safeState } = sharedSyncState;
     if (req.query.lite === '1') {
-      const { products: _dupProducts, marketplace_products: _heavyProducts, ...rest } = sharedSyncState;
+      const { products: _dupProducts, marketplace_products: _heavyProducts, ...rest } = safeState;
       return res.json({
         success: true,
         data: rest
       });
     }
-    res.json({ success: true, data: sharedSyncState });
+    res.json({ success: true, data: safeState });
   });
 
   // Admin Single-Device Session Management Endpoint
@@ -463,21 +467,34 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     try {
       const updates = req.body || {};
       Object.keys(updates).forEach(key => {
+        if (key === 'adminPasswordHash') return;
         if (updates[key] !== undefined) {
-          sharedSyncState[key] = updates[key];
+          let value = updates[key];
+          if ((key === 'app_release' || key === 'appRelease') && value && typeof value === 'object') {
+            const url = String(value.apkDownloadUrl || '').trim();
+            if (!url || url.startsWith('blob:') || url.includes('.run.app') || url.includes('marketbd-release-v')) {
+              value = { ...value, apkDownloadUrl: '/MarketBD.apk' };
+            }
+          }
+          sharedSyncState[key] = value;
           if (key === 'site_maintenance' || key === 'siteMaintenance') {
-            sharedSyncState.siteMaintenance = updates[key];
-            sharedSyncState.site_maintenance = updates[key];
+            sharedSyncState.siteMaintenance = value;
+            sharedSyncState.site_maintenance = value;
+          }
+          if (key === 'app_release' || key === 'appRelease') {
+            sharedSyncState.appRelease = value;
+            sharedSyncState.app_release = value;
           }
           if (key === 'marketplace_products' || key === 'products') {
-            sharedSyncState.marketplace_products = updates[key];
-            sharedSyncState.products = updates[key];
+            sharedSyncState.marketplace_products = value;
+            sharedSyncState.products = value;
           }
         }
       });
       sharedSyncState.updatedAt = new Date().toISOString();
       persistSyncState();
-      res.json({ success: true, message: 'Sync state updated successfully', data: sharedSyncState });
+      const { adminPasswordHash: _hiddenHash, ...safeState } = sharedSyncState;
+      res.json({ success: true, message: 'Sync state updated successfully', data: safeState });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e?.message || 'Sync failed' });
     }
@@ -935,8 +952,76 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     }
   });
 
+  // Helper: verify claimed local admin passcode hash when ADMIN_PASSWORD env var is unset
+  const verifyClaimedPassword = (password: string): boolean => {
+    const saved = sharedSyncState.adminPasswordHash;
+    if (!saved || !saved.salt || !saved.hash || !password) return false;
+    try {
+      const derived = scryptSync(password, saved.salt, 64).toString('hex');
+      return safeCompareStrings(derived, saved.hash);
+    } catch {
+      return false;
+    }
+  };
+
+  const isAuthorizedAdminRequest = (req: express.Request): boolean => {
+    if (verifyAdminRequest(req)) return true;
+    const headerPass = String(
+      req.headers['x-admin-password'] || req.headers['x-admin-secret'] || ''
+    ).trim();
+    if (!process.env.ADMIN_PASSWORD && headerPass && verifyClaimedPassword(headerPass)) {
+      return true;
+    }
+    return false;
+  };
+
   // Mount Vercel-compatible API routes in Express so they work identically in AI Studio / Node.js
-  app.all('/api/admin-auth', (req, res) => adminAuthHandler(req, res));
+  app.all('/api/admin-auth', (req, res) => {
+    if (process.env.ADMIN_PASSWORD) {
+      return adminAuthHandler(req, res);
+    }
+
+    res.setHeader('Cache-Control', 'no-store');
+    const savedClaim = sharedSyncState.adminPasswordHash;
+
+    if (req.method === 'GET') {
+      return res.json({
+        ok: true,
+        configured: Boolean(savedClaim),
+        canClaim: !savedClaim,
+        authenticated: isAuthorizedAdminRequest(req)
+      });
+    }
+
+    if (req.method !== 'POST') return res.status(405).json({ ok: false });
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const password = String(body.password || '').trim();
+
+    if (body.action === 'claim') {
+      if (savedClaim) {
+        return res.status(409).json({ ok: false, code: 'ALREADY_CLAIMED', message: 'Admin passcode already claimed.' });
+      }
+      if (password.length < 4) {
+        return res.status(400).json({ ok: false, code: 'WEAK_PASSWORD', message: 'Passcode must be at least 4 characters.' });
+      }
+      const salt = nodeRandomBytes(16).toString('hex');
+      const hash = scryptSync(password, salt, 64).toString('hex');
+      sharedSyncState.adminPasswordHash = { salt, hash, claimedAt: new Date().toISOString() };
+      persistSyncState();
+      return res.status(200).json({ ok: true, token: signAdminToken(), claimed: true });
+    }
+
+    if (!savedClaim) {
+      return res.status(503).json({ ok: false, code: 'NOT_CONFIGURED' });
+    }
+
+    if (!verifyClaimedPassword(password)) {
+      return res.status(401).json({ ok: false });
+    }
+
+    return res.status(200).json({ ok: true, token: signAdminToken() });
+  });
+
   app.all('/api/sms', (req, res) => smsHandler(req, res));
   app.all('/api/payment-gateway', (req, res) => paymentGatewayHandler(req, res));
 
@@ -949,39 +1034,219 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     });
   });
 
-  // Dedicated APK Download Endpoint: forces attachment download with correct MIME type
-  const sendApkBinary = (req: express.Request, res: express.Response) => {
-    const rawFile = (req.params as any)?.filename || 'MarketBD.apk';
-    const cleanFilename = path.basename(rawFile);
-    const downloadFilename = cleanFilename.endsWith('.apk') ? cleanFilename : `${cleanFilename}.apk`;
-
+  // Helper to locate a real non-empty APK binary on local storage
+  const findLocalApkFile = (requestedName = 'MarketBD.apk'): string | null => {
+    const cleanFilename = path.basename(requestedName || 'MarketBD.apk');
     const searchPaths = [
       path.join(process.cwd(), 'public', cleanFilename),
       path.join(process.cwd(), 'public', 'downloads', cleanFilename),
       path.join(process.cwd(), 'public', 'MarketBD.apk'),
-      path.join(process.cwd(), 'public', 'marketbd-release-v2.5.0.apk')
+      '/tmp/MarketBD.apk'
     ];
+    for (const p of searchPaths) {
+      try {
+        const st = fs.statSync(p);
+        if (st.isFile() && st.size > 0) return p;
+      } catch {
+        // Not found
+      }
+    }
+    return null;
+  };
 
-    const foundPath = searchPaths.find(p => fs.existsSync(p));
+  // Real-time APK availability check for Install modal & Admin panels
+  app.get('/api/apk-status', async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const localPath = findLocalApkFile('MarketBD.apk');
+    const currentVersion = sharedSyncState.appRelease?.version || '2.5.0';
 
+    if (localPath) {
+      const stat = fs.statSync(localPath);
+      return res.json({
+        ok: true,
+        available: true,
+        source: 'local',
+        downloadUrl: '/api/download/apk',
+        fileName: 'MarketBD.apk',
+        sizeBytes: stat.size,
+        version: currentVersion
+      });
+    }
+
+    const stateExternal = normalizeExternalApkUrl(sharedSyncState.appRelease?.apkDownloadUrl);
+    if (stateExternal) {
+      return res.json({
+        ok: true,
+        available: true,
+        source: 'external',
+        downloadUrl: '/api/download/apk',
+        externalUrl: stateExternal,
+        fileName: 'MarketBD.apk',
+        sizeBytes: null,
+        version: currentVersion
+      });
+    }
+
+    const remoteExternal = await getConfiguredExternalApkUrl();
+    if (remoteExternal) {
+      return res.json({
+        ok: true,
+        available: true,
+        source: 'external',
+        downloadUrl: '/api/download/apk',
+        externalUrl: remoteExternal,
+        fileName: 'MarketBD.apk',
+        sizeBytes: null,
+        version: currentVersion
+      });
+    }
+
+    return res.json({
+      ok: true,
+      available: false,
+      source: 'none',
+      downloadUrl: null,
+      fileName: 'MarketBD.apk',
+      sizeBytes: null,
+      version: currentVersion
+    });
+  });
+
+  // Admin binary APK upload endpoint (writes real verified .apk to public/MarketBD.apk or /tmp/MarketBD.apk)
+  app.post(
+    '/api/upload-apk',
+    express.raw({
+      type: ['application/vnd.android.package-archive', 'application/octet-stream'],
+      limit: '70mb'
+    }),
+    async (req, res) => {
+      res.setHeader('Cache-Control', 'no-store');
+
+      if (!isAuthorizedAdminRequest(req)) {
+        const hasCredential = Boolean(process.env.ADMIN_PASSWORD || sharedSyncState.adminPasswordHash);
+        return res.status(401).json({
+          ok: false,
+          code: hasCredential ? 'ADMIN_AUTH_REQUIRED' : 'CLAIM_REQUIRED',
+          message: hasCredential
+            ? 'Admin verification required before uploading an APK.'
+            : 'Please claim an admin passcode first to enable APK uploads.'
+        });
+      }
+
+      const buf = Buffer.isBuffer(req.body) ? req.body : null;
+      if (!buf || buf.length < 1024) {
+        return res.status(400).json({
+          ok: false,
+          code: 'INVALID_APK_EMPTY',
+          message: 'Uploaded file is empty or too small to be a valid Android APK.'
+        });
+      }
+
+      // Every valid Android APK is a ZIP archive starting with magic bytes PK\x03\x04
+      const isZipMagic = buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04;
+      if (!isZipMagic) {
+        return res.status(400).json({
+          ok: false,
+          code: 'INVALID_APK_SIGNATURE',
+          message: 'The uploaded file is not a valid .apk archive (missing PK/ZIP signature).'
+        });
+      }
+
+      const publicDir = path.join(process.cwd(), 'public');
+      const primaryTarget = path.join(publicDir, 'MarketBD.apk');
+      const fallbackTarget = '/tmp/MarketBD.apk';
+
+      let savedPath = '';
+      try {
+        if (!fs.existsSync(publicDir)) {
+          fs.mkdirSync(publicDir, { recursive: true });
+        }
+        const tempPath = path.join(publicDir, `.MarketBD.apk.${Date.now()}.tmp`);
+        fs.writeFileSync(tempPath, buf);
+        fs.renameSync(tempPath, primaryTarget);
+        savedPath = primaryTarget;
+      } catch {
+        try {
+          const tempFallback = `/tmp/.MarketBD.apk.${Date.now()}.tmp`;
+          fs.writeFileSync(tempFallback, buf);
+          fs.renameSync(tempFallback, fallbackTarget);
+          savedPath = fallbackTarget;
+        } catch (err: any) {
+          return res.status(500).json({
+            ok: false,
+            code: 'APK_WRITE_FAILED',
+            message: err?.message || 'Unable to store APK binary on server.'
+          });
+        }
+      }
+
+      const nextRelease = {
+        ...(sharedSyncState.appRelease || {}),
+        apkDownloadUrl: '/api/download/apk',
+        apkFileSizeBytes: buf.length,
+        apkUploadedAt: new Date().toISOString()
+      };
+      sharedSyncState.appRelease = nextRelease;
+      sharedSyncState.app_release = nextRelease;
+      sharedSyncState.updatedAt = new Date().toISOString();
+      persistSyncState();
+
+      if (serverDb) {
+        setDoc(
+          doc(serverDb, 'settings', 'app_release'),
+          { value: sanitizeForFirestore(nextRelease), updatedAt: new Date().toISOString() },
+          { merge: true }
+        ).catch(() => {});
+      }
+
+      return res.status(200).json({
+        ok: true,
+        downloadUrl: '/api/download/apk',
+        staticUrl: '/MarketBD.apk',
+        fileName: 'MarketBD.apk',
+        sizeBytes: buf.length,
+        storageMode: savedPath === primaryTarget ? 'public' : 'tmp'
+      });
+    }
+  );
+
+  // Dedicated APK Download Endpoint: serves uploaded APK binary, or delegates to external / Firestore URL
+  const sendApkBinary = async (req: express.Request, res: express.Response) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length');
+
+    const rawFile = (req.params as any)?.filename || 'MarketBD.apk';
+    const cleanFilename = path.basename(rawFile);
+    const downloadFilename = cleanFilename.endsWith('.apk') ? cleanFilename : `${cleanFilename}.apk`;
+
+    const foundPath = findLocalApkFile(cleanFilename);
     if (foundPath) {
+      const stat = fs.statSync(foundPath);
       res.setHeader('Content-Type', 'application/vnd.android.package-archive');
       res.setHeader('Content-Disposition', `attachment; filename="${downloadFilename}"`);
-      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.setHeader('Content-Length', String(stat.size));
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+      if (req.method === 'HEAD') {
+        return res.status(200).end();
+      }
       return res.sendFile(foundPath);
     }
 
-    res.status(404).json({
-      error: 'APK not found',
-      message: 'MarketBD APK file is being prepared. Please try again shortly.'
-    });
+    const stateExternalUrl = normalizeExternalApkUrl(sharedSyncState.appRelease?.apkDownloadUrl);
+    if (stateExternalUrl) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.redirect(302, stateExternalUrl);
+    }
+
+    return apkDownloadHandler(req, res);
   };
 
-  app.get('/api/download/apk', sendApkBinary);
-  app.get('/api/download/apk/:filename', sendApkBinary);
-  app.get('/MarketBD.apk', sendApkBinary);
-  app.get('/marketbd-release-v2.5.0.apk', sendApkBinary);
-  app.get('/downloads/:filename', sendApkBinary);
+  app.all(['/api/download/apk', '/api/download/apk/:filename', '/MarketBD.apk', '/marketbd-release-v2.5.0.apk', '/downloads/:filename'], sendApkBinary);
+
+  // Apple iOS / iPhone Configuration Profile (.mobileconfig) Download Endpoint
+  app.all(['/api/download/ios', '/MarketBD.mobileconfig'], (req, res) => iosDownloadHandler(req, res));
 
   // Google Search Console HTML File Verification Endpoint
   app.get('/google:code.html', (req, res) => {

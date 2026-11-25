@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import officialMarketLogoImg from '../../assets/images/marketbd_official_logo.jpg';
 import {
@@ -22,7 +22,8 @@ import {
   FolderDown,
   AlertCircle
 } from 'lucide-react';
-import { downloadApkFile } from '../../utils/apkDownloadHelper';
+import { downloadApkFile, getApkServerStatus, formatDirectApkUrl } from '../../utils/apkDownloadHelper';
+import { downloadIosAppProfile, isIosDevice } from '../../utils/iosDownloadHelper';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -40,16 +41,27 @@ export const InstallAppModal: React.FC = () => {
     closeInstallAppModal,
     appRelease,
     customLogoUrl,
+    currentUser,
+    userRole,
+    setActiveTab,
   } = useMarket();
 
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalling, setIsInstalling] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
-  const [activeTab, setActiveTab] = useState<'options' | 'instructions' | 'qr'>('options');
+  const [activeTab, setModalTab] = useState<'options' | 'instructions' | 'qr'>('options');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [apkServerStatus, setApkServerStatus] = useState<'checking' | 'ready' | 'missing'>('checking');
+  const [apkSizeMb, setApkSizeMb] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [iosDownloadProgress, setIosDownloadProgress] = useState<number | null>(null);
+  const [iosDownloadSuccess, setIosDownloadSuccess] = useState(false);
+  const [iosDownloadError, setIosDownloadError] = useState<string | null>(null);
+  const apkFeedbackRef = useRef<HTMLDivElement>(null);
+  const onIosDevice = isIosDevice();
+  const isAdmin = currentUser?.role === 'admin' || userRole === 'admin';
 
   // Capture PWA install prompt
   useEffect(() => {
@@ -76,7 +88,43 @@ export const InstallAppModal: React.FC = () => {
     };
   }, []);
 
+  // Check real server APK availability whenever modal opens
+  useEffect(() => {
+    if (!isInstallAppModalOpen) return;
+    setDownloadError(null);
+    setDownloadSuccess(false);
+
+    const formatted = formatDirectApkUrl(appRelease.apkDownloadUrl);
+    if (/^https?:\/\//i.test(formatted) && !formatted.startsWith(window.location.origin)) {
+      setApkServerStatus('ready');
+      setApkSizeMb(null);
+      return;
+    }
+
+    let cancelled = false;
+    setApkServerStatus('checking');
+    getApkServerStatus().then((status) => {
+      if (cancelled) return;
+      setApkServerStatus(status.available ? 'ready' : 'missing');
+      if (typeof status.sizeBytes === 'number' && status.sizeBytes > 0) {
+        setApkSizeMb(`${(status.sizeBytes / (1024 * 1024)).toFixed(2)} MB`);
+      } else {
+        setApkSizeMb(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isInstallAppModalOpen, appRelease.apkDownloadUrl]);
+
   if (!isInstallAppModalOpen) return null;
+
+  const scrollFeedbackIntoView = () => {
+    setTimeout(() => {
+      apkFeedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 60);
+  };
 
   const handlePWAInstall = async () => {
     if (installPrompt) {
@@ -95,63 +143,131 @@ export const InstallAppModal: React.FC = () => {
       }
     } else {
       // If native prompt is not active, switch to instructions tab
-      setActiveTab('instructions');
+      setModalTab('instructions');
     }
   };
 
   const handleDirectApkDownload = async () => {
+    const startedAt = Date.now();
     setDownloadSuccess(false);
     setDownloadError(null);
-    setDownloadProgress(15);
+    setDownloadProgress(20);
 
     const progressTimer = setInterval(() => {
       setDownloadProgress((prev) => {
-        if (prev === null) return 20;
+        if (prev === null) return 25;
         if (prev >= 90) return 90;
         return prev + 25;
       });
-    }, 150);
+    }, 130);
 
     const fileName = `MarketBD_v${appRelease.version || '2.5.0'}.apk`;
+
+    const waitMinFeedback = async () => {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < 340) {
+        await new Promise((r) => setTimeout(r, 340 - elapsed));
+      }
+    };
 
     try {
       const ok = await downloadApkFile({
         apkUrl: appRelease.apkDownloadUrl,
         version: appRelease.version || '2.5.0',
         fileName,
-        onProgress: (p) => setDownloadProgress(p),
+        onProgress: (p) => setDownloadProgress((prev) => Math.max(prev ?? 20, p)),
+        onComplete: async () => {
+          await waitMinFeedback();
+          clearInterval(progressTimer);
+          setDownloadProgress(null);
+          setDownloadSuccess(true);
+          setApkServerStatus('ready');
+          scrollFeedbackIntoView();
+        },
+        onError: async () => {
+          await waitMinFeedback();
+          clearInterval(progressTimer);
+          setDownloadProgress(null);
+          setDownloadSuccess(false);
+          setApkServerStatus('missing');
+          setDownloadError(
+            language === 'bn'
+              ? 'সার্ভারে এখনো কোনো .APK ফাইল আপলোড করা হয়নি (অথবা লিংক যুক্ত নেই), তাই APK ডাউনলোড শুরু করা যায়নি। তবে নিচের বাটন থেকে ১-ক্লিকে সরাসরি অ্যাপটি মোবাইলে ইনস্টল করতে পারবেন!'
+              : 'No .APK file has been uploaded to the server yet (or no direct APK link is configured). Use the 1-Click Mobile App Install button below to install immediately!'
+          );
+          scrollFeedbackIntoView();
+        }
+      });
+      if (!ok) {
+        await waitMinFeedback();
+        clearInterval(progressTimer);
+        setDownloadProgress(null);
+        scrollFeedbackIntoView();
+      }
+    } catch (e) {
+      await waitMinFeedback();
+      clearInterval(progressTimer);
+      setDownloadProgress(null);
+      setDownloadError(
+        language === 'bn'
+          ? 'APK ডাউনলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে নিচের ১-ক্লিকে ইনস্টল বাটন ব্যবহার করুন।'
+          : 'Failed to download APK. Please use the 1-Click Install option below.'
+      );
+      scrollFeedbackIntoView();
+      console.error('APK Download failed:', e);
+    }
+  };
+
+  const handleDirectIosDownload = async () => {
+    setIosDownloadSuccess(false);
+    setIosDownloadError(null);
+    setIosDownloadProgress(20);
+
+    const progressTimer = setInterval(() => {
+      setIosDownloadProgress((prev) => {
+        if (prev === null) return 25;
+        if (prev >= 90) return 90;
+        return prev + 25;
+      });
+    }, 140);
+
+    try {
+      const ok = await downloadIosAppProfile({
+        iosUrl: appRelease.iosDownloadUrl || '/api/download/ios',
+        fileName: 'MarketBD_iPhone.mobileconfig',
+        onProgress: (p) => setIosDownloadProgress(p),
         onComplete: () => {
           clearInterval(progressTimer);
-          setDownloadProgress(100);
+          setIosDownloadProgress(100);
           setTimeout(() => {
-            setDownloadProgress(null);
-            setDownloadSuccess(true);
+            setIosDownloadProgress(null);
+            setIosDownloadSuccess(true);
           }, 350);
         },
         onError: () => {
           clearInterval(progressTimer);
-          setDownloadProgress(null);
-          setDownloadSuccess(false);
-          setDownloadError(
+          setIosDownloadProgress(null);
+          setIosDownloadSuccess(false);
+          setIosDownloadError(
             language === 'bn'
-              ? 'APK ফাইলটি এখনো সার্ভারে আপলোড করা হয়নি অথবা ডাউনলোড লিংক সেট করা নেই। অনুগ্রহ করে উপরের "১-ক্লিকে ইনস্টল (মোবাইল অ্যাপ)" ব্যবহার করুন অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।'
-              : 'APK file is not uploaded yet or download link is not configured. Please use "1-Click Direct Install (PWA App)" above or try again shortly.'
+              ? 'iPhone প্রোফাইল ডাউনলোড করা যায়নি। অনুগ্রহ করে Safari ব্রাউজার থেকে নিচের "মোবাইলে ইনস্টল নিয়ম" দেখে Share (⬆️) -> Add to Home Screen চাপুন।'
+              : 'Unable to download the iOS profile. Please open in Safari and follow "How to Install" -> Share -> Add to Home Screen.'
           );
         }
       });
       if (!ok) {
         clearInterval(progressTimer);
-        setDownloadProgress(null);
+        setIosDownloadProgress(null);
       }
     } catch (e) {
       clearInterval(progressTimer);
-      setDownloadProgress(null);
-      setDownloadError(
+      setIosDownloadProgress(null);
+      setIosDownloadError(
         language === 'bn'
-          ? 'APK ডাউনলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে উপরের ১-ক্লিকে ইনস্টল বাটন ব্যবহার করুন।'
-          : 'Failed to download APK. Please use the 1-Click Install option above.'
+          ? 'iPhone অ্যাপ প্রোফাইল ডাউনলোডে সমস্যা হয়েছে। অনুগ্রহ করে Safari থেকে Share -> Add to Home Screen ব্যবহার করুন।'
+          : 'Failed to download iOS app profile. Please use Safari Share -> Add to Home Screen.'
       );
-      console.error('APK Download failed:', e);
+      console.error('iOS Profile download failed:', e);
     }
   };
 
@@ -214,10 +330,10 @@ export const InstallAppModal: React.FC = () => {
               <div className="flex items-center gap-1.5 flex-wrap mb-1">
                 <span className="bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 shadow-xs">
                   <Smartphone className="w-3 h-3 text-slate-950" />
-                  {language === 'bn' ? 'অ্যান্ড্রয়েড অ্যাপ' : 'Android App'}
+                  {language === 'bn' ? 'অ্যান্ড্রয়েড ও আইফোন অ্যাপ' : 'Android & iOS App'}
                 </span>
                 <span className="bg-slate-800 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  v{appRelease.version || '2.4.0'}
+                  v{appRelease.version || '2.5.0'}
                 </span>
                 <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
                   100% Free
@@ -229,8 +345,8 @@ export const InstallAppModal: React.FC = () => {
               </h2>
               <p className="text-xs text-slate-300 font-medium mt-0.5">
                 {language === 'bn'
-                  ? 'দ্রুততম কেনাবেচা, ইনস্ট্যান্ট নোটিফিকেশন ও সেরা অভিজ্ঞতা!'
-                  : 'Fast browsing, instant chat alerts & seamless trading!'}
+                  ? 'অ্যান্ড্রয়েড APK ও আইফোন (iOS) — দুই ফোনেই সহজ ডাউনলোড ও ইনস্টল!'
+                  : 'Download & install easily on both Android (APK) and iPhone (iOS)!'}
               </p>
             </div>
           </div>
@@ -238,7 +354,8 @@ export const InstallAppModal: React.FC = () => {
           {/* Sub Navigation Tabs */}
           <div className="flex items-center gap-2 mt-4 pt-2 border-t border-slate-800/80">
             <button
-              onClick={() => setActiveTab('options')}
+              type="button"
+              onClick={() => setModalTab('options')}
               className={`flex-1 py-1.5 px-2 rounded-xl font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
                 activeTab === 'options'
                   ? 'bg-emerald-600 text-white shadow-md'
@@ -250,7 +367,8 @@ export const InstallAppModal: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveTab('instructions')}
+              type="button"
+              onClick={() => setModalTab('instructions')}
               className={`flex-1 py-1.5 px-2 rounded-xl font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
                 activeTab === 'instructions'
                   ? 'bg-emerald-600 text-white shadow-md'
@@ -262,7 +380,8 @@ export const InstallAppModal: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveTab('qr')}
+              type="button"
+              onClick={() => setModalTab('qr')}
               className={`py-1.5 px-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
                 activeTab === 'qr'
                   ? 'bg-emerald-600 text-white shadow-md'
@@ -280,9 +399,95 @@ export const InstallAppModal: React.FC = () => {
         <div className="p-4 sm:p-5 max-h-[62vh] overflow-y-auto space-y-4">
           
           {activeTab === 'options' && (
-            <div className="space-y-3.5">
+            <div className="flex flex-col gap-3.5">
+              {/* iPhone (iOS) Download Card — placed first when user is on iPhone/iPad */}
+              <div className={`${onIosDevice ? 'order-1' : 'order-2'} p-4 bg-gradient-to-br from-sky-500/15 via-indigo-500/10 to-slate-900/10 dark:from-sky-950/45 dark:to-slate-900/60 border-2 border-sky-500/70 rounded-2xl flex flex-col gap-2.5 shadow-sm`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-slate-950 text-white border border-sky-400/50 flex items-center justify-center shrink-0 shadow-md">
+                      <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.955 4.45z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                          {language === 'bn' ? 'আইফোন / আইপ্যাড (iOS) অ্যাপ ডাউনলোড' : 'iPhone / iPad (iOS) App Download'}
+                        </h4>
+                        <span className="bg-sky-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                          {language === 'bn' ? 'iPhone & iPad' : 'iOS Profile'}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-600 dark:text-slate-300 block mt-0.5">
+                        MarketBD_iPhone.mobileconfig • {language === 'bn' ? 'Safari দিয়ে সরাসরি প্রোফাইল ডাউনলোড করে হোম স্ক্রিনে ইনস্টল করুন' : 'Downloads official WebClip profile to install MarketBD on Home Screen'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDirectIosDownload}
+                    disabled={iosDownloadProgress !== null}
+                    className="flex-1 py-3 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-black text-xs sm:text-sm rounded-xl transition cursor-pointer flex items-center justify-center gap-2 active:scale-98 shadow-lg"
+                  >
+                    <Download className={`w-4 h-4 ${iosDownloadProgress !== null ? 'animate-bounce' : ''}`} />
+                    <span>
+                      {iosDownloadProgress !== null
+                        ? `${language === 'bn' ? 'প্রোফাইল ডাউনলোড হচ্ছে...' : 'Downloading iOS App...'} ${iosDownloadProgress}%`
+                        : (language === 'bn' ? 'iPhone অ্যাপ ডাউনলোড ও ইনস্টল করুন' : 'Download & Install for iPhone')}
+                    </span>
+                  </button>
+
+                  {appRelease.iosAppStoreUrl && (
+                    <a
+                      href={appRelease.iosAppStoreUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-3 px-3.5 bg-slate-900 hover:bg-slate-800 text-sky-300 border border-sky-500/40 font-black text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>App Store</span>
+                    </a>
+                  )}
+                </div>
+
+                {iosDownloadProgress !== null && (
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden mt-1">
+                    <div
+                      className="bg-gradient-to-r from-sky-500 to-indigo-500 h-full transition-all duration-150 rounded-full"
+                      style={{ width: `${iosDownloadProgress}%` }}
+                    />
+                  </div>
+                )}
+
+                {iosDownloadError && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-400/60 rounded-xl text-xs text-rose-900 dark:text-rose-200 flex flex-col gap-2 animate-in fade-in">
+                    <div className="flex items-start gap-2 font-bold text-rose-700 dark:text-rose-300">
+                      <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                      <span>{iosDownloadError}</span>
+                    </div>
+                  </div>
+                )}
+
+                {iosDownloadSuccess && (
+                  <div className="p-3 bg-sky-50 dark:bg-sky-950/50 border border-sky-500/50 rounded-xl text-xs text-sky-950 dark:text-sky-100 flex flex-col gap-1.5 animate-in fade-in">
+                    <div className="flex items-center gap-2 font-bold text-sky-700 dark:text-sky-300">
+                      <CheckCircle2 className="w-4 h-4 text-sky-500 shrink-0" />
+                      <span>{language === 'bn' ? '✅ iPhone অ্যাপ প্রোফাইল ডাউনলোড শুরু হয়েছে!' : '✅ iPhone App Profile Download Started!'}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {language === 'bn'
+                        ? 'আইফোনে "Allow" চাপুন → ফোনের Settings খুলুন → উপরে "Profile Downloaded" (বা General → VPN & Device Management) → Install চাপলেই হোম স্ক্রিনে MarketBD অ্যাপ যুক্ত হবে।'
+                        : 'Tap "Allow" on iPhone → Open iPhone Settings → Tap "Profile Downloaded" (or General → VPN & Device Management) → Install to add MarketBD onto your Home Screen.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Option 1: Direct APK File Download to Phone Storage & Install */}
-              <div className="p-4 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-slate-900/10 dark:from-amber-950/40 dark:to-slate-900/60 border-2 border-amber-500/70 rounded-2xl flex flex-col gap-2.5 shadow-sm">
+              <div className={`${onIosDevice ? 'order-2' : 'order-1'} p-4 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-slate-900/10 dark:from-amber-950/40 dark:to-slate-900/60 border-2 border-amber-500/70 rounded-2xl flex flex-col gap-2.5 shadow-sm`}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-md font-black text-xs">
@@ -291,10 +496,20 @@ export const InstallAppModal: React.FC = () => {
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h4 className="text-sm font-black text-slate-900 dark:text-white">
-                          {language === 'bn' ? 'সরাসরি APK ডাউনলোড ও ইনস্টল' : 'Direct APK Download & Install'}
+                          {language === 'bn' ? 'অ্যান্ড্রয়েড সরাসরি APK ডাউনলোড ও ইনস্টল' : 'Android Direct APK Download & Install'}
                         </h4>
-                        <span className="bg-amber-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
-                          {language === 'bn' ? 'ফোন স্টোরেজ (Download)' : 'Saves to Downloads'}
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
+                          apkServerStatus === 'ready'
+                            ? 'bg-emerald-500 text-slate-950'
+                            : apkServerStatus === 'missing'
+                              ? 'bg-amber-200 text-amber-950 dark:bg-amber-500/30 dark:text-amber-200'
+                              : 'bg-amber-500 text-slate-950'
+                        }`}>
+                          {apkServerStatus === 'ready'
+                            ? (apkSizeMb ? `Ready (${apkSizeMb})` : (language === 'bn' ? 'APK রেডি' : 'APK Ready'))
+                            : apkServerStatus === 'missing'
+                              ? (language === 'bn' ? 'অ্যাডমিন আপলোড অপেক্ষমাণ' : 'Awaiting APK Upload')
+                              : (language === 'bn' ? 'ফোন স্টোরেজ (Download)' : 'Saves to Downloads')}
                         </span>
                       </div>
                       <span className="text-[11px] text-slate-600 dark:text-slate-300 block mt-0.5">
@@ -305,14 +520,15 @@ export const InstallAppModal: React.FC = () => {
                 </div>
 
                 <button
+                  type="button"
                   onClick={handleDirectApkDownload}
                   disabled={downloadProgress !== null}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl transition cursor-pointer flex items-center justify-center gap-2 active:scale-98 shadow-lg"
+                  className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl transition cursor-pointer flex items-center justify-center gap-2 active:scale-98 shadow-lg disabled:opacity-80"
                 >
                   <Download className={`w-4 h-4 ${downloadProgress !== null ? 'animate-bounce' : ''}`} />
                   <span>
                     {downloadProgress !== null
-                      ? `${language === 'bn' ? 'ডাউনলোড হচ্ছে...' : 'Downloading...'} ${downloadProgress}%`
+                      ? `${language === 'bn' ? 'সার্ভার যাচাই ও ডাউনলোড হচ্ছে...' : 'Checking & Downloading...'} ${downloadProgress}%`
                       : (language === 'bn' ? 'APK ডাউনলোড ও ইনস্টল করুন' : 'Download & Install APK')}
                   </span>
                 </button>
@@ -326,57 +542,79 @@ export const InstallAppModal: React.FC = () => {
                   </div>
                 )}
 
-                {/* Download Error Card */}
-                {downloadError && (
-                  <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-400/60 rounded-xl text-xs text-rose-900 dark:text-rose-200 flex flex-col gap-2 animate-in fade-in">
-                    <div className="flex items-start gap-2 font-bold text-rose-700 dark:text-rose-300">
-                      <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                      <span>{downloadError}</span>
-                    </div>
-                    {!isInstalled && (
-                      <button
-                        type="button"
-                        onClick={handlePWAInstall}
-                        className="self-start text-[11px] font-black text-emerald-700 dark:text-emerald-300 underline flex items-center gap-1 hover:text-emerald-500 cursor-pointer"
-                      >
-                        <ArrowRight className="w-3.5 h-3.5" />
-                        <span>{language === 'bn' ? '১-ক্লিকে মোবাইল অ্যাপ ইনস্টল করুন' : 'Install via 1-Click App Instead'}</span>
-                      </button>
-                    )}
-                  </div>
-                )}
+                <div ref={apkFeedbackRef}>
+                  {/* Download Error Card */}
+                  {downloadError && (
+                    <div className="p-3 bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-400/70 rounded-xl text-xs text-rose-900 dark:text-rose-200 flex flex-col gap-2.5 animate-in fade-in shadow-sm">
+                      <div className="flex items-start gap-2 font-bold text-rose-700 dark:text-rose-300">
+                        <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                        <span>{downloadError}</span>
+                      </div>
 
-                {/* Download Success Card */}
-                {downloadSuccess && (
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-500/50 rounded-xl text-xs text-emerald-900 dark:text-emerald-200 flex flex-col gap-1.5 animate-in fade-in">
-                    <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span>{language === 'bn' ? '✅ APK ডাউনলোড ফোল্ডারে সেভ হচ্ছে!' : '✅ Saving APK to Downloads folder!'}</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {!isInstalled && (
+                          <button
+                            type="button"
+                            onClick={handlePWAInstall}
+                            className="py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-black flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                          >
+                            <ArrowRight className="w-3.5 h-3.5" />
+                            <span>
+                              {installPrompt
+                                ? (language === 'bn' ? '📲 ১-ক্লিকে অ্যাপ ইনস্টল করুন' : '📲 1-Click App Install')
+                                : (language === 'bn' ? '📲 মোবাইলে ইনস্টল নিয়ম দেখুন' : '📲 View Install Steps')}
+                            </span>
+                          </button>
+                        )}
+
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              closeInstallAppModal();
+                              setActiveTab('admin');
+                            }}
+                            className="py-2 px-3 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/40 rounded-lg text-[11px] font-black flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                          >
+                            <span>{language === 'bn' ? '⚙️ অ্যাডমিন থেকে .APK আপলোড করুন' : '⚙️ Upload .APK in Admin'}</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-300">
-                      {language === 'bn'
-                        ? 'আপনার ফোনের Download ফোল্ডারে APK ফাইল সেভ হয়ে গেছে। অটো ইনস্টল পপআপ না আসলে ফোনের ফাইল ম্যানেজার -> Download থেকে ফাইলটিতে ট্যাপ করে Install করুন।'
-                        : 'Saved to your phone Downloads folder. Tap the file from notifications or File Manager -> Downloads to complete installation.'}
-                    </p>
-                    <div className="pt-1 flex items-center justify-between">
-                      <span className="text-[10px] text-slate-500 font-medium">
-                        {language === 'bn' ? 'ডাউনলোড না হলে:' : 'If download didn\'t start:'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleDirectApkDownload}
-                        className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 underline flex items-center gap-1 hover:text-emerald-500 cursor-pointer"
-                      >
-                        <FolderDown className="w-3.5 h-3.5" />
-                        {language === 'bn' ? 'পুনরায় ডাউনলোড করুন' : 'Download Again'}
-                      </button>
+                  )}
+
+                  {/* Download Success Card */}
+                  {downloadSuccess && (
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-500/50 rounded-xl text-xs text-emerald-900 dark:text-emerald-200 flex flex-col gap-1.5 animate-in fade-in">
+                      <div className="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span>{language === 'bn' ? '✅ APK ডাউনলোড ফোল্ডারে সেভ হচ্ছে!' : '✅ Saving APK to Downloads folder!'}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                        {language === 'bn'
+                          ? 'আপনার ফোনের Download ফোল্ডারে APK ফাইল সেভ হয়ে গেছে। অটো ইনস্টল পপআপ না আসলে ফোনের ফাইল ম্যানেজার -> Download থেকে ফাইলটিতে ট্যাপ করে Install করুন।'
+                          : 'Saved to your phone Downloads folder. Tap the file from notifications or File Manager -> Downloads to complete installation.'}
+                      </p>
+                      <div className="pt-1 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          {language === 'bn' ? 'ডাউনলোড না হলে:' : 'If download didn\'t start:'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleDirectApkDownload}
+                          className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 underline flex items-center gap-1 hover:text-emerald-500 cursor-pointer"
+                        >
+                          <FolderDown className="w-3.5 h-3.5" />
+                          {language === 'bn' ? 'পুনরায় ডাউনলোড করুন' : 'Download Again'}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* Option 2: 1-Click Mobile Web App (PWA) Install */}
-              <div className="p-4 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-slate-900/10 dark:from-emerald-950/40 dark:to-slate-900/60 border border-emerald-500/50 rounded-2xl flex flex-col gap-3 relative overflow-hidden shadow-sm">
+              <div className="order-3 p-4 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-slate-900/10 dark:from-emerald-950/40 dark:to-slate-900/60 border border-emerald-500/50 rounded-2xl flex flex-col gap-3 relative overflow-hidden shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md">
@@ -424,7 +662,7 @@ export const InstallAppModal: React.FC = () => {
               </div>
 
               {/* Option 3: Google Play Store Direct Download */}
-              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center justify-between gap-3">
+              <div className="order-4 p-3.5 bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0">
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
@@ -456,7 +694,7 @@ export const InstallAppModal: React.FC = () => {
               </div>
 
               {/* Key Features List */}
-              <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+              <div className="order-5 bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5">
                 <span className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
                   {language === 'bn' ? 'অ্যাপ ব্যবহারের বিশেষ সুবিধাসমূহ:' : 'App Exclusive Benefits:'}
@@ -485,68 +723,100 @@ export const InstallAppModal: React.FC = () => {
           )}
 
           {activeTab === 'instructions' && (
-            <div className="space-y-3.5">
-              <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/40 p-3.5 rounded-2xl text-xs text-emerald-950 dark:text-emerald-200">
-                <span className="font-black text-emerald-700 dark:text-emerald-400 block mb-1">
-                  {language === 'bn'
-                    ? '📲 মোবাইল ব্রাউজার (Chrome) থেকে ইনস্টল করার সহজ নিয়ম:'
-                    : '📲 Step-by-Step Mobile Chrome Installation:'}
-                </span>
-                <p>
-                  {language === 'bn'
-                    ? 'আপনার যেকোনো অ্যান্ড্রয়েড মোবাইলের Google Chrome বা অন্য ব্রাউজার থেকে খুব সহজেই ১ মিনিটে অ্যাপ ইনস্টল করা যায়।'
-                    : 'Easily install the app from Google Chrome or any browser in less than a minute.'}
-                </p>
-              </div>
-
-              {/* Step 1 */}
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0">
-                  ১
-                </div>
-                <div className="text-xs">
-                  <h5 className="font-bold text-slate-900 dark:text-white">
-                    {language === 'bn' ? 'ব্রাউজারের ৩ ডট (⋮) মেনুতে চাপুন' : 'Tap the 3-dots (⋮) Menu in Chrome'}
-                  </h5>
-                  <p className="text-slate-600 dark:text-slate-400 mt-0.5">
+            <div className="space-y-4">
+              {/* iPhone / iPad Instructions */}
+              <div className="space-y-2.5">
+                <div className="bg-sky-50 dark:bg-sky-950/40 border border-sky-500/40 p-3.5 rounded-2xl text-xs text-sky-950 dark:text-sky-100">
+                  <span className="font-black text-sky-700 dark:text-sky-300 block mb-1">
                     {language === 'bn'
-                      ? 'আপনার ফোনের ক্রোম ব্রাউজারের উপরে ডানদিকের ৩টি ডট (⋮) আইকনে ক্লিক করুন।'
-                      : 'Look at the top-right corner of Google Chrome and tap the ⋮ icon.'}
+                      ? '🍎 আইফোন ও আইপ্যাড (iPhone / iPad) থেকে ডাউনলোড ও ইনস্টল নিয়ম:'
+                      : '🍎 iPhone & iPad (iOS) Download & Install Guide:'}
+                  </span>
+                  <p>
+                    {language === 'bn'
+                      ? 'আইফোনে সরাসরি ২ ভাবে MarketBD অ্যাপ ইনস্টল করা যায় — ১) উপরের "iPhone অ্যাপ ডাউনলোড" বাটনে ক্লিক করে অথবা ২) Safari ব্রাউজার থেকে সরাসরি হোম স্ক্রিনে।'
+                      : 'Install MarketBD on iPhone using either the "Download for iPhone" profile button or Safari Share -> Add to Home Screen.'}
                   </p>
                 </div>
+
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-full bg-sky-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                    ১
+                  </div>
+                  <div className="text-xs">
+                    <h5 className="font-bold text-slate-900 dark:text-white">
+                      {language === 'bn' ? 'প্রোফাইল ডাউনলোড অথবা Safari Share (⬆️) চাপুন' : 'Download iOS Profile or Tap Safari Share (⬆️)'}
+                    </h5>
+                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">
+                      {language === 'bn'
+                        ? '"iPhone অ্যাপ ডাউনলোড" বাটনে চাপলে Safari পপআপে "Allow" দিন, অথবা Safari নিচের Share (⬆️) আইকনে ট্যাপ করুন।'
+                        : 'Tap "Download for iPhone" and choose "Allow", or tap the Share (⬆️) button at the bottom of Safari.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-full bg-sky-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                    ২
+                  </div>
+                  <div className="text-xs">
+                    <h5 className="font-bold text-slate-900 dark:text-white">
+                      {language === 'bn' ? 'Settings → Profile Downloaded অথবা "Add to Home Screen"' : 'Settings → Profile Downloaded or "Add to Home Screen"'}
+                    </h5>
+                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">
+                      {language === 'bn'
+                        ? 'প্রোফাইল ডাউনলোড করলে ফোনের Settings → Profile Downloaded → Install দিন; অথবা Share মেনু থেকে "Add to Home Screen" চাপুন।'
+                        : 'If using profile, open iPhone Settings → Profile Downloaded → Install; otherwise select "Add to Home Screen".'}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {/* Step 2 */}
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0">
-                  ২
-                </div>
-                <div className="text-xs">
-                  <h5 className="font-bold text-slate-900 dark:text-white">
-                    {language === 'bn' ? '"Install app" অথবা "Add to Home screen" চাপুন' : 'Select "Install app" or "Add to Home screen"'}
-                  </h5>
-                  <p className="text-slate-600 dark:text-slate-400 mt-0.5">
+              {/* Android Instructions */}
+              <div className="space-y-2.5 pt-1">
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/40 p-3.5 rounded-2xl text-xs text-emerald-950 dark:text-emerald-200">
+                  <span className="font-black text-emerald-700 dark:text-emerald-400 block mb-1">
                     {language === 'bn'
-                      ? 'মেনু থেকে "Install app" অথবা "হোম স্ক্রিনে যোগ করুন" অপশনটি সিলেক্ট করুন।'
-                      : 'Choose "Install app" or "Add to Home screen" from the menu options.'}
+                      ? '📲 অ্যান্ড্রয়েড (Android Chrome / APK) থেকে ইনস্টল করার সহজ নিয়ম:'
+                      : '📲 Android Chrome & APK Installation:'}
+                  </span>
+                  <p>
+                    {language === 'bn'
+                      ? 'উপরের "APK ডাউনলোড ও ইনস্টল করুন" বাটনে চাপুন অথবা Google Chrome থেকে নিচের ধাপগুলো অনুসরণ করুন।'
+                      : 'Tap "Download & Install APK" or install directly via Google Chrome steps below.'}
                   </p>
                 </div>
-              </div>
 
-              {/* Step 3 */}
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0">
-                  ৩
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                    ১
+                  </div>
+                  <div className="text-xs">
+                    <h5 className="font-bold text-slate-900 dark:text-white">
+                      {language === 'bn' ? 'ব্রাউজারের ৩ ডট (⋮) মেনুতে চাপুন' : 'Tap the 3-dots (⋮) Menu in Chrome'}
+                    </h5>
+                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">
+                      {language === 'bn'
+                        ? 'আপনার ফোনের ক্রোম ব্রাউজারের উপরে ডানদিকের ৩টি ডট (⋮) আইকনে ক্লিক করুন।'
+                        : 'Look at the top-right corner of Google Chrome and tap the ⋮ icon.'}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-xs">
-                  <h5 className="font-bold text-slate-900 dark:text-white">
-                    {language === 'bn' ? '"Install" বাটনে ক্লিক করে নিশ্চিত করুন' : 'Confirm by tapping "Install"'}
-                  </h5>
-                  <p className="text-slate-600 dark:text-slate-400 mt-0.5">
-                    {language === 'bn'
-                      ? 'নিশ্চিত করার সাথে সাথে আপনার মোবাইলের ডিসপ্লেতে মার্কেটবিডি অ্যাপ আইকন সেভ হয়ে যাবে।'
-                      : 'The MarketBD app icon will immediately appear on your mobile home screen.'}
-                  </p>
+
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                    ২
+                  </div>
+                  <div className="text-xs">
+                    <h5 className="font-bold text-slate-900 dark:text-white">
+                      {language === 'bn' ? '"Install app" অথবা ডাউনলোড হওয়া APK-তে ট্যাপ করুন' : 'Select "Install app" or tap downloaded APK'}
+                    </h5>
+                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">
+                      {language === 'bn'
+                        ? 'মেনু থেকে "Install app" সিলেক্ট করুন অথবা Download ফোল্ডার থেকে APK ফাইলটিতে ট্যাপ করে Install নিশ্চিত করুন।'
+                        : 'Choose "Install app" from the menu or open the downloaded APK file to confirm installation.'}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

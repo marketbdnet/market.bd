@@ -23,15 +23,39 @@ function decodeFirestoreValue(val: any): any {
   return val;
 }
 
-function normalizeExternalApkUrl(rawUrl?: string): string | null {
+function isPrivateOrLoopbackHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  if (
+    h === 'localhost' ||
+    h === '::1' ||
+    h.endsWith('.local') ||
+    h.startsWith('127.') ||
+    h.startsWith('10.') ||
+    h.startsWith('169.254.') ||
+    h.startsWith('192.168.')
+  ) {
+    return true;
+  }
+  const m172 = h.match(/^172\.(\d+)\./);
+  if (m172) {
+    const oct = Number(m172[1]);
+    if (oct >= 16 && oct <= 31) return true;
+  }
+  return false;
+}
+
+export function normalizeExternalApkUrl(rawUrl?: string): string | null {
   if (!rawUrl || typeof rawUrl !== 'string') return null;
   const url = rawUrl.trim();
   if (!url || !/^https?:\/\//i.test(url)) return null;
 
-  // Prevent redirect loop if URL points back to /api/download/apk on the same domain
+  // Prevent redirect loop or internal metadata SSRF
   try {
     const parsed = new URL(url);
-    if (parsed.pathname.startsWith('/api/download/apk')) {
+    if (isPrivateOrLoopbackHost(parsed.hostname)) {
+      return null;
+    }
+    if (parsed.pathname.startsWith('/api/download/apk') || parsed.pathname === '/MarketBD.apk') {
       return null;
     }
   } catch {
@@ -63,7 +87,7 @@ function normalizeExternalApkUrl(rawUrl?: string): string | null {
   return url;
 }
 
-async function getConfiguredExternalApkUrl(): Promise<string | null> {
+export async function getConfiguredExternalApkUrl(): Promise<string | null> {
   const envUrl = normalizeExternalApkUrl(process.env.APK_DOWNLOAD_URL);
   if (envUrl) return envUrl;
 
@@ -113,6 +137,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -122,22 +147,27 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
     return res.status(405).json({ ok: false, error: 'METHOD_NOT_ALLOWED' });
   }
 
-  // 1. Check local filesystem APK (if deployed inside public/ or running locally)
+  // 1. Check local filesystem APK (public/, downloads/, or /tmp/ fallback)
   const localCandidates = [
     path.join(process.cwd(), 'public', 'MarketBD.apk'),
-    path.join(process.cwd(), 'public', 'downloads', 'MarketBD.apk')
+    path.join(process.cwd(), 'public', 'downloads', 'MarketBD.apk'),
+    '/tmp/MarketBD.apk'
   ];
   const localApkPath = localCandidates.find((p) => {
     try {
-      return fs.existsSync(p);
+      const st = fs.statSync(p);
+      return st.isFile() && st.size > 0;
     } catch {
       return false;
     }
   });
 
   if (localApkPath) {
+    const stat = fs.statSync(localApkPath);
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
     res.setHeader('Content-Disposition', 'attachment; filename="MarketBD.apk"');
+    res.setHeader('Content-Length', String(stat.size));
+    res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
     if (req.method === 'HEAD') {
       return res.status(200).end();

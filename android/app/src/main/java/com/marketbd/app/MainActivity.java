@@ -1,6 +1,8 @@
 package com.marketbd.app;
 
 import android.Manifest;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.DownloadManager;
@@ -13,6 +15,7 @@ import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.Uri;
@@ -27,6 +30,8 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
@@ -42,7 +47,6 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -88,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
     private Uri cameraImageUri;
     private long pausedAtMs = 0;
     private long activeApkDownloadId = -1L;
+    private long nativeSplashStartedAtMs = 0L;
 
     private final BroadcastReceiver apkDownloadReceiver = new BroadcastReceiver() {
         @Override
@@ -434,58 +439,145 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void buildLoadingOverlay(FrameLayout parent) {
+        nativeSplashStartedAtMs = System.currentTimeMillis();
+
         loadingOverlay = new FrameLayout(this);
         loadingOverlay.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
-        loadingOverlay.setBackgroundColor(Color.WHITE);
+        loadingOverlay.setBackgroundColor(Color.BLACK);
+        loadingOverlay.setClipChildren(false);
+        loadingOverlay.setClipToPadding(false);
 
         LinearLayout centerBox = new LinearLayout(this);
         centerBox.setOrientation(LinearLayout.VERTICAL);
         centerBox.setGravity(Gravity.CENTER);
+        centerBox.setClipChildren(false);
+        centerBox.setClipToPadding(false);
         FrameLayout.LayoutParams boxParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER
         );
-        int pad = dpToPx(24);
+        int pad = dpToPx(20);
         centerBox.setPadding(pad, pad, pad, pad);
 
-        ImageView splashLogo = new ImageView(this);
-        splashLogo.setImageResource(R.drawable.marketbd_logo);
-        splashLogo.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(
-                dpToPx(92), dpToPx(92)
+        // 1. Small White "Welcome to" above the red MarketBD.Net wordmark
+        TextView welcomeText = new TextView(this);
+        welcomeText.setText("Welcome to");
+        welcomeText.setTextColor(Color.WHITE);
+        welcomeText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        welcomeText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            welcomeText.setLetterSpacing(0.22f);
+        }
+        welcomeText.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams welcomeParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        logoParams.bottomMargin = dpToPx(14);
-        splashLogo.setLayoutParams(logoParams);
+        welcomeParams.bottomMargin = dpToPx(6);
+        welcomeText.setLayoutParams(welcomeParams);
 
-        TextView brandTitle = new TextView(this);
-        brandTitle.setText("MarketBD.Net");
-        brandTitle.setTextColor(Color.parseColor("#B91C1C"));
-        brandTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
-        brandTitle.setTypeface(null, Typeface.BOLD);
-        brandTitle.setGravity(Gravity.CENTER);
+        // 2. Heavy Bold Geometric Red "MarketBD.Net" ("M" + "arketBD.Net")
+        Typeface heavySans = Typeface.create("sans-serif-black", Typeface.BOLD);
+        int crimsonRed = Color.parseColor("#E50914");
+
+        LinearLayout wordmarkRow = new LinearLayout(this);
+        wordmarkRow.setOrientation(LinearLayout.HORIZONTAL);
+        wordmarkRow.setGravity(Gravity.CENTER);
+        wordmarkRow.setClipChildren(false);
+        wordmarkRow.setClipToPadding(false);
+
+        TextView letterM = new TextView(this);
+        letterM.setText("M");
+        letterM.setTextColor(crimsonRed);
+        letterM.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
+        letterM.setTypeface(heavySans);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            letterM.setLetterSpacing(-0.02f);
+        }
+
+        TextView restWordmark = new TextView(this);
+        restWordmark.setText("arketBD.Net");
+        restWordmark.setTextColor(crimsonRed);
+        restWordmark.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
+        restWordmark.setTypeface(heavySans);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            restWordmark.setLetterSpacing(-0.02f);
+        }
+
+        wordmarkRow.addView(letterM);
+        wordmarkRow.addView(restWordmark);
+
+        // 3. Mirror Floor Reflection below MarketBD.Net (Matching Video)
+        FrameLayout reflectionWrap = new FrameLayout(this);
+        LinearLayout.LayoutParams reflectionWrapParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dpToPx(34)
+        );
+        reflectionWrapParams.topMargin = dpToPx(-6);
+        reflectionWrap.setLayoutParams(reflectionWrapParams);
+
+        LinearLayout reflectionRow = new LinearLayout(this);
+        reflectionRow.setOrientation(LinearLayout.HORIZONTAL);
+        reflectionRow.setGravity(Gravity.CENTER);
+        reflectionRow.setScaleY(-1f);
+        reflectionRow.setAlpha(0.32f);
+
+        TextView refM = new TextView(this);
+        refM.setText("M");
+        refM.setTextColor(crimsonRed);
+        refM.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
+        refM.setTypeface(heavySans);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            refM.setLetterSpacing(-0.02f);
+        }
+
+        TextView refRest = new TextView(this);
+        refRest.setText("arketBD.Net");
+        refRest.setTextColor(crimsonRed);
+        refRest.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
+        refRest.setTypeface(heavySans);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            refRest.setLetterSpacing(-0.02f);
+        }
+
+        reflectionRow.addView(refM);
+        reflectionRow.addView(refRest);
+        reflectionWrap.addView(reflectionRow);
+
+        View reflectionMask = new View(this);
+        reflectionMask.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        reflectionMask.setBackground(new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.argb(45, 0, 0, 0), Color.argb(215, 0, 0, 0), Color.BLACK}
+        ));
+        reflectionWrap.addView(reflectionMask);
 
         loadingSpinner = new ProgressBar(this);
+        loadingSpinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(crimsonRed));
         LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
-                dpToPx(36), dpToPx(36)
+                dpToPx(28), dpToPx(28)
         );
-        spinnerParams.topMargin = dpToPx(16);
-        spinnerParams.bottomMargin = dpToPx(12);
+        spinnerParams.topMargin = dpToPx(20);
+        spinnerParams.bottomMargin = dpToPx(10);
         loadingSpinner.setLayoutParams(spinnerParams);
 
         loadingStatusText = new TextView(this);
-        loadingStatusText.setText("অ্যাপ লোড হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন");
-        loadingStatusText.setTextColor(Color.parseColor("#475569"));
-        loadingStatusText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        loadingStatusText.setText("লোড হচ্ছে...");
+        loadingStatusText.setTextColor(Color.parseColor("#94A3B8"));
+        loadingStatusText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         loadingStatusText.setGravity(Gravity.CENTER);
 
         retryButton = new Button(this);
         retryButton.setText("পুনরায় চেষ্টা করুন (Retry)");
         retryButton.setVisibility(View.GONE);
-        retryButton.setBackgroundColor(Color.parseColor("#DC2626"));
+        retryButton.setBackgroundColor(crimsonRed);
         retryButton.setTextColor(Color.WHITE);
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -495,13 +587,66 @@ public class MainActivity extends AppCompatActivity {
         retryButton.setLayoutParams(btnParams);
         retryButton.setOnClickListener(v -> loadPage(TARGET_URL, true));
 
-        centerBox.addView(splashLogo);
-        centerBox.addView(brandTitle);
+        centerBox.addView(welcomeText);
+        centerBox.addView(wordmarkRow);
+        centerBox.addView(reflectionWrap);
         centerBox.addView(loadingSpinner);
         centerBox.addView(loadingStatusText);
         centerBox.addView(retryButton);
         loadingOverlay.addView(centerBox, boxParams);
         parent.addView(loadingOverlay);
+
+        // Native Video-Matched Intro Animation (M bounce + Welcome fade)
+        playNativeWelcomeAnimation(welcomeText, restWordmark, letterM);
+    }
+
+    private void playNativeWelcomeAnimation(View welcomeText, View restWordmark, View letterM) {
+        try {
+            welcomeText.setAlpha(0f);
+            restWordmark.setAlpha(0f);
+            letterM.setAlpha(0f);
+            letterM.setTranslationY(-dpToPx(75));
+            letterM.setTranslationX(dpToPx(48));
+            letterM.setScaleX(0.45f);
+            letterM.setScaleY(0.45f);
+            letterM.setRotation(-14f);
+
+            ObjectAnimator welcomeAlpha = ObjectAnimator.ofFloat(welcomeText, View.ALPHA, 0f, 1f);
+            welcomeAlpha.setDuration(420);
+
+            ObjectAnimator restAlpha = ObjectAnimator.ofFloat(restWordmark, View.ALPHA, 0f, 1f);
+            restAlpha.setStartDelay(120);
+            restAlpha.setDuration(600);
+
+            ObjectAnimator mAlpha = ObjectAnimator.ofFloat(letterM, View.ALPHA, 0f, 1f);
+            mAlpha.setStartDelay(320);
+            mAlpha.setDuration(260);
+
+            ObjectAnimator mArcX = ObjectAnimator.ofFloat(letterM, View.TRANSLATION_X, dpToPx(48), dpToPx(120), 0f);
+            mArcX.setStartDelay(340);
+            mArcX.setDuration(980);
+            mArcX.setInterpolator(new DecelerateInterpolator());
+
+            ObjectAnimator mArcY = ObjectAnimator.ofFloat(letterM, View.TRANSLATION_Y, -dpToPx(75), -dpToPx(92), 0f);
+            mArcY.setStartDelay(340);
+            mArcY.setDuration(980);
+            mArcY.setInterpolator(new OvershootInterpolator(1.2f));
+
+            ObjectAnimator mScaleX = ObjectAnimator.ofFloat(letterM, View.SCALE_X, 0.45f, 1f);
+            ObjectAnimator mScaleY = ObjectAnimator.ofFloat(letterM, View.SCALE_Y, 0.45f, 1f);
+            ObjectAnimator mRot = ObjectAnimator.ofFloat(letterM, View.ROTATION, -14f, 18f, 0f);
+            mScaleX.setStartDelay(340);
+            mScaleY.setStartDelay(340);
+            mRot.setStartDelay(340);
+            mScaleX.setDuration(980);
+            mScaleY.setDuration(980);
+            mRot.setDuration(980);
+
+            AnimatorSet set = new AnimatorSet();
+            set.playTogether(welcomeAlpha, restAlpha, mAlpha, mArcX, mArcY, mScaleX, mScaleY, mRot);
+            set.start();
+        } catch (Exception ignored) {
+        }
     }
 
     private int dpToPx(int dp) {
@@ -518,12 +663,19 @@ public class MainActivity extends AppCompatActivity {
         if (loadingSpinner != null) loadingSpinner.setVisibility(View.VISIBLE);
         if (retryButton != null) retryButton.setVisibility(View.GONE);
         if (loadingStatusText != null) {
-            loadingStatusText.setText("অ্যাপ লোড হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন");
+            loadingStatusText.setText("লোড হচ্ছে...");
         }
     }
 
     private void hideLoadingOverlay() {
         if (loadingOverlay != null && loadingOverlay.getVisibility() == View.VISIBLE) {
+            long elapsed = Math.max(0L, System.currentTimeMillis() - nativeSplashStartedAtMs);
+            if (webView != null) {
+                try {
+                    webView.evaluateJavascript("window.__marketbdNativeIntroElapsed=" + elapsed + ";", null);
+                } catch (Exception ignored) {
+                }
+            }
             loadingOverlay.setVisibility(View.GONE);
         }
     }

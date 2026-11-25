@@ -8,6 +8,7 @@ import { OfflineModal } from './components/Common/OfflineModal';
 import { HomePage } from './pages/HomePage';
 import { MaintenanceScreen } from './components/Maintenance/MaintenanceScreen';
 import { MasterLockdownScreen } from './components/Maintenance/MasterLockdownScreen';
+import { WelcomeIntroSplash } from './components/Common/WelcomeIntroSplash';
 import { ArrowLeft, ArrowRight, Home, Wrench, ShieldAlert, CheckCircle2, Zap } from 'lucide-react';
 
 // Resilient dynamic chunk loader that retries once and gracefully falls back without crashing
@@ -311,6 +312,7 @@ const MainContent: React.FC = () => {
 export default function App() {
   return (
     <MarketProvider>
+      <WelcomeIntroSplash />
       <MainContent />
       <OfflineModal />
     </MarketProvider>

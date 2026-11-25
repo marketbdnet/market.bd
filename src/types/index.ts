@@ -171,6 +171,8 @@ export interface AppReleaseInfo {
   isMandatory: boolean;
   apkDownloadUrl: string;
   playStoreUrl?: string;
+  iosDownloadUrl?: string;
+  iosAppStoreUrl?: string;
   publishedAt: string;
 }
 

@@ -77,18 +77,26 @@ export const AppUpdateModal: React.FC = () => {
   };
 
   const handleDownloadApk = async () => {
+    const startedAt = Date.now();
     setIsDownloadingApk(true);
     setApkDownloadDone(false);
     setApkDownloadError(null);
+    const waitMin = async () => {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < 320) await new Promise((r) => setTimeout(r, 320 - elapsed));
+    };
+
     const ok = await downloadApkFile({
       apkUrl: appRelease.apkDownloadUrl,
       version: appRelease.version || '2.5.0',
       fileName: `MarketBD_v${appRelease.version || '2.5.0'}.apk`,
-      onComplete: () => {
+      onComplete: async () => {
+        await waitMin();
         setIsDownloadingApk(false);
         setApkDownloadDone(true);
       },
-      onError: () => {
+      onError: async () => {
+        await waitMin();
         setIsDownloadingApk(false);
         setApkDownloadDone(false);
         setApkDownloadError(
@@ -99,6 +107,7 @@ export const AppUpdateModal: React.FC = () => {
       }
     });
     if (!ok) {
+      await waitMin();
       setIsDownloadingApk(false);
     }
   };

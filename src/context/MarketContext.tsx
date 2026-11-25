@@ -949,9 +949,14 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               storage.setItem('marketbd_watermark_enabled', String(d.branding.isWatermarkEnabled));
             }
           }
-          if (d.appRelease) {
+          const incomingAppRelease = d.appRelease || d.app_release;
+          if (incomingAppRelease) {
             setAppReleaseState(prev => {
-              const merged = { ...prev, ...d.appRelease };
+              const merged = { ...prev, ...incomingAppRelease };
+              const rawUrl = String(merged.apkDownloadUrl || '').trim();
+              if (!rawUrl || rawUrl.startsWith('blob:') || rawUrl.includes('.run.app') || rawUrl.includes('marketbd-release-v')) {
+                merged.apkDownloadUrl = '/MarketBD.apk';
+              }
               storage.setItem('marketbd_app_release', JSON.stringify(merged));
               return merged;
             });
@@ -1124,6 +1129,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (val) {
             setAppReleaseState(prev => {
               const merged = { ...prev, ...val };
+              const rawUrl = String(merged.apkDownloadUrl || '').trim();
+              if (!rawUrl || rawUrl.startsWith('blob:') || rawUrl.includes('.run.app') || rawUrl.includes('marketbd-release-v')) {
+                merged.apkDownloadUrl = '/MarketBD.apk';
+              }
               storage.setItem('marketbd_app_release', JSON.stringify(merged));
               return merged;
             });
@@ -2465,6 +2474,8 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     isMandatory: false,
     apkDownloadUrl: '/MarketBD.apk',
     playStoreUrl: 'https://play.google.com/store/apps/details?id=com.marketbd.app',
+    iosDownloadUrl: '/api/download/ios',
+    iosAppStoreUrl: '',
     publishedAt: new Date().toISOString()
   };
 
@@ -2473,8 +2484,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const saved = storage.getItem('marketbd_app_release');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Fix legacy dead URLs
-        if (parsed.apkDownloadUrl && (parsed.apkDownloadUrl.includes('.run.app') || parsed.apkDownloadUrl.includes('marketbd-release-v'))) {
+        // Fix legacy dead or ephemeral blob URLs
+        const rawApk = String(parsed.apkDownloadUrl || '').trim();
+        if (!rawApk || rawApk.startsWith('blob:') || rawApk.includes('.run.app') || rawApk.includes('marketbd-release-v')) {
           parsed.apkDownloadUrl = '/MarketBD.apk';
         }
         return { ...defaultRelease, ...parsed };
@@ -2514,15 +2526,20 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [appRelease.version]);
 
   const updateAppRelease = (newRelease: AppReleaseInfo) => {
-    setAppReleaseState(newRelease);
+    const rawApk = String(newRelease.apkDownloadUrl || '').trim();
+    const sanitizedRelease: AppReleaseInfo = {
+      ...newRelease,
+      apkDownloadUrl: !rawApk || rawApk.startsWith('blob:') ? '/MarketBD.apk' : rawApk
+    };
+    setAppReleaseState(sanitizedRelease);
     setIsUpdateDismissed(false);
     try {
-      storage.setItem('marketbd_app_release', JSON.stringify(newRelease));
+      storage.setItem('marketbd_app_release', JSON.stringify(sanitizedRelease));
       storage.removeItem('marketbd_dismissed_update_version');
     } catch (e) {
       console.error('Error saving app release info', e);
     }
-    syncToCloud('app_release', newRelease);
+    syncToCloud('app_release', sanitizedRelease);
 
     // Add global update notification for all users
     setNotifications(prev => [
