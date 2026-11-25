@@ -1,7 +1,6 @@
-// MarketBD.Net Progressive Web App, Instant Asset Cache & Push Notification Service Worker
-const CACHE_NAME = 'marketbd-app-v6';
+// MarketBD Progressive Web App, Instant Asset Cache & Push Notification Service Worker
+const CACHE_NAME = 'marketbd-app-v8';
 const SHELL_PRECACHE = [
-  '/',
   '/logo.jpg',
   '/favicon.jpg',
   '/icon-192.png',
@@ -61,44 +60,20 @@ self.addEventListener('fetch', (event) => {
 
   if (isBypassedRequest(url)) return;
 
-  // 1. Navigation requests (Android WebView / PWA cold launch):
-  // Network-first with a strict 1.8s fast timeout so weak 3G/4G never hangs the splash screen
+  // 1. Navigation requests: strictly Network-First (no stale HTML flash) with 5s offline fallback
   if (req.mode === 'navigate') {
     event.respondWith(
-      new Promise((resolve) => {
-        let settled = false;
-        const fallbackTimer = setTimeout(() => {
-          if (settled) return;
-          caches.match('/').then((cachedRoot) => {
-            if (cachedRoot && !settled) {
-              settled = true;
-              resolve(cachedRoot);
-            }
-          });
-        }, 1800);
-
-        fetch(req)
-          .then((res) => {
-            clearTimeout(fallbackTimer);
-            if (res && res.ok && url.origin === self.location.origin) {
-              const copy = res.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put('/', copy)).catch(() => {});
-            }
-            if (!settled) {
-              settled = true;
-              resolve(res);
-            }
-          })
-          .catch(() => {
-            clearTimeout(fallbackTimer);
-            caches.match('/').then((cachedRoot) => {
-              if (!settled) {
-                settled = true;
-                resolve(cachedRoot || Response.error());
-              }
-            });
-          });
-      })
+      fetch(req, { cache: 'no-store' })
+        .then((res) => {
+          if (res && res.ok && url.origin === self.location.origin) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/', copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(() =>
+          caches.match('/').then((cachedRoot) => cachedRoot || Response.error())
+        )
     );
     return;
   }

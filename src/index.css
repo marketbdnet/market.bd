@@ -277,21 +277,23 @@
 .grecaptcha-badge { visibility: hidden !important; }
 
 /* ========================================================
-   WELCOME INTRO SPLASH SUPPORT STYLES (Video-Matched Pure White)
+   WELCOME INTRO SPLASH SUPPORT STYLES (MarketBD Signature)
    ======================================================== */
 @keyframes mbdWelcomeFade {
   0% {
     opacity: 0;
-    transform: translateY(-6px);
+    letter-spacing: 0.38em;
+    transform: translateY(6px);
   }
-  18%, 100% {
+  100% {
     opacity: 1;
+    letter-spacing: 0.18em;
     transform: translateY(0);
   }
 }
 
 .mbd-welcome-text {
-  animation: mbdWelcomeFade 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: mbdWelcomeFade 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 

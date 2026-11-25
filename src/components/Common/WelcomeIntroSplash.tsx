@@ -9,12 +9,12 @@ declare global {
 }
 
 const WORDMARK = 'MarketBD';
-const CHARS = WORDMARK.split(''); // Index 0 = 'M' (Red #E50914), Indices 1..7 = 'a','r','k','e','t','B','D' (White #FFFFFF)
-const TOTAL_DURATION_MS = 7800; // Matches the 8s slow-motion reference video
-const HOLD_BEFORE_EXIT_MS = 700;
+const CHARS = WORDMARK.split(''); // Index 0 = 'M' (#E50914 Red), Indices 1..7 = 'a','r','k','e','t','B','D' (#FFFFFF White)
+const TOTAL_DURATION_MS = 6600;
+const HOLD_BEFORE_EXIT_MS = 750;
 const BRAND_RED = '#E50914';
 
-// Approximate stroke perimeters for fontSize=82 heavy geometric sans (calibrated for zero dead-time)
+// Calibrated SVG stroke perimeters for fontSize=82 heavy geometric sans
 const CHAR_DASH_LENGTHS: Record<string, number> = {
   M: 430,
   a: 310,
@@ -45,12 +45,29 @@ const easeOutCubic = (t: number): number => {
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 interface GlyphRenderTargets {
-  sweepMain: SVGPathElement | null;
-  sweepRef: SVGPathElement | null;
+  horizonBeamMain: SVGLineElement | null;
+  horizonBeamRef: SVGLineElement | null;
+  seamGlowMain: SVGLineElement | null;
+  arcRedMain: SVGPathElement | null;
+  arcWhiteMain: SVGPathElement | null;
   letterMain: (SVGTextElement | null)[];
   letterRef: (SVGTextElement | null)[];
   mGroupMain: SVGGElement | null;
   mGroupRef: SVGGElement | null;
+}
+
+/**
+ * Compute crisp SVG orbital arc path around center (cx, cy) with radius r.
+ */
+function describeArc(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
+  const rad1 = ((startDeg - 90) * Math.PI) / 180;
+  const rad2 = ((endDeg - 90) * Math.PI) / 180;
+  const x1 = cx + r * Math.cos(rad1);
+  const y1 = cy + r * Math.sin(rad1);
+  const x2 = cx + r * Math.cos(rad2);
+  const y2 = cy + r * Math.sin(rad2);
+  const largeArc = Math.abs(endDeg - startDeg) <= 180 ? '0' : '1';
+  return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r.toFixed(2)} ${r.toFixed(2)} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
 }
 
 export const WelcomeIntroSplash: React.FC = () => {
@@ -71,8 +88,11 @@ export const WelcomeIntroSplash: React.FC = () => {
   const rafRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const targetsRef = useRef<GlyphRenderTargets>({
-    sweepMain: null,
-    sweepRef: null,
+    horizonBeamMain: null,
+    horizonBeamRef: null,
+    seamGlowMain: null,
+    arcRedMain: null,
+    arcWhiteMain: null,
     letterMain: [],
     letterRef: [],
     mGroupMain: null,
@@ -86,7 +106,7 @@ export const WelcomeIntroSplash: React.FC = () => {
     letterSpacing: '-1.5px'
   };
 
-  // Skip completely inside native Android app so Android's identical native splash handles intro once
+  // Skip inside native Android app so Android's identical native splash handles intro once
   useEffect(() => {
     if (isRunningInNativeAndroid || window.__marketbdNativeIntroActive) {
       setIsVisible(false);
@@ -130,7 +150,11 @@ export const WelcomeIntroSplash: React.FC = () => {
     }
   }, [isVisible]);
 
-  // 60fps Video-Matched Slow-Motion Timeline (7.8s: White sweep & outline->fill on arketBD + Red hopping/landing M)
+  // Original MarketBD Signature Choreography (6.6s slow-motion):
+  //   Act 1 (0.00 -> 0.24): Center-outward horizon beam + Welcome tracking-condense title
+  //   Act 2 (0.14 -> 0.46): Twin Red/White orbital emblem arcs + Crimson Red "M" depth lock-in
+  //   Act 3 (0.34 -> 0.82): Progressive white vector etching + diagonal light-fill on "arketBD"
+  //   Act 4 (0.76 -> 1.00): Bi-color Red+White baseline gleam & synchronized floor reflection settle
   useEffect(() => {
     if (!isVisible) return;
 
@@ -152,140 +176,105 @@ export const WelcomeIntroSplash: React.FC = () => {
 
     const applyFrame = (p: number) => {
       const targets = targetsRef.current;
-      const aX = charLayout.xs[1] ?? 74;
       const wordW = charLayout.totalWidth;
+      const centerX = wordW * 0.5;
+      const mStartX = charLayout.xs[0] ?? 0;
+      const aStartX = charLayout.xs[1] ?? 74;
+      const mSlotCenter = mStartX + (aStartX - mStartX) * 0.48;
+      const mAnchorY = 64; // Vertical visual midpoint of uppercase M (baseline 94, cap 34)
 
-      // 1. Baseline Sweep Line + Curved Entry into 'a' (0.00 -> 0.36)
-      const sweepTotal = 380 + aX + 42;
-      const headFrac = easeOutCubic(clamp01(p / 0.16));
-      const tailFrac = p <= 0.15 ? 0 : easeInOutCubic(clamp01((p - 0.15) / 0.21));
-      const visibleLen = Math.max(0, (headFrac - tailFrac) * sweepTotal);
-      const sweepOpacity = p > 0.37 ? 0 : tailFrac >= 0.99 ? 0 : 0.96;
+      // Act 1: Symmetric Center-Outward Horizon Split Beam (0.00 -> 0.40)
+      const expandFrac = easeOutCubic(clamp01(p / 0.22));
+      const beamFadeOut = p < 0.22 ? 1 : 1 - easeInOutCubic(clamp01((p - 0.22) / 0.18));
+      const beamHalfW = (wordW * 0.56) * expandFrac;
 
-      [targets.sweepMain, targets.sweepRef].forEach((pathEl) => {
-        if (!pathEl) return;
-        const realLen = pathEl.getTotalLength ? pathEl.getTotalLength() : sweepTotal;
-        const headPx = headFrac * realLen;
-        const tailPx = tailFrac * realLen;
-        const segLen = Math.max(0, headPx - tailPx);
-        pathEl.style.strokeDasharray = `${segLen} ${realLen + 100}`;
-        pathEl.style.strokeDashoffset = `${-tailPx}`;
-        pathEl.style.opacity = visibleLen > 0.5 ? String(sweepOpacity) : '0';
+      [targets.horizonBeamMain, targets.horizonBeamRef].forEach((beam) => {
+        if (!beam) return;
+        beam.setAttribute('x1', (centerX - beamHalfW).toFixed(1));
+        beam.setAttribute('x2', (centerX + beamHalfW).toFixed(1));
+        beam.style.opacity = (p > 0.42 ? 0 : beamFadeOut * 0.85).toFixed(3);
       });
 
-      // 2. Per-letter slow-motion white outline tracing (0.09 -> 0.42)
-      //    followed by progressive left-to-right solid white fill (0.42 -> 0.77)
+      // Act 2A: Twin Orbital Emblem Arcs (Red left arc + White right arc rotating around "M")
+      const arcDraw = easeInOutCubic(clamp01((p - 0.12) / 0.22));
+      const arcFade = p < 0.36 ? 1 : 1 - easeInOutCubic(clamp01((p - 0.36) / 0.14));
+      const arcRot = lerp(-55, 25, easeInOutCubic(clamp01((p - 0.12) / 0.36)));
+      const arcRadius = 46;
+      const arcSpan = Math.max(2, 148 * arcDraw);
+
+      if (targets.arcRedMain) {
+        targets.arcRedMain.setAttribute(
+          'd',
+          describeArc(mSlotCenter, mAnchorY, arcRadius, 196 + arcRot, 196 + arcRot + arcSpan)
+        );
+        targets.arcRedMain.style.opacity = (p > 0.52 || p < 0.12 ? 0 : arcDraw * arcFade * 0.95).toFixed(3);
+      }
+      if (targets.arcWhiteMain) {
+        targets.arcWhiteMain.setAttribute(
+          'd',
+          describeArc(mSlotCenter, mAnchorY, arcRadius, 16 + arcRot, 16 + arcRot + arcSpan)
+        );
+        targets.arcWhiteMain.style.opacity = (p > 0.52 || p < 0.12 ? 0 : arcDraw * arcFade * 0.9).toFixed(3);
+      }
+
+      // Act 2B: Majestic Crimson Red "M" Depth Arrival & Lock-In (0.16 -> 0.46)
+      let mAlpha = 0;
+      let mScale = 1;
+      let mTranslateY = 0;
+      if (p >= 0.16) {
+        const mIn = easeOutCubic(clamp01((p - 0.16) / 0.26));
+        mAlpha = clamp01(mIn * 1.35);
+        mScale = lerp(1.48, 1.0, mIn);
+        mTranslateY = lerp(-12, 0, mIn);
+        // Subtle settled micro-elastic breathe as beam completes at 0.42 -> 0.48
+        if (p >= 0.42 && p < 0.49) {
+          const s = (p - 0.42) / 0.07;
+          mScale = 1 + Math.sin(s * Math.PI) * 0.035;
+        }
+      }
+
+      const mTransform = `translate(0 ${mTranslateY.toFixed(2)}) translate(${mSlotCenter.toFixed(1)} ${mAnchorY}) scale(${mScale.toFixed(4)}) translate(${-mSlotCenter.toFixed(1)} ${-mAnchorY})`;
+      [targets.mGroupMain, targets.mGroupRef].forEach((grp) => {
+        if (!grp) return;
+        grp.style.opacity = mAlpha.toFixed(3);
+        grp.setAttribute('transform', mTransform);
+      });
+
+      // Act 3: Progressive Vector Etching -> Precision Light-Sweep Fill on "arketBD" (0.34 -> 0.82)
       for (let i = 1; i < CHARS.length; i++) {
         const idx = i - 1; // 0..6 ('a'..'D')
         const ch = CHARS[i];
         const dashLen = CHAR_DASH_LENGTHS[ch] ?? 320;
 
-        const outlineStart = 0.09 + idx * 0.032;
-        const outlineFrac = easeInOutCubic((p - outlineStart) / 0.12);
+        const etchStart = 0.34 + idx * 0.028;
+        const etchFrac = easeInOutCubic((p - etchStart) / 0.12);
 
-        const fillStart = 0.42 + idx * 0.036;
-        const fillFrac = easeInOutCubic((p - fillStart) / 0.12);
+        const fillStart = 0.54 + idx * 0.032;
+        const fillFrac = easeInOutCubic((p - fillStart) / 0.13);
 
         const strokeAlpha =
-          outlineFrac <= 0 ? 0 : fillFrac >= 1 ? 0 : Math.max(0, 1 - fillFrac * 0.9);
-        const strokeWidth = lerp(1.9, 0.5, fillFrac);
+          etchFrac <= 0 ? 0 : fillFrac >= 1 ? 0 : Math.max(0, 1 - fillFrac * 0.88);
+        const strokeWidth = lerp(2.0, 0.45, fillFrac);
 
         const elMain = targets.letterMain[i];
         const elRef = targets.letterRef[i];
         [elMain, elRef].forEach((el) => {
           if (!el) return;
           el.style.strokeDasharray = String(dashLen);
-          el.style.strokeDashoffset = String(dashLen * (1 - outlineFrac));
+          el.style.strokeDashoffset = String(dashLen * (1 - etchFrac));
           el.style.stroke = `rgba(255, 255, 255, ${strokeAlpha.toFixed(3)})`;
           el.style.strokeWidth = `${strokeWidth.toFixed(2)}px`;
           el.style.fill = `rgba(255, 255, 255, ${fillFrac.toFixed(3)})`;
         });
       }
 
-      // 3. Slow-Motion Bouncing RED "M" Arc Across Tops of "arketBD" & Final Left Landing (0.43 -> 0.92)
-      let mOpacity = 0;
-      let mX = 0;
-      let mY = 0;
-      let mScaleX = 1;
-      let mScaleY = 1;
-      let mRot = 0;
-
-      const mStartX = charLayout.xs[0] ?? 0;
-      const mSlotCenter = mStartX + 32;
-      const hopLeftX = (charLayout.xs[1] ?? 74) + 18 - mSlotCenter; // Above 'a'/'r'
-      const hopMidX = wordW * 0.54 - mSlotCenter; // Above 'e'/'t'
-      const hopRightX = wordW * 0.86 - mSlotCenter; // Above 'B'/'D'
-
-      if (p < 0.43) {
-        mOpacity = 0;
-      } else if (p < 0.49) {
-        // Emerge upright above first solid white letters
-        const k = easeOutCubic((p - 0.43) / 0.06);
-        mOpacity = k;
-        mX = hopLeftX;
-        mY = lerp(-56, -78, k);
-        mScaleX = lerp(0.32, 0.41, k);
-        mScaleY = lerp(0.32, 0.41, k);
-        mRot = 0;
-      } else if (p < 0.62) {
-        // Hop arc rightward across middle letters tilting clockwise
-        const k = (p - 0.49) / 0.13;
-        const arcLift = Math.sin(k * Math.PI) * 30;
-        mOpacity = 1;
-        mX = lerp(hopLeftX, hopMidX, easeInOutCubic(k));
-        mY = lerp(-78, -94, k) - arcLift;
-        mScaleX = lerp(0.41, 0.38, k);
-        mScaleY = lerp(0.41, 0.38, k);
-        mRot = lerp(0, 19, easeInOutCubic(k));
-      } else if (p < 0.74) {
-        // Continue right over 'BD' tilting further clockwise
-        const k = (p - 0.62) / 0.12;
-        const arcLift = Math.sin(k * Math.PI) * 24;
-        mOpacity = 1;
-        mX = lerp(hopMidX, hopRightX, easeInOutCubic(k));
-        mY = lerp(-94, -84, k) - arcLift;
-        mScaleX = 0.37;
-        mScaleY = 0.37;
-        mRot = lerp(19, 27, easeInOutCubic(k));
-      } else if (p < 0.87) {
-        // Swoop back leftward in a tall arc growing to full 1.0x size
-        const k = (p - 0.74) / 0.13;
-        const eased = easeInOutCubic(k);
-        const arcLift = Math.sin(k * Math.PI) * 56;
-        mOpacity = 1;
-        mX = lerp(hopRightX, 0, eased);
-        mY = lerp(-84, 0, eased) - arcLift;
-        const sc = lerp(0.37, 1.0, eased);
-        mScaleX = sc;
-        mScaleY = sc;
-        mRot = k < 0.55 ? lerp(27, -16, k / 0.55) : lerp(-16, 0, (k - 0.55) / 0.45);
-      } else if (p < 0.92) {
-        // Subtle tactile landing squash & settle
-        const k = (p - 0.87) / 0.05;
-        mOpacity = 1;
-        mX = 0;
-        mY = 0;
-        mRot = 0;
-        if (k < 0.45) {
-          const s = k / 0.45;
-          mScaleX = lerp(1.0, 1.04, s);
-          mScaleY = lerp(1.0, 0.94, s);
-        } else {
-          const s = (k - 0.45) / 0.55;
-          mScaleX = lerp(1.04, 1.0, s);
-          mScaleY = lerp(0.94, 1.0, s);
-        }
-      } else {
-        mOpacity = 1;
+      // Act 4: Bi-Color Signature Baseline Seam Gleam (0.76 -> 1.00)
+      if (targets.seamGlowMain) {
+        const seamProg = easeOutCubic(clamp01((p - 0.74) / 0.22));
+        targets.seamGlowMain.setAttribute('x1', '0');
+        targets.seamGlowMain.setAttribute('x2', (wordW * seamProg).toFixed(1));
+        targets.seamGlowMain.style.opacity = seamProg > 0.01 ? (0.85 * clamp01(seamProg * 1.4)).toFixed(3) : '0';
       }
-
-      const transformStr = `translate(${mX.toFixed(2)} ${mY.toFixed(2)}) translate(${mSlotCenter.toFixed(1)} 94) rotate(${mRot.toFixed(2)}) scale(${mScaleX.toFixed(3)} ${mScaleY.toFixed(3)}) translate(${-mSlotCenter.toFixed(1)} -94)`;
-
-      [targets.mGroupMain, targets.mGroupRef].forEach((grp) => {
-        if (!grp) return;
-        grp.style.opacity = mOpacity.toFixed(3);
-        grp.setAttribute('transform', transformStr);
-      });
     };
 
     const tick = (now: number) => {
@@ -320,28 +309,53 @@ export const WelcomeIntroSplash: React.FC = () => {
 
   if (!isVisible) return null;
 
-  const aStartX = charLayout.xs[1] ?? 74;
-  // Horizontal white baseline sweep entering from visible left stage edge and curving cleanly up into letter 'a'
-  const sweepPathD = `M -380 94 L ${(aStartX - 24).toFixed(1)} 94 Q ${aStartX.toFixed(1)} 94 ${aStartX.toFixed(1)} 52`;
   const svgWidth = charLayout.totalWidth + 24;
 
   const renderWordmarkSet = (isReflection: boolean) => (
     <>
-      {/* Left-to-Right White Baseline Sweep + Curved Hook */}
-      <path
+      {/* Center-Outward Initial Horizon Light Beam */}
+      <line
         ref={(el) => {
-          if (isReflection) targetsRef.current.sweepRef = el;
-          else targetsRef.current.sweepMain = el;
+          if (isReflection) targetsRef.current.horizonBeamRef = el;
+          else targetsRef.current.horizonBeamMain = el;
         }}
-        d={sweepPathD}
-        fill="none"
+        x1={(charLayout.totalWidth * 0.5).toFixed(1)}
+        y1={94}
+        x2={(charLayout.totalWidth * 0.5).toFixed(1)}
+        y2={94}
         stroke="#FFFFFF"
         strokeWidth="2"
         strokeLinecap="round"
         style={reducedMotion ? { opacity: 0 } : undefined}
       />
 
-      {/* Bouncing & Landing RED "M" */}
+      {/* Twin Red+White Orbital Emblem Crest framing "M" (Upright stage only) */}
+      {!isReflection && !reducedMotion && (
+        <>
+          <path
+            ref={(el) => {
+              targetsRef.current.arcRedMain = el;
+            }}
+            fill="none"
+            stroke={BRAND_RED}
+            strokeWidth="2.8"
+            strokeLinecap="round"
+            style={{ opacity: 0 }}
+          />
+          <path
+            ref={(el) => {
+              targetsRef.current.arcWhiteMain = el;
+            }}
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            style={{ opacity: 0 }}
+          />
+        </>
+      )}
+
+      {/* Anchor Crimson Red "M" */}
       <g
         ref={(el) => {
           if (isReflection) targetsRef.current.mGroupRef = el;
@@ -354,7 +368,7 @@ export const WelcomeIntroSplash: React.FC = () => {
         </text>
       </g>
 
-      {/* Progressive White Outline -> Progressive Solid White Fill ("arketBD") */}
+      {/* Precision Etched White Outline -> Solid White Fill ("arketBD") */}
       {CHARS.slice(1).map((ch, sliceIdx) => {
         const charIdx = sliceIdx + 1;
         return (
@@ -390,6 +404,16 @@ export const WelcomeIntroSplash: React.FC = () => {
         isFadingOut ? 'opacity-0 scale-[1.01] pointer-events-none' : 'opacity-100 scale-100'
       }`}
     >
+      {/* Subtle Signature Crimson Ambient Glow at Center Stage */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(circle at 46% 48%, rgba(229, 9, 20, 0.14) 0%, rgba(0, 0, 0, 0.96) 52%, #000000 100%)'
+        }}
+      />
+
       {/* Hidden off-screen SVG glyph width measurer */}
       <svg
         aria-hidden="true"
@@ -410,10 +434,10 @@ export const WelcomeIntroSplash: React.FC = () => {
       </svg>
 
       {/* Central Stage */}
-      <div className="relative z-10 flex flex-col items-center justify-center w-full max-w-4xl">
-        {/* Small Crisp White "Welcome to" */}
+      <div className="relative z-10 flex flex-col items-center justify-center w-full max-w-6xl">
+        {/* Crisp White "Welcome to" with tracking condense */}
         <p
-          className={`text-white font-semibold tracking-[0.22em] text-xs sm:text-sm md:text-base mb-1 sm:mb-2 text-center ${
+          className={`text-white font-semibold tracking-[0.18em] text-xl sm:text-3xl md:text-4xl mb-4 sm:mb-7 text-center ${
             reducedMotion ? 'opacity-100' : 'mbd-welcome-text'
           }`}
           style={{ fontFamily: "'Montserrat', system-ui, sans-serif" }}
@@ -421,14 +445,20 @@ export const WelcomeIntroSplash: React.FC = () => {
           Welcome to
         </p>
 
-        {/* Video-Matched Red M + White arketBD + Synchronized Mirror Floor Reflection */}
+        {/* MarketBD Signature Wordmark (2x Larger Scale) + Bi-Color Seam + Synchronized Mirror Floor */}
         <div className="relative w-full flex justify-center">
           <svg
-            viewBox={`-12 0 ${svgWidth.toFixed(1)} 168`}
-            className="overflow-visible w-full max-w-[300px] sm:max-w-[440px] md:max-w-[540px] h-auto"
+            viewBox={`-6 0 ${(svgWidth - 12).toFixed(1)} 168`}
+            className="overflow-visible w-[95vw] sm:w-[92vw] max-w-[1080px] h-auto"
             aria-label="MarketBD"
           >
             <defs>
+              <linearGradient id="mbd-seam-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor={BRAND_RED} stopOpacity="0.95" />
+                <stop offset="18%" stopColor={BRAND_RED} stopOpacity="0.95" />
+                <stop offset="32%" stopColor="#FFFFFF" stopOpacity="0.85" />
+                <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.15" />
+              </linearGradient>
               <linearGradient
                 id="mbd-mirror-grad"
                 x1="0"
@@ -455,9 +485,24 @@ export const WelcomeIntroSplash: React.FC = () => {
             {/* Primary Upright Animated Wordmark */}
             <g>{renderWordmarkSet(false)}</g>
 
-            {/* Synchronized Floor Mirror Reflection (Directly touching baseline) */}
+            {/* Signature Bi-Color Red+White Baseline Horizon Gleam */}
+            <line
+              ref={(el) => {
+                targetsRef.current.seamGlowMain = el;
+              }}
+              x1="0"
+              y1={95.5}
+              x2={reducedMotion ? charLayout.totalWidth : 0}
+              y2={95.5}
+              stroke="url(#mbd-seam-grad)"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              style={reducedMotion ? { opacity: 0.75 } : { opacity: 0 }}
+            />
+
+            {/* Synchronized Floor Mirror Reflection */}
             <g mask="url(#mbd-mirror-mask)" opacity="0.54">
-              <g transform="translate(0, 190) scale(1, -1)">{renderWordmarkSet(true)}</g>
+              <g transform="translate(0, 191) scale(1, -1)">{renderWordmarkSet(true)}</g>
             </g>
           </svg>
         </div>

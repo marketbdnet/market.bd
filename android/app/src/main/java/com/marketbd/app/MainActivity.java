@@ -20,6 +20,8 @@ import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PathMeasure;
+import android.graphics.RadialGradient;
+import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.net.ConnectivityManager;
@@ -85,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private SwipeRefreshLayout swipeRefreshLayout;
     private FrameLayout loadingOverlay;
-    private VideoMatchedSplashView nativeSplashView;
+    private MarketBdSignatureSplashView nativeSplashView;
     private TextView loadingStatusText;
     private Button retryButton;
     private Button skipIntroButton;
@@ -464,7 +466,7 @@ public class MainActivity extends AppCompatActivity {
         loadingOverlay.setBackgroundColor(Color.BLACK);
 
         // Full-screen Video-Matched Native Canvas (Pure White Slow-Motion Outline-to-Fill + Bouncing M + Mirror)
-        nativeSplashView = new VideoMatchedSplashView(this);
+        nativeSplashView = new MarketBdSignatureSplashView(this);
         nativeSplashView.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -638,30 +640,35 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Custom hardware-accelerated View rendering the 7.8s slow-motion pure-white intro animation:
-     *   1) "Welcome to" small crisp white fade-in
-     *   2) Left-to-right baseline white sweep line curving cleanly into letter 'a'
-     *   3) Slow-motion left-to-right per-letter vector outline tracing via PathMeasure
-     *   4) Slow-motion progressive left-to-right hollow outline -> solid white fill
-     *   5) Hopping "M" arcing across the wordmark and landing into its left slot
-     *   6) Real-time synchronized vertical mirror floor reflection underneath
+     * Custom hardware-accelerated View rendering MarketBD's original 6.6s slow-motion signature choreography:
+     *   - Deep #000000 stage with subtle radial crimson ambient glow
+     *   - Act 1 (0.00 -> 0.40): Tracking-condense white "Welcome to" + symmetric center-outward horizon beam
+     *   - Act 2 (0.12 -> 0.52): Twin rotating Red (#E50914) + White (#FFFFFF) orbital emblem arcs framing
+     *                           the 2x Crimson Red "M" arriving smoothly from depth (1.48x -> 1.0x)
+     *   - Act 3 (0.34 -> 0.82): Progressive per-letter white vector etching -> solid white fill on "arketBD"
+     *   - Act 4 (0.74 -> 1.00): Bi-color Red+White baseline horizon gleam & synchronized floor mirror reflection
      */
-    private static final class VideoMatchedSplashView extends View {
+    private static final class MarketBdSignatureSplashView extends View {
         private static final String WORDMARK = "MarketBD";
-        private static final long ANIM_DURATION_MS = 7800L;
-        private static final long HOLD_DURATION_MS = 650L;
+        private static final long ANIM_DURATION_MS = 6600L;
+        private static final long HOLD_DURATION_MS = 750L;
+        private static final int BRAND_RED = Color.parseColor("#E50914");
 
+        private final Paint ambientGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint welcomePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint mFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint sweepPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint horizonBeamPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint arcRedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint arcWhitePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint seamGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint reflectionMaskPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
         private final Path[] charPaths = new Path[WORDMARK.length()];
         private final float[] charPathLengths = new float[WORDMARK.length()];
         private final float[] charXs = new float[WORDMARK.length()];
-        private final Path sweepPath = new Path();
+        private final RectF arcRect = new RectF();
         private final Path reusableDstPath = new Path();
         private final PathMeasure reusablePm = new PathMeasure();
 
@@ -673,11 +680,13 @@ public class MainActivity extends AppCompatActivity {
         private float strokeBasePx = 3f;
         private float density = 2f;
         private boolean geometryReady = false;
+        private Shader ambientGlowShader;
+        private Shader seamGlowShader;
         private Shader reflectionMaskShader;
         private float maskTopY = -1f;
         private float maskBottomY = -1f;
 
-        VideoMatchedSplashView(Context context) {
+        MarketBdSignatureSplashView(Context context) {
             super(context);
             density = context.getResources().getDisplayMetrics().density;
             strokeBasePx = Math.max(2f, 1.55f * density);
@@ -687,10 +696,10 @@ public class MainActivity extends AppCompatActivity {
             welcomePaint.setTypeface(welcomeTf);
             welcomePaint.setTextAlign(Paint.Align.CENTER);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                welcomePaint.setLetterSpacing(0.22f);
+                welcomePaint.setLetterSpacing(0.38f);
             }
             welcomePaint.setTextSize(TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_SP, 14, context.getResources().getDisplayMetrics()));
+                    TypedValue.COMPLEX_UNIT_SP, 22, context.getResources().getDisplayMetrics()));
 
             Typeface heavyTf = Typeface.create("sans-serif-black", Typeface.BOLD);
             fillPaint.setColor(Color.WHITE);
@@ -700,7 +709,7 @@ public class MainActivity extends AppCompatActivity {
                 fillPaint.setLetterSpacing(-0.02f);
             }
 
-            mFillPaint.setColor(Color.parseColor("#E50914"));
+            mFillPaint.setColor(BRAND_RED);
             mFillPaint.setStyle(Paint.Style.FILL);
             mFillPaint.setTypeface(heavyTf);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -713,11 +722,24 @@ public class MainActivity extends AppCompatActivity {
             strokePaint.setStrokeCap(Paint.Cap.ROUND);
             strokePaint.setStrokeWidth(strokeBasePx);
 
-            sweepPaint.setColor(Color.WHITE);
-            sweepPaint.setStyle(Paint.Style.STROKE);
-            sweepPaint.setStrokeCap(Paint.Cap.ROUND);
-            sweepPaint.setStrokeJoin(Paint.Join.ROUND);
-            sweepPaint.setStrokeWidth(Math.max(2f, 1.6f * density));
+            horizonBeamPaint.setColor(Color.WHITE);
+            horizonBeamPaint.setStyle(Paint.Style.STROKE);
+            horizonBeamPaint.setStrokeCap(Paint.Cap.ROUND);
+            horizonBeamPaint.setStrokeWidth(Math.max(2f, 1.5f * density));
+
+            arcRedPaint.setColor(BRAND_RED);
+            arcRedPaint.setStyle(Paint.Style.STROKE);
+            arcRedPaint.setStrokeCap(Paint.Cap.ROUND);
+            arcRedPaint.setStrokeWidth(Math.max(2.6f, 2.2f * density));
+
+            arcWhitePaint.setColor(Color.WHITE);
+            arcWhitePaint.setStyle(Paint.Style.STROKE);
+            arcWhitePaint.setStrokeCap(Paint.Cap.ROUND);
+            arcWhitePaint.setStrokeWidth(Math.max(2.1f, 1.75f * density));
+
+            seamGlowPaint.setStyle(Paint.Style.STROKE);
+            seamGlowPaint.setStrokeCap(Paint.Cap.ROUND);
+            seamGlowPaint.setStrokeWidth(Math.max(1.8f, 1.4f * density));
 
             for (int i = 0; i < WORDMARK.length(); i++) {
                 charPaths[i] = new Path();
@@ -769,8 +791,8 @@ public class MainActivity extends AppCompatActivity {
             super.onSizeChanged(w, h, oldw, oldh);
             if (w <= 0 || h <= 0) return;
 
-            float targetWidth = w * 0.80f;
-            float testSize = Math.min(w * 0.165f, 64f * density);
+            float targetWidth = w * 0.92f;
+            float testSize = Math.min(w * 0.24f, 128f * density);
             fillPaint.setTextSize(testSize);
             float measured = fillPaint.measureText(WORDMARK);
             if (measured > targetWidth && measured > 0f) {
@@ -799,13 +821,31 @@ public class MainActivity extends AppCompatActivity {
                 charPathLengths[i] = totalLen;
             }
 
-            float wordLeftX = (w - wordWidth) * 0.5f;
-            float aStartX = charXs[1];
-            float curveR = Math.min(20f * density, capHeight * 0.35f);
-            sweepPath.reset();
-            sweepPath.moveTo(-(wordLeftX + 24f * density), 0f);
-            sweepPath.lineTo(aStartX - curveR, 0f);
-            sweepPath.quadTo(aStartX, 0f, aStartX, -capHeight * 0.56f);
+            ambientGlowShader = new RadialGradient(
+                    w * 0.46f,
+                    h * 0.48f,
+                    Math.max(w, h) * 0.56f,
+                    new int[]{Color.argb(38, 229, 9, 20), Color.argb(12, 0, 0, 0), Color.BLACK},
+                    new float[]{0f, 0.52f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            ambientGlowPaint.setShader(ambientGlowShader);
+
+            seamGlowShader = new LinearGradient(
+                    0f,
+                    0f,
+                    Math.max(1f, wordWidth),
+                    0f,
+                    new int[]{
+                            Color.argb(242, 229, 9, 20),
+                            Color.argb(242, 229, 9, 20),
+                            Color.argb(217, 255, 255, 255),
+                            Color.argb(38, 255, 255, 255)
+                    },
+                    new float[]{0f, 0.18f, 0.32f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            seamGlowPaint.setShader(seamGlowShader);
 
             geometryReady = true;
             reflectionMaskShader = null;
@@ -819,24 +859,40 @@ public class MainActivity extends AppCompatActivity {
 
             float w = getWidth();
             float h = getHeight();
+            canvas.drawRect(0f, 0f, w, h, ambientGlowPaint);
+
             float wordLeftX = (w - wordWidth) * 0.5f;
             float baselineY = h * 0.50f;
 
-            // 1. Small Crisp White "Welcome to" centered neatly above MarketBD
-            float welcomeAlpha = clamp01(animProgress / 0.14f);
-            float welcomeDropY = lerp(-6f * density, 0f, easeOutCubic(welcomeAlpha));
-            welcomePaint.setAlpha(Math.round(255f * welcomeAlpha));
-            float welcomeY = baselineY - capHeight - 18f * density + welcomeDropY;
+            // 1. Crisp White "Welcome to" with tracking condense reveal above MarketBD
+            float welcomeFrac = easeOutCubic(clamp01(animProgress / 0.23f));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                welcomePaint.setLetterSpacing(lerp(0.38f, 0.18f, welcomeFrac));
+            }
+            float welcomeDropY = lerp(6f * density, 0f, welcomeFrac);
+            welcomePaint.setAlpha(Math.round(255f * welcomeFrac));
+            float welcomeY = baselineY - capHeight * 1.72f - 18f * density + welcomeDropY;
             canvas.drawText("Welcome to", w * 0.5f, welcomeY, welcomePaint);
 
-            // 2. Upright Primary Wordmark (Red M + White arketBD)
+            // 2. Upright Primary Wordmark (Crimson M + Etched/Filled White arketBD + Orbital Arcs)
             drawWordmarkPass(canvas, wordLeftX, baselineY, false, 1f);
 
-            // 3. Synchronized Floor Mirror Reflection (directly below baseline)
-            float reflectBaselineY = baselineY + Math.max(2f, 1.5f * density);
+            // 3. Bi-Color Signature Baseline Seam Gleam (Act 4: 0.74 -> 0.96)
+            float seamProg = easeOutCubic(clamp01((animProgress - 0.74f) / 0.22f));
+            if (seamProg > 0.01f) {
+                float seamY = baselineY + Math.max(1.5f, 1.2f * density);
+                seamGlowPaint.setAlpha(Math.round(216f * clamp01(seamProg * 1.4f)));
+                canvas.save();
+                canvas.translate(wordLeftX, seamY);
+                canvas.drawLine(0f, 0f, wordWidth * seamProg, 0f, seamGlowPaint);
+                canvas.restore();
+            }
+
+            // 4. Synchronized Floor Mirror Reflection (directly below baseline seam)
+            float reflectBaselineY = baselineY + Math.max(3f, 2.2f * density);
             drawWordmarkPass(canvas, wordLeftX, reflectBaselineY, true, 0.54f);
 
-            // 4. Smooth Black Floor Mirror Fade Gradient
+            // 5. Smooth Black Floor Mirror Fade Gradient
             float maskBottom = reflectBaselineY + capHeight * 0.92f;
             if (reflectionMaskShader == null || Math.abs(maskTopY - reflectBaselineY) > 1f || Math.abs(maskBottomY - maskBottom) > 1f) {
                 maskTopY = reflectBaselineY;
@@ -863,35 +919,77 @@ public class MainActivity extends AppCompatActivity {
             }
 
             float p = animProgress;
+            float centerX = wordWidth * 0.5f;
+            float mSlotCenter = charXs[0] + mAdvance * 0.48f;
+            float mAnchorY = -capHeight * 0.50f;
 
-            // A. Left-to-Right Baseline Sweep Line + Curved Hook (0.00 -> 0.36)
-            if (p <= 0.37f) {
-                reusablePm.setPath(sweepPath, false);
-                float totalSweepLen = reusablePm.getLength();
-                float headFrac = easeOutCubic(clamp01(p / 0.16f));
-                float tailFrac = p <= 0.15f ? 0f : easeInOutCubic(clamp01((p - 0.15f) / 0.21f));
-                float headPx = headFrac * totalSweepLen;
-                float tailPx = tailFrac * totalSweepLen;
-                if (headPx - tailPx > 0.5f && tailFrac < 0.99f) {
-                    reusableDstPath.reset();
-                    reusablePm.getSegment(tailPx, headPx, reusableDstPath, true);
-                    sweepPaint.setAlpha(Math.round(245f * baseOpacity));
-                    canvas.drawPath(reusableDstPath, sweepPaint);
+            // Act 1: Symmetric Center-Outward Horizon Split Beam (0.00 -> 0.42)
+            if (p <= 0.42f) {
+                float expandFrac = easeOutCubic(clamp01(p / 0.22f));
+                float beamFadeOut = p < 0.22f ? 1f : 1f - easeInOutCubic(clamp01((p - 0.22f) / 0.18f));
+                float beamHalfW = (wordWidth * 0.56f) * expandFrac;
+                float beamAlpha = beamFadeOut * 0.85f * baseOpacity;
+                if (beamHalfW > 0.5f && beamAlpha > 0.01f) {
+                    horizonBeamPaint.setAlpha(Math.round(255f * beamAlpha));
+                    canvas.drawLine(centerX - beamHalfW, 0f, centerX + beamHalfW, 0f, horizonBeamPaint);
                 }
             }
 
-            // B. Left-to-Right Per-Letter White Outline Tracing (0.09 -> 0.42)
-            //    followed by Progressive Solid White Fill (0.42 -> 0.77) on "arketBD"
+            // Act 2A: Twin Rotating Red (#E50914) + White (#FFFFFF) Orbital Emblem Arcs around "M" (Upright stage only)
+            if (!flipped && p >= 0.12f && p <= 0.52f) {
+                float arcDraw = easeInOutCubic(clamp01((p - 0.12f) / 0.22f));
+                float arcFade = p < 0.36f ? 1f : 1f - easeInOutCubic(clamp01((p - 0.36f) / 0.14f));
+                float arcRot = lerp(-55f, 25f, easeInOutCubic(clamp01((p - 0.12f) / 0.36f)));
+                float arcRadius = capHeight * 0.76f;
+                float arcSpan = Math.max(2f, 148f * arcDraw);
+
+                arcRect.set(
+                        mSlotCenter - arcRadius,
+                        mAnchorY - arcRadius,
+                        mSlotCenter + arcRadius,
+                        mAnchorY + arcRadius
+                );
+
+                float alphaFactor = arcDraw * arcFade * baseOpacity;
+                if (alphaFactor > 0.01f) {
+                    arcRedPaint.setAlpha(Math.round(255f * alphaFactor * 0.95f));
+                    canvas.drawArc(arcRect, 106f + arcRot, arcSpan, false, arcRedPaint);
+
+                    arcWhitePaint.setAlpha(Math.round(255f * alphaFactor * 0.90f));
+                    canvas.drawArc(arcRect, -74f + arcRot, arcSpan, false, arcWhitePaint);
+                }
+            }
+
+            // Act 2B: Majestic Crimson Red "M" Depth Arrival & Lock-In (0.16 -> 0.49)
+            if (p >= 0.16f) {
+                float mIn = easeOutCubic(clamp01((p - 0.16f) / 0.26f));
+                float mAlpha = clamp01(mIn * 1.35f);
+                float mScale = lerp(1.48f, 1.0f, mIn);
+                float mTranslateY = lerp(-capHeight * 0.20f, 0f, mIn);
+                if (p >= 0.42f && p < 0.49f) {
+                    float s = (p - 0.42f) / 0.07f;
+                    mScale = 1f + (float) Math.sin(s * Math.PI) * 0.035f;
+                }
+
+                canvas.save();
+                canvas.translate(0f, mTranslateY);
+                canvas.scale(mScale, mScale, mSlotCenter, mAnchorY);
+                mFillPaint.setAlpha(Math.round(255f * mAlpha * baseOpacity));
+                canvas.drawPath(charPaths[0], mFillPaint);
+                canvas.restore();
+            }
+
+            // Act 3: Progressive White Vector Etching -> Solid White Fill on "arketBD" (0.34 -> 0.82)
             for (int i = 1; i < WORDMARK.length(); i++) {
                 int idx = i - 1; // 0..6 ('a'..'D')
-                float outlineStart = 0.09f + idx * 0.032f;
-                float outlineFrac = easeInOutCubic((p - outlineStart) / 0.12f);
+                float etchStart = 0.34f + idx * 0.028f;
+                float etchFrac = easeInOutCubic((p - etchStart) / 0.12f);
 
-                float fillStart = 0.42f + idx * 0.036f;
-                float fillFrac = easeInOutCubic((p - fillStart) / 0.12f);
+                float fillStart = 0.54f + idx * 0.032f;
+                float fillFrac = easeInOutCubic((p - fillStart) / 0.13f);
 
-                if (outlineFrac > 0f && fillFrac < 0.99f) {
-                    float targetDist = charPathLengths[i] * outlineFrac;
+                if (etchFrac > 0f && fillFrac < 0.99f) {
+                    float targetDist = charPathLengths[i] * etchFrac;
                     reusablePm.setPath(charPaths[i], false);
                     reusableDstPath.reset();
                     float remaining = targetDist;
@@ -907,7 +1005,7 @@ public class MainActivity extends AppCompatActivity {
                         }
                     } while (remaining > 0f && reusablePm.nextContour());
 
-                    float strokeAlpha = Math.max(0f, 1f - fillFrac * 0.9f) * baseOpacity;
+                    float strokeAlpha = Math.max(0f, 1f - fillFrac * 0.88f) * baseOpacity;
                     strokePaint.setAlpha(Math.round(255f * strokeAlpha));
                     strokePaint.setStrokeWidth(lerp(strokeBasePx, strokeBasePx * 0.35f, fillFrac));
                     canvas.drawPath(reusableDstPath, strokePaint);
@@ -917,84 +1015,6 @@ public class MainActivity extends AppCompatActivity {
                     fillPaint.setAlpha(Math.round(255f * fillFrac * baseOpacity));
                     canvas.drawPath(charPaths[i], fillPaint);
                 }
-            }
-
-            // C. Slow-Motion Bouncing RED "M" Arc Across Tops & Final Left Landing (0.43 -> 0.92)
-            if (p >= 0.43f) {
-                float mAlpha;
-                float mX = 0f;
-                float mY = 0f;
-                float mScaleX = 1f;
-                float mScaleY = 1f;
-                float mRot = 0f;
-
-                float mPivotX = charXs[0] + mAdvance * 0.5f;
-                float hopLeftX = (charXs[1] + capHeight * 0.3f) - mPivotX;
-                float hopMidX = wordWidth * 0.54f - mPivotX;
-                float hopRightX = wordWidth * 0.86f - mPivotX;
-
-                if (p < 0.49f) {
-                    float k = easeOutCubic((p - 0.43f) / 0.06f);
-                    mAlpha = k;
-                    mX = hopLeftX;
-                    mY = lerp(-capHeight * 0.88f, -capHeight * 1.24f, k);
-                    float sc = lerp(0.32f, 0.41f, k);
-                    mScaleX = sc;
-                    mScaleY = sc;
-                    mRot = 0f;
-                } else if (p < 0.62f) {
-                    float k = (p - 0.49f) / 0.13f;
-                    float arcLift = (float) Math.sin(k * Math.PI) * (capHeight * 0.50f);
-                    mAlpha = 1f;
-                    mX = lerp(hopLeftX, hopMidX, easeInOutCubic(k));
-                    mY = lerp(-capHeight * 1.24f, -capHeight * 1.48f, k) - arcLift;
-                    float sc = lerp(0.41f, 0.38f, k);
-                    mScaleX = sc;
-                    mScaleY = sc;
-                    mRot = lerp(0f, 19f, easeInOutCubic(k));
-                } else if (p < 0.74f) {
-                    float k = (p - 0.62f) / 0.12f;
-                    float arcLift = (float) Math.sin(k * Math.PI) * (capHeight * 0.38f);
-                    mAlpha = 1f;
-                    mX = lerp(hopMidX, hopRightX, easeInOutCubic(k));
-                    mY = lerp(-capHeight * 1.48f, -capHeight * 1.32f, k) - arcLift;
-                    mScaleX = 0.37f;
-                    mScaleY = 0.37f;
-                    mRot = lerp(19f, 27f, easeInOutCubic(k));
-                } else if (p < 0.87f) {
-                    float k = (p - 0.74f) / 0.13f;
-                    float eased = easeInOutCubic(k);
-                    float arcLift = (float) Math.sin(k * Math.PI) * (capHeight * 0.88f);
-                    mAlpha = 1f;
-                    mX = lerp(hopRightX, 0f, eased);
-                    mY = lerp(-capHeight * 1.32f, 0f, eased) - arcLift;
-                    float sc = lerp(0.37f, 1.0f, eased);
-                    mScaleX = sc;
-                    mScaleY = sc;
-                    mRot = k < 0.55f ? lerp(27f, -16f, k / 0.55f) : lerp(-16f, 0f, (k - 0.55f) / 0.45f);
-                } else if (p < 0.92f) {
-                    float k = (p - 0.87f) / 0.05f;
-                    mAlpha = 1f;
-                    if (k < 0.45f) {
-                        float s = k / 0.45f;
-                        mScaleX = lerp(1.0f, 1.04f, s);
-                        mScaleY = lerp(1.0f, 0.94f, s);
-                    } else {
-                        float s = (k - 0.45f) / 0.55f;
-                        mScaleX = lerp(1.04f, 1.0f, s);
-                        mScaleY = lerp(0.94f, 1.0f, s);
-                    }
-                } else {
-                    mAlpha = 1f;
-                }
-
-                canvas.save();
-                canvas.translate(mX, mY);
-                canvas.rotate(mRot, mPivotX, -capHeight * 0.42f);
-                canvas.scale(mScaleX, mScaleY, mPivotX, 0f);
-                mFillPaint.setAlpha(Math.round(255f * mAlpha * baseOpacity));
-                canvas.drawPath(charPaths[0], mFillPaint);
-                canvas.restore();
             }
 
             canvas.restore();
