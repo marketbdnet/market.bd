@@ -1,8 +1,9 @@
 package com.marketbd.app;
 
 import android.Manifest;
-import android.animation.AnimatorSet;
-import android.animation.ObjectAnimator;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.DownloadManager;
@@ -13,9 +14,14 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PathMeasure;
+import android.graphics.Shader;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.Uri;
@@ -30,8 +36,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.DecelerateInterpolator;
-import android.view.animation.OvershootInterpolator;
+import android.view.animation.LinearInterpolator;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
@@ -80,13 +85,17 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private SwipeRefreshLayout swipeRefreshLayout;
     private FrameLayout loadingOverlay;
+    private VideoMatchedSplashView nativeSplashView;
     private TextView loadingStatusText;
     private Button retryButton;
+    private Button skipIntroButton;
     private ProgressBar loadingSpinner;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable loadWatchdogRunnable;
     private boolean pageRenderedSuccessfully = false;
+    private boolean nativeSplashCompleted = false;
+    private boolean isLoadFailedState = false;
 
     private ValueCallback<Uri[]> filePathCallback;
     private Uri cameraImageUri;
@@ -426,6 +435,10 @@ public class MainActivity extends AppCompatActivity {
             loadPage(TARGET_URL, false);
         } else {
             webView.restoreState(savedInstanceState);
+            nativeSplashCompleted = true;
+            if (nativeSplashView != null) {
+                nativeSplashView.jumpToSettled();
+            }
             hideLoadingOverlay();
         }
     }
@@ -440,6 +453,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void buildLoadingOverlay(FrameLayout parent) {
         nativeSplashStartedAtMs = System.currentTimeMillis();
+        nativeSplashCompleted = false;
+        isLoadFailedState = false;
 
         loadingOverlay = new FrameLayout(this);
         loadingOverlay.setLayoutParams(new FrameLayout.LayoutParams(
@@ -447,206 +462,92 @@ public class MainActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
         loadingOverlay.setBackgroundColor(Color.BLACK);
-        loadingOverlay.setClipChildren(false);
-        loadingOverlay.setClipToPadding(false);
 
-        LinearLayout centerBox = new LinearLayout(this);
-        centerBox.setOrientation(LinearLayout.VERTICAL);
-        centerBox.setGravity(Gravity.CENTER);
-        centerBox.setClipChildren(false);
-        centerBox.setClipToPadding(false);
-        FrameLayout.LayoutParams boxParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER
-        );
-        int pad = dpToPx(20);
-        centerBox.setPadding(pad, pad, pad, pad);
-
-        // 1. Small White "Welcome to" above the red MarketBD.Net wordmark
-        TextView welcomeText = new TextView(this);
-        welcomeText.setText("Welcome to");
-        welcomeText.setTextColor(Color.WHITE);
-        welcomeText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        welcomeText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            welcomeText.setLetterSpacing(0.22f);
-        }
-        welcomeText.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams welcomeParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        welcomeParams.bottomMargin = dpToPx(6);
-        welcomeText.setLayoutParams(welcomeParams);
-
-        // 2. Heavy Bold Geometric Red "MarketBD.Net" ("M" + "arketBD.Net")
-        Typeface heavySans = Typeface.create("sans-serif-black", Typeface.BOLD);
-        int crimsonRed = Color.parseColor("#E50914");
-
-        LinearLayout wordmarkRow = new LinearLayout(this);
-        wordmarkRow.setOrientation(LinearLayout.HORIZONTAL);
-        wordmarkRow.setGravity(Gravity.CENTER);
-        wordmarkRow.setClipChildren(false);
-        wordmarkRow.setClipToPadding(false);
-
-        TextView letterM = new TextView(this);
-        letterM.setText("M");
-        letterM.setTextColor(crimsonRed);
-        letterM.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
-        letterM.setTypeface(heavySans);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            letterM.setLetterSpacing(-0.02f);
-        }
-
-        TextView restWordmark = new TextView(this);
-        restWordmark.setText("arketBD.Net");
-        restWordmark.setTextColor(crimsonRed);
-        restWordmark.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
-        restWordmark.setTypeface(heavySans);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            restWordmark.setLetterSpacing(-0.02f);
-        }
-
-        wordmarkRow.addView(letterM);
-        wordmarkRow.addView(restWordmark);
-
-        // 3. Mirror Floor Reflection below MarketBD.Net (Matching Video)
-        FrameLayout reflectionWrap = new FrameLayout(this);
-        LinearLayout.LayoutParams reflectionWrapParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                dpToPx(34)
-        );
-        reflectionWrapParams.topMargin = dpToPx(-6);
-        reflectionWrap.setLayoutParams(reflectionWrapParams);
-
-        LinearLayout reflectionRow = new LinearLayout(this);
-        reflectionRow.setOrientation(LinearLayout.HORIZONTAL);
-        reflectionRow.setGravity(Gravity.CENTER);
-        reflectionRow.setScaleY(-1f);
-        reflectionRow.setAlpha(0.32f);
-
-        TextView refM = new TextView(this);
-        refM.setText("M");
-        refM.setTextColor(crimsonRed);
-        refM.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
-        refM.setTypeface(heavySans);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            refM.setLetterSpacing(-0.02f);
-        }
-
-        TextView refRest = new TextView(this);
-        refRest.setText("arketBD.Net");
-        refRest.setTextColor(crimsonRed);
-        refRest.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
-        refRest.setTypeface(heavySans);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            refRest.setLetterSpacing(-0.02f);
-        }
-
-        reflectionRow.addView(refM);
-        reflectionRow.addView(refRest);
-        reflectionWrap.addView(reflectionRow);
-
-        View reflectionMask = new View(this);
-        reflectionMask.setLayoutParams(new FrameLayout.LayoutParams(
+        // Full-screen Video-Matched Native Canvas (Pure White Slow-Motion Outline-to-Fill + Bouncing M + Mirror)
+        nativeSplashView = new VideoMatchedSplashView(this);
+        nativeSplashView.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
-        reflectionMask.setBackground(new GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{Color.argb(45, 0, 0, 0), Color.argb(215, 0, 0, 0), Color.BLACK}
-        ));
-        reflectionWrap.addView(reflectionMask);
+        loadingOverlay.addView(nativeSplashView);
+
+        // Subtle Bottom Status & Action Container (hidden spinner during video intro so stage stays pure)
+        LinearLayout bottomControls = new LinearLayout(this);
+        bottomControls.setOrientation(LinearLayout.VERTICAL);
+        bottomControls.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams bottomParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL
+        );
+        bottomParams.bottomMargin = dpToPx(36);
+        int hPad = dpToPx(24);
+        bottomControls.setPadding(hPad, dpToPx(8), hPad, dpToPx(8));
 
         loadingSpinner = new ProgressBar(this);
-        loadingSpinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(crimsonRed));
+        loadingSpinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
         LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
-                dpToPx(28), dpToPx(28)
+                dpToPx(26), dpToPx(26)
         );
-        spinnerParams.topMargin = dpToPx(20);
-        spinnerParams.bottomMargin = dpToPx(10);
+        spinnerParams.bottomMargin = dpToPx(8);
         loadingSpinner.setLayoutParams(spinnerParams);
+        loadingSpinner.setVisibility(View.GONE);
 
         loadingStatusText = new TextView(this);
         loadingStatusText.setText("লোড হচ্ছে...");
         loadingStatusText.setTextColor(Color.parseColor("#94A3B8"));
         loadingStatusText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         loadingStatusText.setGravity(Gravity.CENTER);
+        loadingStatusText.setVisibility(View.GONE);
 
         retryButton = new Button(this);
         retryButton.setText("পুনরায় চেষ্টা করুন (Retry)");
         retryButton.setVisibility(View.GONE);
-        retryButton.setBackgroundColor(crimsonRed);
-        retryButton.setTextColor(Color.WHITE);
+        retryButton.setBackgroundColor(Color.WHITE);
+        retryButton.setTextColor(Color.BLACK);
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        btnParams.topMargin = dpToPx(16);
+        btnParams.topMargin = dpToPx(14);
         retryButton.setLayoutParams(btnParams);
         retryButton.setOnClickListener(v -> loadPage(TARGET_URL, true));
 
-        centerBox.addView(welcomeText);
-        centerBox.addView(wordmarkRow);
-        centerBox.addView(reflectionWrap);
-        centerBox.addView(loadingSpinner);
-        centerBox.addView(loadingStatusText);
-        centerBox.addView(retryButton);
-        loadingOverlay.addView(centerBox, boxParams);
+        skipIntroButton = new Button(this);
+        skipIntroButton.setText("প্রবেশ করুন →");
+        skipIntroButton.setAllCaps(false);
+        skipIntroButton.setBackgroundColor(Color.TRANSPARENT);
+        skipIntroButton.setTextColor(Color.parseColor("#9CA3AF"));
+        skipIntroButton.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        skipIntroButton.setMinimumHeight(dpToPx(44));
+        skipIntroButton.setOnClickListener(v -> {
+            nativeSplashCompleted = true;
+            if (nativeSplashView != null) {
+                nativeSplashView.jumpToSettled();
+            }
+            if (pageRenderedSuccessfully) {
+                hideLoadingOverlay();
+            } else {
+                showLoadingState();
+            }
+        });
+
+        bottomControls.addView(loadingSpinner);
+        bottomControls.addView(loadingStatusText);
+        bottomControls.addView(retryButton);
+        bottomControls.addView(skipIntroButton);
+        loadingOverlay.addView(bottomControls, bottomParams);
         parent.addView(loadingOverlay);
 
-        // Native Video-Matched Intro Animation (M bounce + Welcome fade)
-        playNativeWelcomeAnimation(welcomeText, restWordmark, letterM);
-    }
-
-    private void playNativeWelcomeAnimation(View welcomeText, View restWordmark, View letterM) {
-        try {
-            welcomeText.setAlpha(0f);
-            restWordmark.setAlpha(0f);
-            letterM.setAlpha(0f);
-            letterM.setTranslationY(-dpToPx(75));
-            letterM.setTranslationX(dpToPx(48));
-            letterM.setScaleX(0.45f);
-            letterM.setScaleY(0.45f);
-            letterM.setRotation(-14f);
-
-            ObjectAnimator welcomeAlpha = ObjectAnimator.ofFloat(welcomeText, View.ALPHA, 0f, 1f);
-            welcomeAlpha.setDuration(420);
-
-            ObjectAnimator restAlpha = ObjectAnimator.ofFloat(restWordmark, View.ALPHA, 0f, 1f);
-            restAlpha.setStartDelay(120);
-            restAlpha.setDuration(600);
-
-            ObjectAnimator mAlpha = ObjectAnimator.ofFloat(letterM, View.ALPHA, 0f, 1f);
-            mAlpha.setStartDelay(320);
-            mAlpha.setDuration(260);
-
-            ObjectAnimator mArcX = ObjectAnimator.ofFloat(letterM, View.TRANSLATION_X, dpToPx(48), dpToPx(120), 0f);
-            mArcX.setStartDelay(340);
-            mArcX.setDuration(980);
-            mArcX.setInterpolator(new DecelerateInterpolator());
-
-            ObjectAnimator mArcY = ObjectAnimator.ofFloat(letterM, View.TRANSLATION_Y, -dpToPx(75), -dpToPx(92), 0f);
-            mArcY.setStartDelay(340);
-            mArcY.setDuration(980);
-            mArcY.setInterpolator(new OvershootInterpolator(1.2f));
-
-            ObjectAnimator mScaleX = ObjectAnimator.ofFloat(letterM, View.SCALE_X, 0.45f, 1f);
-            ObjectAnimator mScaleY = ObjectAnimator.ofFloat(letterM, View.SCALE_Y, 0.45f, 1f);
-            ObjectAnimator mRot = ObjectAnimator.ofFloat(letterM, View.ROTATION, -14f, 18f, 0f);
-            mScaleX.setStartDelay(340);
-            mScaleY.setStartDelay(340);
-            mRot.setStartDelay(340);
-            mScaleX.setDuration(980);
-            mScaleY.setDuration(980);
-            mRot.setDuration(980);
-
-            AnimatorSet set = new AnimatorSet();
-            set.playTogether(welcomeAlpha, restAlpha, mAlpha, mArcX, mArcY, mScaleX, mScaleY, mRot);
-            set.start();
-        } catch (Exception ignored) {
-        }
+        nativeSplashView.startAnimation(() -> {
+            nativeSplashCompleted = true;
+            if (isLoadFailedState) return;
+            if (pageRenderedSuccessfully) {
+                hideLoadingOverlay();
+            } else {
+                showLoadingState();
+            }
+        });
     }
 
     private int dpToPx(int dp) {
@@ -659,41 +560,453 @@ public class MainActivity extends AppCompatActivity {
 
     private void showLoadingState() {
         if (loadingOverlay == null) return;
+        isLoadFailedState = false;
+        loadingOverlay.setAlpha(1f);
         loadingOverlay.setVisibility(View.VISIBLE);
-        if (loadingSpinner != null) loadingSpinner.setVisibility(View.VISIBLE);
         if (retryButton != null) retryButton.setVisibility(View.GONE);
-        if (loadingStatusText != null) {
-            loadingStatusText.setText("লোড হচ্ছে...");
+        if (nativeSplashCompleted) {
+            if (loadingSpinner != null) loadingSpinner.setVisibility(View.VISIBLE);
+            if (loadingStatusText != null) {
+                loadingStatusText.setVisibility(View.VISIBLE);
+                loadingStatusText.setText("লোড হচ্ছে...");
+            }
+            if (skipIntroButton != null) skipIntroButton.setVisibility(View.GONE);
+        } else {
+            if (loadingSpinner != null) loadingSpinner.setVisibility(View.GONE);
+            if (loadingStatusText != null) loadingStatusText.setVisibility(View.GONE);
+            if (skipIntroButton != null) skipIntroButton.setVisibility(View.VISIBLE);
         }
     }
 
     private void hideLoadingOverlay() {
-        if (loadingOverlay != null && loadingOverlay.getVisibility() == View.VISIBLE) {
-            long elapsed = Math.max(0L, System.currentTimeMillis() - nativeSplashStartedAtMs);
-            if (webView != null) {
-                try {
-                    webView.evaluateJavascript("window.__marketbdNativeIntroElapsed=" + elapsed + ";", null);
-                } catch (Exception ignored) {
-                }
-            }
-            loadingOverlay.setVisibility(View.GONE);
+        if (loadingOverlay == null || loadingOverlay.getVisibility() != View.VISIBLE) {
+            return;
         }
+        // Let the 7.8s native slow-motion intro finish cleanly before revealing the WebView
+        if (!nativeSplashCompleted) {
+            return;
+        }
+        long elapsed = Math.max(0L, System.currentTimeMillis() - nativeSplashStartedAtMs);
+        if (webView != null) {
+            try {
+                webView.evaluateJavascript(
+                        "window.__marketbdNativeIntroActive=true;window.__marketbdNativeIntroElapsed=" + elapsed + ";",
+                        null
+                );
+            } catch (Exception ignored) {
+            }
+        }
+        loadingOverlay.animate()
+                .alpha(0f)
+                .setDuration(400L)
+                .setListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        if (loadingOverlay != null) {
+                            loadingOverlay.setVisibility(View.GONE);
+                            loadingOverlay.setAlpha(1f);
+                        }
+                    }
+                })
+                .start();
     }
 
     private void handleMainFrameLoadFailure() {
         cancelLoadWatchdog();
+        isLoadFailedState = true;
+        nativeSplashCompleted = true;
+        if (nativeSplashView != null) {
+            nativeSplashView.jumpToSettled();
+        }
         if (swipeRefreshLayout != null && swipeRefreshLayout.isRefreshing()) {
             swipeRefreshLayout.setRefreshing(false);
         }
         if (loadingOverlay != null) {
+            loadingOverlay.animate().cancel();
+            loadingOverlay.setAlpha(1f);
             loadingOverlay.setVisibility(View.VISIBLE);
         }
         if (loadingSpinner != null) loadingSpinner.setVisibility(View.GONE);
+        if (skipIntroButton != null) skipIntroButton.setVisibility(View.GONE);
         if (retryButton != null) retryButton.setVisibility(View.VISIBLE);
         if (loadingStatusText != null) {
+            loadingStatusText.setVisibility(View.VISIBLE);
             loadingStatusText.setText(isNetworkAvailable()
                     ? "সার্ভারের সাথে সংযোগ হতে সময় লাগছে। দয়া করে Retry চাপুন।"
                     : "ইন্টারনেট সংযোগ নেই। ওয়াইফাই বা মোবাইল ডাটা চালু করে Retry চাপুন।");
+        }
+    }
+
+    /**
+     * Custom hardware-accelerated View rendering the 7.8s slow-motion pure-white intro animation:
+     *   1) "Welcome to" small crisp white fade-in
+     *   2) Left-to-right baseline white sweep line curving cleanly into letter 'a'
+     *   3) Slow-motion left-to-right per-letter vector outline tracing via PathMeasure
+     *   4) Slow-motion progressive left-to-right hollow outline -> solid white fill
+     *   5) Hopping "M" arcing across the wordmark and landing into its left slot
+     *   6) Real-time synchronized vertical mirror floor reflection underneath
+     */
+    private static final class VideoMatchedSplashView extends View {
+        private static final String WORDMARK = "MarketBD.Net";
+        private static final long ANIM_DURATION_MS = 7800L;
+        private static final long HOLD_DURATION_MS = 650L;
+
+        private final Paint welcomePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint sweepPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint reflectionMaskPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        private final Path[] charPaths = new Path[WORDMARK.length()];
+        private final float[] charPathLengths = new float[WORDMARK.length()];
+        private final float[] charXs = new float[WORDMARK.length()];
+        private final Path sweepPath = new Path();
+        private final Path reusableDstPath = new Path();
+        private final PathMeasure reusablePm = new PathMeasure();
+
+        private ValueAnimator progressAnimator;
+        private float animProgress = 0f;
+        private float wordWidth = 0f;
+        private float capHeight = 0f;
+        private float mAdvance = 0f;
+        private float strokeBasePx = 3f;
+        private float density = 2f;
+        private boolean geometryReady = false;
+        private Shader reflectionMaskShader;
+        private float maskTopY = -1f;
+        private float maskBottomY = -1f;
+
+        VideoMatchedSplashView(Context context) {
+            super(context);
+            density = context.getResources().getDisplayMetrics().density;
+            strokeBasePx = Math.max(2f, 1.55f * density);
+
+            Typeface welcomeTf = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+            welcomePaint.setColor(Color.WHITE);
+            welcomePaint.setTypeface(welcomeTf);
+            welcomePaint.setTextAlign(Paint.Align.CENTER);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                welcomePaint.setLetterSpacing(0.22f);
+            }
+            welcomePaint.setTextSize(TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_SP, 14, context.getResources().getDisplayMetrics()));
+
+            Typeface heavyTf = Typeface.create("sans-serif-black", Typeface.BOLD);
+            fillPaint.setColor(Color.WHITE);
+            fillPaint.setStyle(Paint.Style.FILL);
+            fillPaint.setTypeface(heavyTf);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                fillPaint.setLetterSpacing(-0.02f);
+            }
+
+            strokePaint.setColor(Color.WHITE);
+            strokePaint.setStyle(Paint.Style.STROKE);
+            strokePaint.setStrokeJoin(Paint.Join.ROUND);
+            strokePaint.setStrokeCap(Paint.Cap.ROUND);
+            strokePaint.setStrokeWidth(strokeBasePx);
+
+            sweepPaint.setColor(Color.WHITE);
+            sweepPaint.setStyle(Paint.Style.STROKE);
+            sweepPaint.setStrokeCap(Paint.Cap.ROUND);
+            sweepPaint.setStrokeJoin(Paint.Join.ROUND);
+            sweepPaint.setStrokeWidth(Math.max(2f, 1.6f * density));
+
+            for (int i = 0; i < WORDMARK.length(); i++) {
+                charPaths[i] = new Path();
+            }
+        }
+
+        void startAnimation(final Runnable onComplete) {
+            stopAnimation();
+            animProgress = 0f;
+            progressAnimator = ValueAnimator.ofFloat(0f, 1f);
+            progressAnimator.setDuration(ANIM_DURATION_MS);
+            progressAnimator.setInterpolator(new LinearInterpolator());
+            progressAnimator.addUpdateListener(animation -> {
+                animProgress = (float) animation.getAnimatedValue();
+                invalidate();
+            });
+            progressAnimator.addListener(new AnimatorListenerAdapter() {
+                private boolean cancelled = false;
+
+                @Override
+                public void onAnimationCancel(Animator animation) {
+                    cancelled = true;
+                }
+
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    if (cancelled || onComplete == null) return;
+                    postDelayed(onComplete, HOLD_DURATION_MS);
+                }
+            });
+            progressAnimator.start();
+        }
+
+        void jumpToSettled() {
+            stopAnimation();
+            animProgress = 1f;
+            invalidate();
+        }
+
+        void stopAnimation() {
+            if (progressAnimator != null) {
+                progressAnimator.cancel();
+                progressAnimator = null;
+            }
+        }
+
+        @Override
+        protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+            super.onSizeChanged(w, h, oldw, oldh);
+            if (w <= 0 || h <= 0) return;
+
+            float targetWidth = w * 0.84f;
+            float testSize = Math.min(w * 0.135f, 56f * density);
+            fillPaint.setTextSize(testSize);
+            float measured = fillPaint.measureText(WORDMARK);
+            if (measured > targetWidth && measured > 0f) {
+                testSize = testSize * (targetWidth / measured);
+                fillPaint.setTextSize(testSize);
+                measured = fillPaint.measureText(WORDMARK);
+            }
+            wordWidth = measured;
+            mAdvance = fillPaint.measureText(WORDMARK, 0, 1);
+
+            android.graphics.Rect bounds = new android.graphics.Rect();
+            fillPaint.getTextBounds("M", 0, 1, bounds);
+            capHeight = Math.max(testSize * 0.72f, bounds.height());
+
+            for (int i = 0; i < WORDMARK.length(); i++) {
+                charXs[i] = (i == 0) ? 0f : fillPaint.measureText(WORDMARK, 0, i);
+                charPaths[i].reset();
+                fillPaint.getTextPath(WORDMARK, i, i + 1, charXs[i], 0f, charPaths[i]);
+
+                reusablePm.setPath(charPaths[i], false);
+                float totalLen = 0f;
+                do {
+                    totalLen += reusablePm.getLength();
+                } while (reusablePm.nextContour());
+                charPathLengths[i] = totalLen;
+            }
+
+            float wordLeftX = (w - wordWidth) * 0.5f;
+            float aStartX = charXs[1];
+            float curveR = Math.min(20f * density, capHeight * 0.35f);
+            sweepPath.reset();
+            sweepPath.moveTo(-(wordLeftX + 24f * density), 0f);
+            sweepPath.lineTo(aStartX - curveR, 0f);
+            sweepPath.quadTo(aStartX, 0f, aStartX, -capHeight * 0.56f);
+
+            geometryReady = true;
+            reflectionMaskShader = null;
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            canvas.drawColor(Color.BLACK);
+            if (!geometryReady) return;
+
+            float w = getWidth();
+            float h = getHeight();
+            float wordLeftX = (w - wordWidth) * 0.5f;
+            float baselineY = h * 0.50f;
+
+            // 1. Small Crisp White "Welcome to" centered neatly above MarketBD.Net
+            float welcomeAlpha = clamp01(animProgress / 0.14f);
+            float welcomeDropY = lerp(-6f * density, 0f, easeOutCubic(welcomeAlpha));
+            welcomePaint.setAlpha(Math.round(255f * welcomeAlpha));
+            float welcomeY = baselineY - capHeight - 18f * density + welcomeDropY;
+            canvas.drawText("Welcome to", w * 0.5f, welcomeY, welcomePaint);
+
+            // 2. Upright Primary Wordmark
+            drawWordmarkPass(canvas, wordLeftX, baselineY, false, 1f);
+
+            // 3. Synchronized Floor Mirror Reflection (directly below baseline)
+            float reflectBaselineY = baselineY + Math.max(2f, 1.5f * density);
+            drawWordmarkPass(canvas, wordLeftX, reflectBaselineY, true, 0.52f);
+
+            // 4. Smooth Black Floor Mirror Fade Gradient
+            float maskBottom = reflectBaselineY + capHeight * 0.92f;
+            if (reflectionMaskShader == null || Math.abs(maskTopY - reflectBaselineY) > 1f || Math.abs(maskBottomY - maskBottom) > 1f) {
+                maskTopY = reflectBaselineY;
+                maskBottomY = maskBottom;
+                reflectionMaskShader = new LinearGradient(
+                        0f,
+                        reflectBaselineY,
+                        0f,
+                        maskBottom,
+                        new int[]{Color.argb(40, 0, 0, 0), Color.argb(205, 0, 0, 0), Color.BLACK},
+                        new float[]{0f, 0.48f, 1f},
+                        Shader.TileMode.CLAMP
+                );
+                reflectionMaskPaint.setShader(reflectionMaskShader);
+            }
+            canvas.drawRect(0f, reflectBaselineY, w, maskBottom + 12f * density, reflectionMaskPaint);
+        }
+
+        private void drawWordmarkPass(Canvas canvas, float wordLeftX, float baselineY, boolean flipped, float baseOpacity) {
+            canvas.save();
+            canvas.translate(wordLeftX, baselineY);
+            if (flipped) {
+                canvas.scale(1f, -1f);
+            }
+
+            float p = animProgress;
+
+            // A. Left-to-Right Baseline Sweep Line + Curved Hook (0.00 -> 0.36)
+            if (p <= 0.37f) {
+                reusablePm.setPath(sweepPath, false);
+                float totalSweepLen = reusablePm.getLength();
+                float headFrac = easeOutCubic(clamp01(p / 0.14f));
+                float tailFrac = p <= 0.15f ? 0f : easeInOutCubic(clamp01((p - 0.15f) / 0.21f));
+                float headPx = headFrac * totalSweepLen;
+                float tailPx = tailFrac * totalSweepLen;
+                if (headPx - tailPx > 0.5f && tailFrac < 0.99f) {
+                    reusableDstPath.reset();
+                    reusablePm.getSegment(tailPx, headPx, reusableDstPath, true);
+                    sweepPaint.setAlpha(Math.round(245f * baseOpacity));
+                    canvas.drawPath(reusableDstPath, sweepPaint);
+                }
+            }
+
+            // B. Left-to-Right Per-Letter White Outline Tracing (0.09 -> 0.43)
+            //    followed by Progressive Solid White Fill (0.42 -> 0.78)
+            for (int i = 1; i < WORDMARK.length(); i++) {
+                int idx = i - 1; // 0..10
+                float outlineStart = 0.09f + idx * 0.021f;
+                float outlineFrac = easeInOutCubic((p - outlineStart) / 0.11f);
+
+                float fillStart = 0.42f + idx * 0.026f;
+                float fillFrac = easeInOutCubic((p - fillStart) / 0.10f);
+
+                if (outlineFrac > 0f && fillFrac < 0.99f) {
+                    float targetDist = charPathLengths[i] * outlineFrac;
+                    reusablePm.setPath(charPaths[i], false);
+                    reusableDstPath.reset();
+                    float remaining = targetDist;
+                    do {
+                        float contourLen = reusablePm.getLength();
+                        if (contourLen <= 0f) continue;
+                        if (remaining >= contourLen) {
+                            reusablePm.getSegment(0f, contourLen, reusableDstPath, true);
+                            remaining -= contourLen;
+                        } else if (remaining > 0f) {
+                            reusablePm.getSegment(0f, remaining, reusableDstPath, true);
+                            remaining = 0f;
+                        }
+                    } while (remaining > 0f && reusablePm.nextContour());
+
+                    float strokeAlpha = Math.max(0f, 1f - fillFrac * 0.9f) * baseOpacity;
+                    strokePaint.setAlpha(Math.round(255f * strokeAlpha));
+                    strokePaint.setStrokeWidth(lerp(strokeBasePx, strokeBasePx * 0.35f, fillFrac));
+                    canvas.drawPath(reusableDstPath, strokePaint);
+                }
+
+                if (fillFrac > 0f) {
+                    fillPaint.setAlpha(Math.round(255f * fillFrac * baseOpacity));
+                    canvas.drawPath(charPaths[i], fillPaint);
+                }
+            }
+
+            // C. Slow-Motion Bouncing "M" Arc Across Tops & Final Left Landing (0.43 -> 0.91)
+            if (p >= 0.43f) {
+                float mAlpha;
+                float mX = 0f;
+                float mY = 0f;
+                float mScaleX = 1f;
+                float mScaleY = 1f;
+                float mRot = 0f;
+
+                float mPivotX = charXs[0] + mAdvance * 0.5f;
+                float hopLeftX = (charXs[1] + capHeight * 0.3f) - mPivotX;
+                float hopMidX = wordWidth * 0.52f - mPivotX;
+                float hopRightX = wordWidth * 0.84f - mPivotX;
+
+                if (p < 0.49f) {
+                    float k = easeOutCubic((p - 0.43f) / 0.06f);
+                    mAlpha = k;
+                    mX = hopLeftX;
+                    mY = lerp(-capHeight * 0.88f, -capHeight * 1.24f, k);
+                    float sc = lerp(0.32f, 0.41f, k);
+                    mScaleX = sc;
+                    mScaleY = sc;
+                    mRot = 0f;
+                } else if (p < 0.62f) {
+                    float k = (p - 0.49f) / 0.13f;
+                    float arcLift = (float) Math.sin(k * Math.PI) * (capHeight * 0.52f);
+                    mAlpha = 1f;
+                    mX = lerp(hopLeftX, hopMidX, easeInOutCubic(k));
+                    mY = lerp(-capHeight * 1.24f, -capHeight * 1.48f, k) - arcLift;
+                    float sc = lerp(0.41f, 0.38f, k);
+                    mScaleX = sc;
+                    mScaleY = sc;
+                    mRot = lerp(0f, 19f, easeInOutCubic(k));
+                } else if (p < 0.74f) {
+                    float k = (p - 0.62f) / 0.12f;
+                    float arcLift = (float) Math.sin(k * Math.PI) * (capHeight * 0.38f);
+                    mAlpha = 1f;
+                    mX = lerp(hopMidX, hopRightX, easeInOutCubic(k));
+                    mY = lerp(-capHeight * 1.48f, -capHeight * 1.32f, k) - arcLift;
+                    mScaleX = 0.37f;
+                    mScaleY = 0.37f;
+                    mRot = lerp(19f, 27f, easeInOutCubic(k));
+                } else if (p < 0.87f) {
+                    float k = (p - 0.74f) / 0.13f;
+                    float eased = easeInOutCubic(k);
+                    float arcLift = (float) Math.sin(k * Math.PI) * (capHeight * 0.92f);
+                    mAlpha = 1f;
+                    mX = lerp(hopRightX, 0f, eased);
+                    mY = lerp(-capHeight * 1.32f, 0f, eased) - arcLift;
+                    float sc = lerp(0.37f, 1.0f, eased);
+                    mScaleX = sc;
+                    mScaleY = sc;
+                    mRot = k < 0.55f ? lerp(27f, -16f, k / 0.55f) : lerp(-16f, 0f, (k - 0.55f) / 0.45f);
+                } else if (p < 0.92f) {
+                    float k = (p - 0.87f) / 0.05f;
+                    mAlpha = 1f;
+                    if (k < 0.45f) {
+                        float s = k / 0.45f;
+                        mScaleX = lerp(1.0f, 1.04f, s);
+                        mScaleY = lerp(1.0f, 0.94f, s);
+                    } else {
+                        float s = (k - 0.45f) / 0.55f;
+                        mScaleX = lerp(1.04f, 1.0f, s);
+                        mScaleY = lerp(0.94f, 1.0f, s);
+                    }
+                } else {
+                    mAlpha = 1f;
+                }
+
+                canvas.save();
+                canvas.translate(mX, mY);
+                canvas.rotate(mRot, mPivotX, -capHeight * 0.42f);
+                canvas.scale(mScaleX, mScaleY, mPivotX, 0f);
+                fillPaint.setAlpha(Math.round(255f * mAlpha * baseOpacity));
+                canvas.drawPath(charPaths[0], fillPaint);
+                canvas.restore();
+            }
+
+            canvas.restore();
+        }
+
+        private static float clamp01(float v) {
+            return v < 0f ? 0f : (v > 1f ? 1f : v);
+        }
+
+        private static float easeInOutCubic(float t) {
+            float x = clamp01(t);
+            return x < 0.5f ? 4f * x * x * x : 1f - (float) Math.pow(-2f * x + 2f, 3) / 2f;
+        }
+
+        private static float easeOutCubic(float t) {
+            float x = clamp01(t);
+            return 1f - (float) Math.pow(1f - x, 3);
+        }
+
+        private static float lerp(float a, float b, float t) {
+            return a + (b - a) * t;
         }
     }
 
@@ -994,6 +1307,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         cancelLoadWatchdog();
+        if (nativeSplashView != null) {
+            nativeSplashView.stopAnimation();
+        }
         try {
             unregisterReceiver(apkDownloadReceiver);
         } catch (Exception ignored) {
