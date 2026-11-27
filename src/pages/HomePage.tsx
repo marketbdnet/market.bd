@@ -10,6 +10,7 @@ import { getCategoryImageUrl, getSubcategoryImageUrl, getSecondLevelImageUrl } f
 import { getOptimizedImageUrl } from '../utils/imageUtils';
 import { formatPostDateTime } from '../utils/dateUtils';
 import { WatermarkedImage } from '../components/Product/WatermarkedImage';
+import { getAutoAdjustedShowcaseCardClass, getAutoAdjustedRecentCardClass } from '../utils/gridLayout';
 import { SEOHelmet } from '../components/SEO/SEOHelmet';
 import {
   Zap,
@@ -85,15 +86,15 @@ export const HomePage: React.FC = () => {
   let featuredAds = products.filter(
     p => (p.adType === 'featured' || p.adType === 'urgent' || p.isFeatured || p.isUrgent) && isProductPublicActive(p)
   );
-  if (featuredAds.length < 5) {
+  if (featuredAds.length < 6) {
     const remainingActive = products.filter(
       p => isProductPublicActive(p) && !featuredAds.some(fa => fa.id === p.id)
     );
     featuredAds = [...featuredAds, ...remainingActive];
   }
 
-  // Display first 5 Featured/Urgent items consistently without unexpected rotation
-  const displayedFeatured = featuredAds.slice(0, 5);
+  // Responsive auto-adjust showcase: 6 on mobile/sm (2x3 / 3x2), 4 on md, 5 on desktop lg (zero empty slots)
+  const displayedFeatured = featuredAds.slice(0, 6);
 
   // Active products for Recent Posts (respects selectedLocation if narrowed from All Bangladesh)
   const isAllBangladesh =
@@ -222,7 +223,7 @@ export const HomePage: React.FC = () => {
                     {language === 'bn' ? 'ফিচার্ড ও জরুরি বিজ্ঞাপন' : 'Featured & Urgent Ads'}
                   </h2>
                   <p className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400">
-                    {language === 'bn' ? 'বিশেষ বুস্টেড ও জরুরি বিজ্ঞাপন (এক লাইনে ৫টি)' : 'Top 5 boosted & urgent listings'}
+                    {language === 'bn' ? 'বিশেষ বুস্টেড ও জরুরি বিজ্ঞাপন' : 'Top boosted & urgent listings'}
                   </p>
                 </div>
               </div>
@@ -238,7 +239,7 @@ export const HomePage: React.FC = () => {
               </button>
             </div>
 
-            {/* Featured Ads Rendering: Exactly 5 items in 1 horizontal row matching Flash Deals */}
+            {/* Featured Ads Rendering: Auto-adjusted across mobile (6 = 2x3), tablet (6/4), and desktop (5x1) with zero empty gaps */}
             {displayedFeatured.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
                 {displayedFeatured.map((prod, idx) => {
@@ -254,6 +255,7 @@ export const HomePage: React.FC = () => {
                       : ((prod as any).image || fallbackImg);
                   const prodPrice = typeof prod.price === 'number' ? prod.price.toLocaleString() : (prod.price || '0');
                   const isUrgent = prod.adType === 'urgent' || prod.isUrgent;
+                  const visibilitySpanClass = getAutoAdjustedShowcaseCardClass(idx, displayedFeatured.length);
 
                   return (
                     <div
@@ -262,7 +264,7 @@ export const HomePage: React.FC = () => {
                         setSelectedProduct(prod);
                         setActiveTab('product-details');
                       }}
-                      className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl p-2 border border-amber-300 dark:border-amber-700/70 shadow-xs hover:shadow-md hover:border-amber-500 transition cursor-pointer group flex flex-col justify-between relative overflow-hidden active:scale-95"
+                      className={`bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl p-2 border border-amber-300 dark:border-amber-700/70 shadow-xs hover:shadow-md hover:border-amber-500 transition cursor-pointer group flex-col justify-between relative overflow-hidden active:scale-95 ${visibilitySpanClass}`}
                     >
                       {/* Badge */}
                       <div className="absolute top-1.5 left-1.5 z-10">
@@ -335,10 +337,10 @@ export const HomePage: React.FC = () => {
               </div>
             ) : products.length === 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
-                {[0, 1, 2, 3, 4].map((slot) => (
+                {[0, 1, 2, 3, 4, 5].map((slot) => (
                   <div
                     key={slot}
-                    className="rounded-xl p-2 border border-amber-200/60 dark:border-amber-800/40 bg-slate-50 dark:bg-slate-800/60 animate-pulse space-y-2"
+                    className={`rounded-xl p-2 border border-amber-200/60 dark:border-amber-800/40 bg-slate-50 dark:bg-slate-800/60 animate-pulse space-y-2 flex-col ${getAutoAdjustedShowcaseCardClass(slot, 6)}`}
                   >
                     <div className="w-full h-24 sm:h-28 rounded-lg bg-slate-200 dark:bg-slate-700" />
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
@@ -491,6 +493,7 @@ export const HomePage: React.FC = () => {
                     product={product}
                     layoutMode={adViewMode}
                     loading={idx < 4 ? 'eager' : 'lazy'}
+                    className={adViewMode === 'grid' ? getAutoAdjustedRecentCardClass(idx, displayedRecent.length) : ''}
                   />
                 ))}
               </div>

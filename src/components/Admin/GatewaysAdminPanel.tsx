@@ -17,7 +17,7 @@ import {
   Building2,
   AlertTriangle
 } from 'lucide-react';
-import { db, doc, getDoc, safeFirestoreSetDoc } from '../../lib/firebase';
+import { auth, db, doc, getDoc, safeFirestoreSetDoc, GoogleAuthProvider, signInWithPopup } from '../../lib/firebase';
 import { requestWebPushPermission, sendLocalBrowserPushNotification } from '../../services/pushNotificationService';
 import { checkAndExpireAds } from '../../utils/adExpiryEngine';
 import {
@@ -74,9 +74,12 @@ export const GatewaysAdminPanel: React.FC = () => {
   const [smsIsLive, setSmsIsLive] = useState(storage.getItem('marketbd_live_mode') !== 'false');
   const [adminSecret, setAdminSecret] = useState(storage.getItem('marketbd_sms_admin_secret') || '');
   const [showAdminSecret, setShowAdminSecret] = useState(false);
-  const [otpTemplate, setOtpTemplate] = useState(DEFAULT_OTP_TEMPLATE);
+  const [otpTemplate, setOtpTemplate] = useState(
+    storage.getItem('marketbd_sms_otp_template') || DEFAULT_OTP_TEMPLATE
+  );
   const [smsStatusMsg, setSmsStatusMsg] = useState('');
   const [smsSaving, setSmsSaving] = useState(false);
+  const [needsGoogleSync, setNeedsGoogleSync] = useState(false);
 
   // Balance & Recharge State
   const [balance, setBalance] = useState<number | null>(null);
@@ -128,44 +131,66 @@ export const GatewaysAdminPanel: React.FC = () => {
   // 4. Expiry Run State
   const [expirySummary, setExpirySummary] = useState('');
 
-  // Load initial configuration from authoritative server API; use Firestore only as fallback
+  // Load initial configuration from BOTH server API and Firestore, picking the newest saved timestamp
   useEffect(() => {
-    fetchUnifiedSmsConfig().then(res => {
-      if (res.ok && res.config) {
-        const c = res.config;
-        setProviderId(c.providerId);
-        setProviderName(c.providerName);
-        setSmsApiUrl(c.apiUrl);
-        setSmsSenderId(c.senderId);
-        if (c.maskingEnabled) {
-          setMaskingSenderId(c.senderId || 'MarketBD.Net');
-        } else {
-          setNonMaskingSenderId(c.senderId && c.senderId !== 'MarketBD.Net' ? c.senderId : '1234');
-        }
-        setSmsSid(c.sid || '');
-        setSmsMaskingEnabled(c.maskingEnabled);
-        if (typeof c.noReplyMode === 'boolean') setSmsNoReplyMode(c.noReplyMode);
-        setSmsIsLive(c.isLiveMode);
-        setOtpTemplate(c.otpTemplate || DEFAULT_OTP_TEMPLATE);
+    Promise.allSettled([
+      fetchUnifiedSmsConfig(),
+      getDoc(doc(db, 'settings', 'sms_config')),
+    ]).then(([apiSettled, fsSettled]) => {
+      const apiRes = apiSettled.status === 'fulfilled' ? apiSettled.value : null;
+      const fsSnap = fsSettled.status === 'fulfilled' ? fsSettled.value : null;
+      const fsData = fsSnap && fsSnap.exists() ? fsSnap.data() : null;
+
+      const c = apiRes?.ok ? apiRes.config : undefined;
+      if (c) {
         setHasServerApiKey(c.hasApiKey);
         setMaskedServerApiKey(c.maskedApiKey || '');
-      } else {
-        getDoc(doc(db, 'settings', 'sms_config'))
-          .then(snap => {
-            const d = snap.data();
-            if (d?.otpTemplate) setOtpTemplate(String(d.otpTemplate));
-            if (typeof d?.maskingEnabled === 'boolean') setSmsMaskingEnabled(d.maskingEnabled);
-            if (typeof d?.noReplyMode === 'boolean') setSmsNoReplyMode(d.noReplyMode);
-            if (d?.providerName) setProviderName(String(d.providerName));
-            if (d?.senderId) {
-              const sidVal = String(d.senderId);
-              setSmsSenderId(sidVal);
-              if (d?.maskingEnabled) setMaskingSenderId(sidVal);
-              else setNonMaskingSenderId(sidVal !== 'MarketBD.Net' ? sidVal : '1234');
-            }
-          })
-          .catch(() => {});
       }
+
+      const apiTs = Date.parse(c?.updatedAt || '') || 0;
+      const fsTs = Date.parse(String(fsData?.updatedAt || '')) || 0;
+      const localTs = Date.parse(storage.getItem('marketbd_sms_updated_at') || '') || 0;
+      const localTpl = storage.getItem('marketbd_sms_otp_template') || '';
+
+      const useFirestore = Boolean(fsData && (fsTs >= apiTs || !c));
+      const srcProviderId = (useFirestore ? fsData?.providerId : c?.providerId) || c?.providerId || fsData?.providerId;
+      const srcProviderName = (useFirestore ? fsData?.providerName : c?.providerName) || c?.providerName || fsData?.providerName;
+      const srcApiUrl = (useFirestore ? fsData?.apiUrl : c?.apiUrl) || c?.apiUrl || fsData?.apiUrl;
+      const srcMasking = useFirestore
+        ? (typeof fsData?.maskingEnabled === 'boolean' ? fsData.maskingEnabled : c?.maskingEnabled)
+        : (typeof c?.maskingEnabled === 'boolean' ? c.maskingEnabled : fsData?.maskingEnabled);
+      const srcNoReply = useFirestore
+        ? (typeof fsData?.noReplyMode === 'boolean' ? fsData.noReplyMode : c?.noReplyMode)
+        : (typeof c?.noReplyMode === 'boolean' ? c.noReplyMode : fsData?.noReplyMode);
+      const srcSenderId = (useFirestore ? fsData?.senderId : c?.senderId) || c?.senderId || fsData?.senderId;
+      const srcLive = useFirestore
+        ? (typeof fsData?.isLiveMode === 'boolean' ? fsData.isLiveMode : c?.isLiveMode)
+        : (typeof c?.isLiveMode === 'boolean' ? c.isLiveMode : fsData?.isLiveMode);
+
+      if (srcProviderId) setProviderId(srcProviderId as SmsProviderId);
+      if (srcProviderName) setProviderName(String(srcProviderName));
+      if (srcApiUrl) setSmsApiUrl(String(srcApiUrl));
+      if (typeof srcMasking === 'boolean') setSmsMaskingEnabled(srcMasking);
+      if (typeof srcNoReply === 'boolean') setSmsNoReplyMode(srcNoReply);
+      if (typeof srcLive === 'boolean') setSmsIsLive(srcLive);
+      if (c?.sid) setSmsSid(c.sid);
+      if (srcSenderId) {
+        const sidVal = String(srcSenderId);
+        setSmsSenderId(sidVal);
+        if (srcMasking) setMaskingSenderId(sidVal);
+        else setNonMaskingSenderId(sidVal !== 'MarketBD.Net' ? sidVal : '1234');
+      }
+
+      let winningTemplate = c?.otpTemplate || DEFAULT_OTP_TEMPLATE;
+      let bestTs = apiTs;
+      if (fsData?.otpTemplate && (fsTs >= bestTs || !c?.otpTemplate)) {
+        winningTemplate = String(fsData.otpTemplate);
+        bestTs = fsTs;
+      }
+      if (localTpl && localTs > bestTs) {
+        winningTemplate = localTpl;
+      }
+      setOtpTemplate(winningTemplate);
     });
 
     fetchPaymentGatewayConfig().then(res => {
@@ -273,6 +298,9 @@ export const GatewaysAdminPanel: React.FC = () => {
       return;
     }
 
+    const savedAt = new Date().toISOString();
+    const cleanTemplate = otpTemplate.replace(/\s+/g, ' ').trim();
+
     setSmsSaving(true);
     const serverRes = await saveUnifiedSmsConfig({
       providerId,
@@ -284,7 +312,8 @@ export const GatewaysAdminPanel: React.FC = () => {
       maskingEnabled: smsMaskingEnabled,
       noReplyMode: smsNoReplyMode,
       isLiveMode: smsIsLive,
-      otpTemplate: otpTemplate.trim(),
+      otpTemplate: cleanTemplate,
+      updatedAt: savedAt,
       adminSecret,
     });
     setSmsSaving(false);
@@ -310,13 +339,15 @@ export const GatewaysAdminPanel: React.FC = () => {
       if (serverRes.config.otpTemplate) setOtpTemplate(serverRes.config.otpTemplate);
     }
 
-    // Save non-secret flags locally & sync non-secret fields to Firestore
+    // Save non-secret flags & custom OTP template locally + sync to Firestore with updatedAt timestamp
     storage.setItem('marketbd_sms_provider_id', providerId);
     storage.setItem('marketbd_sms_provider_name', providerName.trim());
     storage.setItem('marketbd_sms_api_url', smsApiUrl.trim());
     storage.setItem('marketbd_sms_masking_enabled', String(smsMaskingEnabled));
     storage.setItem('marketbd_sms_no_reply_mode', String(smsNoReplyMode));
     storage.setItem('marketbd_sms_sender_id', resolvedSenderId);
+    storage.setItem('marketbd_sms_otp_template', cleanTemplate);
+    storage.setItem('marketbd_sms_updated_at', savedAt);
     if (smsMaskingEnabled) {
       storage.setItem('marketbd_sms_masking_sender_id', resolvedSenderId);
     } else {
@@ -332,28 +363,83 @@ export const GatewaysAdminPanel: React.FC = () => {
         providerName: providerName.trim(),
         apiUrl: smsApiUrl.trim(),
         senderId: resolvedSenderId,
-        otpTemplate: otpTemplate.trim(),
+        otpTemplate: cleanTemplate,
         maskingEnabled: smsMaskingEnabled,
         noReplyMode: smsNoReplyMode,
         isLiveMode: smsIsLive,
+        updatedAt: savedAt,
       },
       { merge: true }
     );
 
+    setNeedsGoogleSync(!firestoreSaved);
+
     if (serverRes.persistedOnServer === false && !firestoreSaved) {
-      const prefix = serverRes.config?.hasApiKey ? 'ℹ️' : '⚠️';
+      const prefix = serverRes.config?.hasApiKey ? '⚠️' : '⚠️';
       setSmsStatusMsg(
-        `${prefix} ${serverRes.warning || (bn ? 'Vercel-এ ফাইল Read-Only থাকায় Vercel Environment Variables-এ SMS_API_KEY সেট করুন।' : 'Read-only filesystem: Set SMS_API_KEY in Vercel Environment Variables.')}`
+        `${prefix} ${
+          bn
+            ? 'বর্তমান সেশনে সেভ হয়েছে, কিন্তু স্থায়ী Firestore সিঙ্ক হয়নি (কারণ Google Admin দিয়ে Firebase সাইন-ইন করা নেই)। রিস্টার্টের পরও নতুন ৭০-অক্ষরের টেক্সট ধরে রাখতে নিচের "Google Admin দিয়ে স্থায়ী সিঙ্ক" বাটনে ক্লিক করুন।'
+            : 'Saved in current session only. Sign in with Google Admin below to persist permanently in Firestore across server restarts.'
+        }`
       );
       return;
     }
 
     setSmsStatusMsg(
       bn
-        ? `✅ সংরক্ষিত হয়েছে! (${smsMaskingEnabled ? 'Masking' : 'Non-Masking'}: ${resolvedSenderId})`
-        : `✅ Saved! (${smsMaskingEnabled ? 'Masking' : 'Non-Masking'}: ${resolvedSenderId})`
+        ? `✅ স্থায়ীভাবে সংরক্ষিত হয়েছে! (${smsMaskingEnabled ? 'Masking' : 'Non-Masking'}: ${resolvedSenderId})`
+        : `✅ Saved permanently! (${smsMaskingEnabled ? 'Masking' : 'Non-Masking'}: ${resolvedSenderId})`
     );
     setTimeout(() => setSmsStatusMsg(''), 5000);
+  };
+
+  const handleGoogleAdminFirestoreSync = async () => {
+    try {
+      setSmsSaving(true);
+      await signInWithPopup(auth, new GoogleAuthProvider());
+      const resolvedSenderId = smsMaskingEnabled
+        ? (maskingSenderId.trim() || smsSenderId.trim() || 'MarketBD.Net')
+        : (nonMaskingSenderId.trim() && nonMaskingSenderId.trim() !== 'MarketBD.Net'
+            ? nonMaskingSenderId.trim()
+            : '1234');
+      const savedAt = new Date().toISOString();
+      const cleanTemplate = otpTemplate.replace(/\s+/g, ' ').trim();
+      const ok = await safeFirestoreSetDoc(
+        doc(db, 'settings', 'sms_config'),
+        {
+          providerId,
+          providerName: providerName.trim(),
+          apiUrl: smsApiUrl.trim(),
+          senderId: resolvedSenderId,
+          otpTemplate: cleanTemplate,
+          maskingEnabled: smsMaskingEnabled,
+          noReplyMode: smsNoReplyMode,
+          isLiveMode: smsIsLive,
+          updatedAt: savedAt,
+        },
+        { merge: true }
+      );
+      setSmsSaving(false);
+      if (ok) {
+        setNeedsGoogleSync(false);
+        storage.setItem('marketbd_sms_updated_at', savedAt);
+        setSmsStatusMsg(
+          bn
+            ? '✅ Google Admin ভেরিফাইড! আপনার ৭০ অক্ষরের কাস্টম OTP টেক্সট স্থায়ীভাবে Firestore-এ সংরক্ষিত হয়েছে।'
+            : '✅ Permanently synced to Firestore!'
+        );
+      } else {
+        setSmsStatusMsg(
+          bn
+            ? '❌ এই Google একাউন্টের Admin Firestore পারমিশন নেই (official.marketbd@gmail.com / official.marketsbd@gmail.com দিয়ে লগইন করুন)।'
+            : '❌ This Google account lacks Firestore admin permission.'
+        );
+      }
+    } catch (err: any) {
+      setSmsSaving(false);
+      setSmsStatusMsg(`❌ ${err?.message || 'Google sync failed'}`);
+    }
   };
 
   const handleClearSmsApiKey = async () => {
@@ -1005,6 +1091,14 @@ export const GatewaysAdminPanel: React.FC = () => {
               <p className="text-[10px] text-slate-500 mt-0.5">
                 {bn ? '{otp} লিখলে ৬ ডিজিটের কোড বসবে (সর্বোচ্চ ৭০ অক্ষর)।' : 'Use {otp} placeholder. Keep max 70 chars.'}
               </p>
+              <div className="mt-1.5 p-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[10px]">
+                <span className="font-bold text-slate-500 dark:text-slate-400">
+                  {bn ? 'প্রিভিউ SMS: ' : 'SMS Preview: '}
+                </span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-100 break-words">
+                  {otpTemplate.replace(/\s+/g, ' ').trim().replace(/\{otp\}/gi, '123456')}
+                </span>
+              </div>
               {/[\n&]/.test(otpTemplate) && (
                 <p className="text-[10px] font-bold text-amber-700 dark:text-amber-300 mt-0.5">
                   {bn
@@ -1046,6 +1140,22 @@ export const GatewaysAdminPanel: React.FC = () => {
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{smsStatusMsg}</span>
               </div>
+            )}
+
+            {needsGoogleSync && (
+              <button
+                type="button"
+                onClick={handleGoogleAdminFirestoreSync}
+                disabled={smsSaving}
+                className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>
+                  {bn
+                    ? 'Google Admin দিয়ে স্থায়ী Firestore সিঙ্ক করুন'
+                    : 'Sync Permanently to Firestore via Google Admin'}
+                </span>
+              </button>
             )}
           </form>
 

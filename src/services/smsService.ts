@@ -48,6 +48,7 @@ export interface UnifiedSmsGatewayConfig {
   noReplyMode?: boolean;
   isLiveMode: boolean;
   otpTemplate: string;
+  updatedAt?: string;
   hasApiKey: boolean;
   maskedApiKey: string;
   hasAdminSecret: boolean;
@@ -138,6 +139,7 @@ export async function saveUnifiedSmsConfig(params: {
   noReplyMode?: boolean;
   isLiveMode: boolean;
   otpTemplate: string;
+  updatedAt?: string;
   adminSecret?: string;
   newAdminSecret?: string;
 }): Promise<{
@@ -167,6 +169,7 @@ export async function saveUnifiedSmsConfig(params: {
         noReplyMode: params.noReplyMode !== false,
         isLiveMode: params.isLiveMode,
         otpTemplate: params.otpTemplate,
+        ...(params.updatedAt ? { updatedAt: params.updatedAt } : {}),
         ...(params.newAdminSecret ? { newAdminSecret: params.newAdminSecret } : {}),
       },
       secret
@@ -398,33 +401,13 @@ export async function sendRealSmsOtp(
     };
   }
 
-  const adminSecret = storage.getItem('marketbd_sms_admin_secret') || '';
-  if (adminSecret) {
-    const res = await sendUnifiedSmsText({
-      phone,
-      message: `Your MarketBD.Net OTP is ${otpCode}. Do not reply.`,
-      adminSecret,
-    });
-    if (res.ok) {
-      return {
-        success: true,
-        message: `SMS Sent via ${res.providerName || 'Unified Gateway'} (Sender: ${res.usedCaller || 'default'})`,
-        gatewayResponse: res.gateway,
-      };
-    }
-    return {
-      success: false,
-      message: res.hint || res.error || 'SMS Gateway request failed.',
-      gatewayResponse: res.gateway,
-    };
-  }
-
+  // Always route through send_otp so the saved 70-char custom OTP template and No-Reply policy are applied consistently
   const otpRes = await sendUnifiedSmsOtp(phone);
   return {
     success: otpRes.ok,
     message: otpRes.ok
-      ? `Unified OTP SMS dispatched to ${cleanPhone} (${otpRes.providerName || 'Gateway'})`
-      : (otpRes.error || 'Failed to dispatch SMS'),
+      ? `Unified OTP SMS dispatched to ${cleanPhone} (${otpRes.providerName || 'Gateway'}, Sender: ${otpRes.usedCaller || 'default'})`
+      : (otpRes.hint || otpRes.error || 'Failed to dispatch SMS'),
     gatewayResponse: otpRes,
   };
 }

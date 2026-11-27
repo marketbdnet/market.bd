@@ -217,18 +217,37 @@ function enforceOneWaySenderId(sender: string, masking: boolean, noReplyMode: bo
   return cleaned;
 }
 
-function formatOtpMessage(template: string, code: string, noReplyMode: boolean): string {
-  let message = String(template || DEFAULT_TEMPLATE).replace(/\{otp\}/gi, code).trim();
+export function formatOtpMessage(template: string, code: string, noReplyMode: boolean): string {
+  const normalizedRaw = String(template || DEFAULT_TEMPLATE).replace(/\s+/g, ' ').trim();
+  const hasOtpPlaceholder = /\{otp\}/i.test(normalizedRaw);
+  let message = hasOtpPlaceholder
+    ? normalizedRaw.replace(/\{otp\}/gi, code).trim()
+    : `${normalizedRaw} ${code}`.trim();
+
   if (noReplyMode && !/do not reply|no[\s-]*reply|উত্তর দিবেন না|রিপ্লাই/i.test(message)) {
-    const candidate = `${message.replace(/[.\s]+$/, '')}. Do not reply.`;
-    if (candidate.length <= 70) {
-      message = candidate;
+    const withDoNotReply = `${message.replace(/[.\s]+$/, '')}. Do not reply.`;
+    if (withDoNotReply.length <= 70) {
+      message = withDoNotReply;
+    } else {
+      const withShortNoReply = `${message.replace(/[.\s]+$/, '')} (No Reply)`;
+      if (withShortNoReply.length <= 70) {
+        message = withShortNoReply;
+      }
     }
   }
+
+  // Never discard a custom template back to English DEFAULT_TEMPLATE; trim only excess non-OTP characters if > 70
   if (message.length > 70) {
-    message = noReplyMode
-      ? `Your MarketBD.Net OTP is ${code}. Do not reply.`
-      : `Your MarketBD.Net OTP is ${code}`;
+    const codeIdx = message.indexOf(code);
+    if (codeIdx === -1) {
+      message = message.slice(0, Math.max(0, 70 - code.length - 1)).trimEnd() + ' ' + code;
+    } else if (codeIdx + code.length <= 70) {
+      message = message.slice(0, 70).trimEnd();
+    } else {
+      const beforeBudget = Math.max(0, 70 - code.length - 1);
+      const before = message.slice(0, beforeBudget).trimEnd();
+      message = before ? `${before} ${code}` : code;
+    }
   }
   return message;
 }
@@ -254,6 +273,7 @@ async function readRemoteConfig(): Promise<{
   apiUrl?: string;
   senderId?: string;
   isLiveMode?: boolean;
+  updatedAt?: string;
 }> {
   try {
     const r = await fetch(FIRESTORE_CFG_URL);
@@ -269,6 +289,7 @@ async function readRemoteConfig(): Promise<{
       apiUrl: f.apiUrl?.stringValue,
       senderId: f.senderId?.stringValue,
       isLiveMode: f.isLiveMode?.booleanValue,
+      updatedAt: f.updatedAt?.stringValue || f.updatedAt?.timestampValue || '',
     };
   } catch {
     return {};
@@ -343,7 +364,7 @@ function isFatalGatewayStop(g: { httpStatus: number; json: any; raw: string }): 
   return false;
 }
 
-async function dispatchSmsByProvider(params: {
+export async function dispatchSmsByProvider(params: {
   providerId: SmsProviderId;
   apiUrl: string;
   apiKey: string;
@@ -354,51 +375,100 @@ async function dispatchSmsByProvider(params: {
   isOtp: boolean;
   otpCode?: string;
   noReplyMode?: boolean;
+  fetcher?: (url: string, init?: RequestInit) => Promise<{ httpStatus: number; json: any; raw: string }>;
 }) {
-  const { providerId, apiUrl, apiKey, senderId, sid, phone, message, isOtp, otpCode, noReplyMode = true } = params;
+  const {
+    providerId,
+    apiUrl,
+    apiKey,
+    senderId,
+    sid,
+    phone,
+    message,
+    isOtp,
+    otpCode,
+    noReplyMode = true,
+    fetcher = fetchGatewayUrl,
+  } = params;
   const cleanBase = apiUrl.replace(/\/+$/, '');
   const intlPhone = phone.startsWith('88') ? phone : `88${phone}`;
 
   if (providerId === 'bulksmsdhaka') {
     const base = cleanBase || SMS_PROVIDER_PRESETS.bulksmsdhaka.defaultApiUrl;
+    const singleLineCustom = message.replace(/\s+/g, ' ').trim();
     let usedEndpoint = isOtp ? 'otpsend' : 'sendtext';
     let usedCaller = senderId || '1234';
 
-    const qs1 = new URLSearchParams({ apikey: apiKey, number: phone, message, callerID: usedCaller }).toString();
-    let g = await fetchGatewayUrl(`${base}/${usedEndpoint}?${qs1}`);
+    const qs1 = new URLSearchParams({ apikey: apiKey, number: phone, message: singleLineCustom, callerID: usedCaller }).toString();
+    let g = await fetcher(`${base}/${usedEndpoint}?${qs1}`);
 
-    // 1) If masking/custom senderId fails on non-fatal error, immediately retry Non-Masking callerID '1234'
+    // 1) If masking/custom senderId fails on non-fatal error, retry Non-Masking callerID '1234' with SAME custom text
     if (!isOk(g.json, g.raw, g.httpStatus) && !isFatalGatewayStop(g) && usedCaller !== '1234') {
-      const qs2 = new URLSearchParams({ apikey: apiKey, number: phone, message, callerID: '1234' }).toString();
-      const g2 = await fetchGatewayUrl(`${base}/${usedEndpoint}?${qs2}`);
+      const qs2 = new URLSearchParams({ apikey: apiKey, number: phone, message: singleLineCustom, callerID: '1234' }).toString();
+      const g2 = await fetcher(`${base}/${usedEndpoint}?${qs2}`);
       if (isOk(g2.json, g2.raw, g2.httpStatus) || !isFatalGatewayStop(g2)) {
         g = g2;
         usedCaller = '1234';
       }
     }
 
-    // 2) For OTP: if multiline/custom template is rejected by otpsend, retry clean single-line standard format
-    const cleanOtpCode = otpCode || (message.match(/\b(\d{4,8})\b/)?.[1] ?? '');
+    const cleanOtpCode = otpCode || (singleLineCustom.match(/\b(\d{4,8})\b/)?.[1] ?? '');
     const cleanSingleLineOtp = cleanOtpCode
       ? (noReplyMode ? `Your MarketBD.Net OTP is ${cleanOtpCode}. Do not reply.` : `Your MarketBD.Net OTP is ${cleanOtpCode}`)
-      : message.replace(/\s+/g, ' ').trim();
+      : singleLineCustom;
+
+    // 2) CRITICAL: If BulkSMS Dhaka otpsend rejects a custom template (e.g. code 1006 / Bengali text),
+    // try sendtext WITH THE USER'S EXACT CUSTOM MESSAGE before ever falling back to default text!
     if (
       isOtp &&
       !isOk(g.json, g.raw, g.httpStatus) &&
       !isFatalGatewayStop(g) &&
-      cleanSingleLineOtp !== message
+      cleanSingleLineOtp !== singleLineCustom
+    ) {
+      const customCallerFirst = senderId || '1234';
+      const qsCustomText = new URLSearchParams({
+        apikey: apiKey,
+        number: phone,
+        message: singleLineCustom,
+        callerID: customCallerFirst,
+      }).toString();
+      let gCustom = await fetcher(`${base}/sendtext?${qsCustomText}`);
+      if (!isOk(gCustom.json, gCustom.raw, gCustom.httpStatus) && !isFatalGatewayStop(gCustom) && customCallerFirst !== '1234') {
+        const qsCustomNonMask = new URLSearchParams({
+          apikey: apiKey,
+          number: phone,
+          message: singleLineCustom,
+          callerID: '1234',
+        }).toString();
+        gCustom = await fetcher(`${base}/sendtext?${qsCustomNonMask}`);
+        if (isOk(gCustom.json, gCustom.raw, gCustom.httpStatus) || !isFatalGatewayStop(gCustom)) {
+          usedCaller = '1234';
+        }
+      } else {
+        usedCaller = customCallerFirst;
+      }
+      g = gCustom;
+      usedEndpoint = 'sendtext';
+    }
+
+    // 3) Last-resort OTP fallback ONLY if custom text failed on both otpsend and sendtext
+    if (
+      isOtp &&
+      !isOk(g.json, g.raw, g.httpStatus) &&
+      !isFatalGatewayStop(g) &&
+      cleanSingleLineOtp !== singleLineCustom
     ) {
       const qs3 = new URLSearchParams({ apikey: apiKey, number: phone, message: cleanSingleLineOtp, callerID: '1234' }).toString();
-      const g3 = await fetchGatewayUrl(`${base}/otpsend?${qs3}`);
+      const g3 = await fetcher(`${base}/otpsend?${qs3}`);
       g = g3;
       usedCaller = '1234';
       usedEndpoint = 'otpsend';
     }
 
-    // 3) If otpsend still fails for non-fatal reasons, fall back cleanly to sendtext with callerID '1234'
+    // 4) Final fallback to sendtext with clean single-line OTP if otpsend also fails
     if (isOtp && !isOk(g.json, g.raw, g.httpStatus) && !isFatalGatewayStop(g)) {
       const qs4 = new URLSearchParams({ apikey: apiKey, number: phone, message: cleanSingleLineOtp, callerID: '1234' }).toString();
-      const g4 = await fetchGatewayUrl(`${base}/sendtext?${qs4}`);
+      const g4 = await fetcher(`${base}/sendtext?${qs4}`);
       g = g4;
       usedCaller = '1234';
       usedEndpoint = 'sendtext';
@@ -564,13 +634,27 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
 
   const resolveActiveConfig = async () => {
     const remote = await readRemoteConfig();
+    const storedTs = Date.parse(smsStored.updatedAt || '') || 0;
+    const remoteTs = Date.parse(remote.updatedAt || '') || 0;
+    const preferRemote = remoteTs > storedTs;
+
     const envProviderRaw = (process.env.SMS_PROVIDER_ID || process.env.SMS_PROVIDER || '').trim() as SmsProviderId | '';
     const envProviderId = envProviderRaw && SMS_PROVIDER_PRESETS[envProviderRaw] ? envProviderRaw : undefined;
-    const providerId: SmsProviderId = smsStored.providerId || envProviderId || remote.providerId || 'bulksmsdhaka';
+    const providerId: SmsProviderId =
+      (preferRemote ? remote.providerId : smsStored.providerId) ||
+      smsStored.providerId ||
+      remote.providerId ||
+      envProviderId ||
+      'bulksmsdhaka';
     const preset = SMS_PROVIDER_PRESETS[providerId] || SMS_PROVIDER_PRESETS.custom;
 
     const envApiUrl = (process.env.SMS_API_URL || '').trim();
-    const apiUrl = smsStored.apiUrl || envApiUrl || (!envProviderId ? remote.apiUrl : '') || preset.defaultApiUrl;
+    const apiUrl =
+      (preferRemote ? remote.apiUrl : smsStored.apiUrl) ||
+      smsStored.apiUrl ||
+      remote.apiUrl ||
+      envApiUrl ||
+      preset.defaultApiUrl;
 
     const envSenderId = sanitizeCallerId(process.env.SMS_SENDER_ID || process.env.SMS_CALLER_ID);
     const storedSenderId = sanitizeCallerId(smsStored.senderId);
@@ -582,10 +666,11 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         ? true
         : undefined;
     const masking =
+      (preferRemote ? remote.masking : smsStored.maskingEnabled) ??
       smsStored.maskingEnabled ??
+      remote.masking ??
       envMasking ??
       (envSenderId ? envSenderId !== '1234' : undefined) ??
-      remote.masking ??
       false;
 
     const envNoReply =
@@ -594,14 +679,21 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         : process.env.SMS_NO_REPLY === 'true'
         ? true
         : undefined;
-    const noReplyMode = smsStored.noReplyMode ?? envNoReply ?? remote.noReplyMode ?? true;
+    const noReplyMode =
+      (preferRemote ? remote.noReplyMode : smsStored.noReplyMode) ??
+      smsStored.noReplyMode ??
+      remote.noReplyMode ??
+      envNoReply ??
+      true;
 
     const nonMaskingSender =
+      (preferRemote && remoteSenderId && remoteSenderId !== 'MarketBD.Net' ? remoteSenderId : '') ||
       (storedSenderId && storedSenderId !== 'MarketBD.Net' ? storedSenderId : '') ||
+      (remoteSenderId && remoteSenderId !== 'MarketBD.Net' ? remoteSenderId : '') ||
       (envSenderId && envSenderId !== 'MarketBD.Net' ? envSenderId : '') ||
       '1234';
     const rawSenderId = masking
-      ? (storedSenderId || envSenderId || remoteSenderId || 'MarketBD.Net')
+      ? ((preferRemote ? remoteSenderId : storedSenderId) || storedSenderId || remoteSenderId || envSenderId || 'MarketBD.Net')
       : nonMaskingSender;
     const senderId = enforceOneWaySenderId(rawSenderId, masking, noReplyMode);
 
@@ -611,16 +703,29 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         : process.env.SMS_LIVE_MODE === 'true'
         ? true
         : undefined;
-    const isLive = smsStored.isLiveMode ?? envLive ?? remote.isLiveMode ?? true;
+    const isLive =
+      (preferRemote ? remote.isLiveMode : smsStored.isLiveMode) ??
+      smsStored.isLiveMode ??
+      remote.isLiveMode ??
+      envLive ??
+      true;
 
+    // Saved admin template in Firestore (remote.template) or runtime secrets ALWAYS outranks static envTemplate
     const envTemplate = (process.env.SMS_OTP_TEMPLATE || '').replace(/\\n/g, '\n').trim();
-    const otpTemplate = (smsStored.otpTemplate || envTemplate || remote.template || DEFAULT_TEMPLATE).trim();
+    const otpTemplate = (
+      (preferRemote ? remote.template : smsStored.otpTemplate) ||
+      smsStored.otpTemplate ||
+      remote.template ||
+      envTemplate ||
+      DEFAULT_TEMPLATE
+    ).trim();
     const sid = (smsStored.sid || process.env.SMS_SID || '').trim();
+    const updatedAt = (preferRemote ? remote.updatedAt : smsStored.updatedAt) || smsStored.updatedAt || remote.updatedAt || '';
 
     return {
       providerId,
       preset,
-      providerName: smsStored.providerName || preset.companyName,
+      providerName: (preferRemote ? remote.providerName : smsStored.providerName) || smsStored.providerName || remote.providerName || preset.companyName,
       apiUrl,
       senderId,
       sid,
@@ -628,6 +733,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       noReplyMode,
       isLive,
       otpTemplate,
+      updatedAt,
     };
   };
 
@@ -648,6 +754,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
           noReplyMode: cfg.noReplyMode,
           isLiveMode: cfg.isLive,
           otpTemplate: cfg.otpTemplate,
+          updatedAt: cfg.updatedAt,
           hasApiKey: effectiveApiKey.length > 0,
           maskedApiKey: maskSecret(effectiveApiKey),
           hasAdminSecret: Boolean(effectiveAdminSecret),
@@ -703,7 +810,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         isLiveMode: typeof body.isLiveMode === 'boolean' ? body.isLiveMode : (smsStored.isLiveMode ?? true),
         otpTemplate: String(body.otpTemplate || smsStored.otpTemplate || DEFAULT_TEMPLATE).trim(),
         adminSecret: nextAdminSecret,
-        updatedAt: new Date().toISOString(),
+        updatedAt: typeof body.updatedAt === 'string' && body.updatedAt.trim() ? body.updatedAt.trim() : new Date().toISOString(),
       };
 
       const persisted = writeSecretsFile({ sms: nextSms });
@@ -715,8 +822,8 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
 
       const readOnlyWarning =
         hasEnvApiKey && !tryingNewApiKey
-          ? 'আপনার SMS_API_KEY Vercel-এ ইতিমধ্যেই সেট করা আছে ✅। বর্তমান সার্ভার সেশনে নতুন সেটিংস চালু হয়েছে; রিস্টার্ট বা পরের ডিপ্লয়ের পরও স্থায়ী রাখতে Vercel → Project Settings → Environment Variables-এ SMS_MASKING_ENABLED, SMS_CALLER_ID এবং SMS_OTP_TEMPLATE যোগ করুন।'
-          : 'এই হোস্টিংয়ের ফাইল সিস্টেম Read-Only (যেমন Vercel)। বর্তমান সেশনে চালু থাকলেও স্থায়ীভাবে সংরক্ষণ করতে Vercel → Project Settings → Environment Variables-এ SMS_API_KEY (এবং চাইলে SMS_MASKING_ENABLED, SMS_CALLER_ID, SMS_OTP_TEMPLATE) যোগ করে Redeploy করুন।';
+          ? 'আপনার SMS_API_KEY Vercel-এ ইতিমধ্যেই সেট করা আছে ✅। বর্তমান সার্ভার সেশনে নতুন সেটিংস চালু হয়েছে; রিস্টার্ট বা পরের ডিপ্লয়ের পরও স্থায়ী রাখতে Google Admin দিয়ে Firestore সিঙ্ক চালু রাখুন অথবা Vercel Environment Variables-এ SMS_OTP_TEMPLATE যোগ করুন।'
+          : 'এই হোস্টিংয়ের ফাইল সিস্টেম Read-Only (যেমন Vercel)। স্থায়ীভাবে সংরক্ষণ করতে Google Admin দিয়ে Firestore সিঙ্ক চালু রাখুন অথবা Vercel → Project Settings → Environment Variables-এ SMS_API_KEY ও SMS_OTP_TEMPLATE যোগ করে Redeploy করুন।';
 
       return res.status(200).json({
         ok: true,
@@ -733,6 +840,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
           noReplyMode: nextSms.noReplyMode,
           isLiveMode: nextSms.isLiveMode,
           otpTemplate: nextSms.otpTemplate,
+          updatedAt: nextSms.updatedAt,
           hasApiKey: activeKey.length > 0,
           maskedApiKey: maskSecret(activeKey),
           hasAdminSecret: Boolean(process.env.SMS_ADMIN_SECRET || nextSms.adminSecret),

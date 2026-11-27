@@ -3,6 +3,7 @@ import { useMarket } from '../../context/MarketContext';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
 import { isProductPublicActive } from '../../utils/productStatus';
 import { WatermarkedImage } from '../Product/WatermarkedImage';
+import { getAutoAdjustedShowcaseCardClass } from '../../utils/gridLayout';
 import { Zap, Clock, RefreshCw } from 'lucide-react';
 
 export const FlashSale: React.FC = () => {
@@ -26,13 +27,13 @@ export const FlashSale: React.FC = () => {
 
   // Filter flash sale products (or products with discount / special price)
   let flashProducts = products.filter(p => (p.isFlashSale || (p.originalPrice && p.originalPrice > p.price)) && isProductPublicActive(p));
-  if (flashProducts.length < 5) {
+  if (flashProducts.length < 6) {
     const otherActive = products.filter(p => isProductPublicActive(p) && !flashProducts.some(fp => fp.id === p.id));
     flashProducts = [...flashProducts, ...otherActive];
   }
 
-  // Display first 5 Flash sale items consistently without unexpected rotation
-  const displayedProducts = flashProducts.slice(0, 5);
+  // Responsive auto-adjust showcase: 6 on mobile/sm (2x3 / 3x2), 4 on md, 5 on desktop lg (zero empty slots)
+  const displayedProducts = flashProducts.slice(0, 6);
 
   return (
     <section className="bg-slate-900 border-2 border-pink-500 rounded-2xl p-3 sm:p-4 text-white shadow-xl relative overflow-hidden">
@@ -77,7 +78,7 @@ export const FlashSale: React.FC = () => {
         </div>
       </div>
 
-      {/* Product Cards Grid: Exactly 5 items display */}
+      {/* Product Cards Grid: Responsive auto-adjusted (6 on Android/sm, 4 on md, 5 on lg — 0 gaps) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 relative z-10">
         {displayedProducts.map((prod, idx) => {
           if (!prod) return null;
@@ -90,6 +91,7 @@ export const FlashSale: React.FC = () => {
             : ((prod as any).image || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=400&q=80');
 
           const prodPrice = typeof prod.price === 'number' ? prod.price.toLocaleString() : (prod.price || '0');
+          const visibilitySpanClass = getAutoAdjustedShowcaseCardClass(idx, displayedProducts.length);
 
           return (
             <div
@@ -98,7 +100,7 @@ export const FlashSale: React.FC = () => {
                 setSelectedProduct(prod);
                 setActiveTab('product-details');
               }}
-              className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl p-2 border border-pink-500/80 shadow-xs hover:shadow-md transition cursor-pointer group flex flex-col justify-between relative overflow-hidden active:scale-95"
+              className={`bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl p-2 border border-pink-500/80 shadow-xs hover:shadow-md transition cursor-pointer group flex-col justify-between relative overflow-hidden active:scale-95 ${visibilitySpanClass}`}
             >
               {/* Discount Tag */}
               <div className="absolute top-1.5 left-1.5 z-10 bg-red-600 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded shadow-2xs">

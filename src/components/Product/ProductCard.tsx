@@ -25,9 +25,10 @@ interface ProductCardProps {
   layout?: 'grid' | 'list';
   layoutMode?: 'grid' | 'list';
   loading?: 'lazy' | 'eager';
+  className?: string;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, layout, layoutMode, loading = 'lazy' }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product, layout, layoutMode, loading = 'lazy', className = '' }) => {
   const activeLayout = layout || layoutMode || 'grid';
   const {
     language,
@@ -247,7 +248,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, layout, layou
   return (
     <div
       onClick={handleCardClick}
-      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-2xs hover:shadow-xl hover:border-pink-500 hover:scale-[1.01] transition-all duration-200 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+      className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-2xs hover:shadow-xl hover:border-pink-500 hover:scale-[1.01] transition-all duration-200 cursor-pointer group flex flex-col justify-between relative overflow-hidden ${className}`}
     >
       {/* Badges */}
       <div className="absolute top-2.5 left-2.5 z-10 flex flex-col gap-1">
