@@ -52,7 +52,7 @@ export const normalizeIncomingCategories = (list: unknown): Category[] => {
   if (!isMarketCategoryList(list)) return CATEGORIES;
   return list.map((rawCat: Category) => {
     const canonical = CATEGORIES.find(c => c.id === rawCat.id);
-    if (canonical && (!rawCat.catVersion || rawCat.catVersion < 2)) {
+    if (canonical && (!rawCat.catVersion || rawCat.catVersion < 3)) {
       return {
         ...rawCat,
         nameEn: canonical.nameEn,
@@ -60,7 +60,7 @@ export const normalizeIncomingCategories = (list: unknown): Category[] => {
         image: canonical.image,
         secondaryImage: canonical.secondaryImage,
         images: canonical.images,
-        catVersion: 2,
+        catVersion: 3,
         subcategories: Array.isArray(rawCat.subcategories) && rawCat.subcategories.length > 0
           ? rawCat.subcategories
           : canonical.subcategories,
@@ -75,7 +75,7 @@ export const normalizeIncomingCategories = (list: unknown): Category[] => {
       image: img1,
       secondaryImage: img2,
       images: Array.isArray(rawCat.images) && rawCat.images.length >= 2 ? rawCat.images : [img1, img2],
-      catVersion: rawCat.catVersion || 2
+      catVersion: rawCat.catVersion || 3
     };
   });
 };
@@ -4697,7 +4697,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       image: img1,
       secondaryImage: img2,
       images: Array.isArray(newCat.images) && newCat.images.length >= 2 ? newCat.images : [img1, img2],
-      catVersion: 2,
+      catVersion: 3,
       count: newCat.count ?? 0,
       subcategories: newCat.subcategories || [],
       popularBrands: newCat.popularBrands || []
@@ -4719,7 +4719,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const merged = {
             ...c,
             ...updatedFields,
-            catVersion: 2,
+            catVersion: 3,
             subcategories: updatedFields.subcategories ?? c.subcategories,
             popularBrands: updatedFields.popularBrands ?? c.popularBrands
           };

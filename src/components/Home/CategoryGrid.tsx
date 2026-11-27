@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
-import { getCategoryImageUrl, getCategoryDualImages, getSubcategoryImageUrl } from '../../utils/categoryImages';
+import { getCategoryImageUrl, getSubcategoryImageUrl } from '../../utils/categoryImages';
 import { getLiveCategoryCount, getLiveSubcategoryCount } from '../../utils/categoryCounts';
 import { toBengaliNumber } from '../../utils/dateUtils';
 import { ChevronDown, ChevronRight, Layers, X } from 'lucide-react';
@@ -50,13 +50,12 @@ export const CategoryGrid: React.FC = () => {
         </button>
       </div>
 
-      {/* MarketBD Vertical Category List (Dual Item Photos Left + Name & Ad Count Right) */}
+      {/* MarketBD Vertical Category List (Single Clean Composite Photo Left + Name & Ad Count Right) */}
       <div className="divide-y divide-slate-100 dark:divide-slate-800/80 relative">
         {categories.map(cat => {
           const isHovered = hoveredCategory === cat.id;
           const isExpanded = expandedCategory === cat.id;
-          const [catImgOne, catImgTwo] = getCategoryDualImages(cat.id, cat.image, cat.secondaryImage, cat.images);
-          const catSingleImage = catImgOne;
+          const catSingleImage = getCategoryImageUrl(cat.id, cat.image);
           const hasSubs = Array.isArray(cat.subcategories) && cat.subcategories.length > 0;
           const liveCatCount = getLiveCategoryCount(products, cat.id);
 
@@ -73,34 +72,19 @@ export const CategoryGrid: React.FC = () => {
                   onClick={() => handleCategoryClick(cat.id)}
                   className="flex-1 min-w-0 flex items-center gap-2.5 text-left cursor-pointer group"
                 >
-                  <div className="w-16 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 grid grid-cols-2 gap-0.5 p-0.5 shrink-0 overflow-hidden">
+                  <div className="w-16 h-11 rounded-lg bg-[#F4F7FA] dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shrink-0 overflow-hidden">
                     <img
-                      src={getOptimizedImageUrl(catImgOne, 140)}
-                      alt={`${cat.nameEn} 1`}
+                      src={getOptimizedImageUrl(catSingleImage, 160)}
+                      alt={language === 'bn' ? cat.nameBn : cat.nameEn}
                       loading="eager"
                       decoding="async"
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover rounded-[4px] group-hover:scale-105 transition-transform duration-200"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       onError={(e) => {
                         const target = e.currentTarget;
                         if (!target.dataset.retried) {
                           target.dataset.retried = 'true';
-                          target.src = getOptimizedImageUrl(getCategoryImageUrl('business_industry'), 140);
-                        }
-                      }}
-                    />
-                    <img
-                      src={getOptimizedImageUrl(catImgTwo, 140)}
-                      alt={`${cat.nameEn} 2`}
-                      loading="eager"
-                      decoding="async"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover rounded-[4px] group-hover:scale-105 transition-transform duration-200"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        if (!target.dataset.retried) {
-                          target.dataset.retried = 'true';
-                          target.src = getOptimizedImageUrl(getCategoryImageUrl('electronics'), 140);
+                          target.src = getOptimizedImageUrl(getCategoryImageUrl('business_industry'), 160);
                         }
                       }}
                     />
@@ -275,14 +259,12 @@ export const MobileCategoryGrid: React.FC = () => {
             parentCatId: businessCat.id
           }))
         ];
-        const [jobsPrimary] = getCategoryDualImages(cat.id, cat.image, cat.secondaryImage, cat.images);
-        const [bizPrimary] = getCategoryDualImages(businessCat.id, businessCat.image, businessCat.secondaryImage, businessCat.images);
+        const jobsImg = getCategoryImageUrl(cat.id, cat.image);
         return {
           ...cat,
           nameBn: 'ক্যারিয়ার ও বাণিজ্য',
           nameEn: 'Careers & Trade',
-          secondaryImage: bizPrimary,
-          images: [jobsPrimary, bizPrimary],
+          image: jobsImg,
           mergedBusinessId: businessCat.id,
           mergedSubcategories: mergedSubs
         };
@@ -337,7 +319,7 @@ export const MobileCategoryGrid: React.FC = () => {
             <div key={`mob-cat-row-${rowIdx}`} className="space-y-2">
               <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                 {rowCats.map(cat => {
-                  const [catImgOne, catImgTwo] = getCategoryDualImages(cat.id, cat.image, cat.secondaryImage, cat.images);
+                  const catImg = getCategoryImageUrl(cat.id, cat.image);
                   const hasSubs = cat.mergedSubcategories.length > 0;
                   const isExpanded = expandedCatId === cat.id;
 
@@ -362,11 +344,11 @@ export const MobileCategoryGrid: React.FC = () => {
                           : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-emerald-500 dark:hover:border-emerald-500'
                       }`}
                     >
-                      {/* Dual Item Photography Showcase (2 distinct items per category) */}
-                      <div className="w-full aspect-[16/11] rounded-lg bg-slate-100 dark:bg-slate-800/90 grid grid-cols-2 gap-0.5 overflow-hidden">
+                      {/* Unified Studio Showcase (2 category items together on 1 seamless background) */}
+                      <div className="w-full aspect-[4/3] rounded-lg bg-[#F4F7FA] dark:bg-slate-800/90 overflow-hidden">
                         <img
-                          src={getOptimizedImageUrl(catImgOne, 180)}
-                          alt={`${language === 'bn' ? cat.nameBn : cat.nameEn} 1`}
+                          src={getOptimizedImageUrl(catImg, 240)}
+                          alt={language === 'bn' ? cat.nameBn : cat.nameEn}
                           loading="eager"
                           decoding="async"
                           referrerPolicy="no-referrer"
@@ -375,22 +357,7 @@ export const MobileCategoryGrid: React.FC = () => {
                             const target = e.currentTarget;
                             if (!target.dataset.retried) {
                               target.dataset.retried = 'true';
-                              target.src = getOptimizedImageUrl(getCategoryImageUrl('business_industry'), 180);
-                            }
-                          }}
-                        />
-                        <img
-                          src={getOptimizedImageUrl(catImgTwo, 180)}
-                          alt={`${language === 'bn' ? cat.nameBn : cat.nameEn} 2`}
-                          loading="eager"
-                          decoding="async"
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const target = e.currentTarget;
-                            if (!target.dataset.retried) {
-                              target.dataset.retried = 'true';
-                              target.src = getOptimizedImageUrl(getCategoryImageUrl('electronics'), 180);
+                              target.src = getOptimizedImageUrl(getCategoryImageUrl('business_industry'), 240);
                             }
                           }}
                         />

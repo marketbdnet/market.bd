@@ -27,7 +27,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.vehicles[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.vehicles[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.vehicles,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     popularBrands: ['Toyota', 'Yamaha', 'Honda', 'Suzuki', 'Bajaj', 'TVS', 'Hero', 'Royal Enfield', 'Nissan', 'Hyundai', 'Mitsubishi', 'Mercedes-Benz', 'BMW', 'Kia', 'Ford', 'Chevrolet', 'Audi', 'Tesla', 'Runner', 'KTM', 'Kawasaki', 'Lifan', 'Walton', 'Vespa'],
     subcategories: [
@@ -198,7 +198,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.property[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.property[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.property,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -279,7 +279,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.mobiles[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.mobiles[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.mobiles,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     popularBrands: ['Apple', 'Samsung', 'Xiaomi', 'Redmi', 'POCO', 'OnePlus', 'Realme', 'Vivo', 'iQOO', 'OPPO', 'Google Pixel', 'Motorola', 'Huawei', 'Honor', 'Infinix', 'TECNO', 'itel', 'Walton', 'Symphony', 'Nothing', 'Sony', 'Nokia', 'ASUS'],
     subcategories: [
@@ -422,7 +422,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.electronics[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.electronics[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.electronics,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     popularBrands: ['Sony', 'Samsung', 'LG', 'TCL', 'Xiaomi', 'Apple MacBook', 'HP', 'Dell', 'Lenovo', 'ASUS', 'Acer', 'MSI', 'Gree', 'General', 'Daikin', 'Walton', 'Vision', 'JBL', 'Canon', 'DJI', 'PlayStation', 'Hikvision'],
     subcategories: [
@@ -648,7 +648,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.home_furniture[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.home_furniture[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.home_furniture,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -728,7 +728,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.fashion[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.fashion[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.fashion,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -797,7 +797,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.health_beauty[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.health_beauty[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.health_beauty,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -863,7 +863,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.services[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.services[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.services,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -943,7 +943,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.repair_construction[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.repair_construction[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.repair_construction,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -1007,7 +1007,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.business_equipment[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.business_equipment[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.business_equipment,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -1061,7 +1061,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.books_sports[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.books_sports[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.books_sports,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -1206,7 +1206,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.baby_kids[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.baby_kids[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.baby_kids,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -1260,7 +1260,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.agriculture[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.agriculture[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.agriculture,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -1353,7 +1353,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.animal_pets[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.animal_pets[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.animal_pets,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -1420,7 +1420,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.jobs[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.jobs[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.jobs,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -1474,7 +1474,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.seeking_work[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.seeking_work[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.seeking_work,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
@@ -1535,7 +1535,7 @@ export const CATEGORIES: Category[] = [
     image: MAIN_CATEGORY_DUAL_IMAGES.business_industry[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.business_industry[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.business_industry,
-    catVersion: 2,
+    catVersion: 3,
     count: 0,
     subcategories: [
       {
