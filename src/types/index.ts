@@ -154,7 +154,10 @@ export interface Category {
   nameEn: string;
   nameBn: string;
   icon: string; // lucide icon name
-  image?: string; // photo/picture URL for category visual
+  image?: string; // primary item photo URL for category visual
+  secondaryImage?: string; // second distinct item photo URL for category visual
+  images?: string[]; // minimum 2 distinct item photos for the category
+  catVersion?: number;
   count?: number;
   subcategories: SubCategory[];
   popularBrands?: string[];

@@ -78,7 +78,32 @@ export const Navbar: React.FC = () => {
   const [searchInput, setSearchInput] = useState('');
   const [isFloatingSearchOpen, setIsFloatingSearchOpen] = useState(false);
   const floatingSearchInputRef = useRef<HTMLInputElement>(null);
+  const fixedHeaderRef = useRef<HTMLElement>(null);
+  const [fixedHeaderHeight, setFixedHeaderHeight] = useState<number>(56);
   const shouldReduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    const el = fixedHeaderRef.current;
+    if (!el) return;
+
+    const updateHeight = () => {
+      const nextHeight = Math.ceil(el.getBoundingClientRect().height);
+      if (nextHeight > 0) {
+        setFixedHeaderHeight(prev => (prev !== nextHeight ? nextHeight : prev));
+      }
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateHeight);
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, []);
 
   useEffect(() => {
     if (isFloatingSearchOpen) {
@@ -115,12 +140,14 @@ export const Navbar: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-[#FF0000] dark:bg-[#B91C1C] text-white border-b-2 border-[#CC0000] dark:border-red-950 transition-colors shadow-md w-full relative pt-[max(2px,env(safe-area-inset-top))] backdrop-blur-md">
-      {/* ================= DESKTOP & TABLET LAYOUT (Hidden on mobile & tablet < lg) ================= */}
-      <div className="hidden lg:block">
-        <div className="max-w-7xl mx-auto px-2 sm:px-3 py-1 sm:py-1.5 flex flex-col gap-1 sm:gap-1.5 relative z-20 w-full">
-          {/* DESKTOP ROW 1: Brand Logo (Left) + Clock & Date/Month (Center) + Controls (Right) */}
-          <div className="flex items-center justify-between gap-1.5 sm:gap-2 w-full flex-wrap">
+      {/* ================= PERMANENT FIXED TOP CLOCK & BRAND HEADER (Always visible on scroll up & down) ================= */}
+      <header
+        ref={fixedHeaderRef}
+        className="fixed top-0 left-0 right-0 z-40 bg-[#FF0000] dark:bg-[#B91C1C] text-white border-b border-[#CC0000]/80 dark:border-red-950 transition-colors shadow-md w-full backdrop-blur-md"
+      >
+        {/* Desktop Row 1: Brand Logo (Left) + Signature Live Clock (Center) + Controls (Right) */}
+        <div className="hidden lg:block">
+          <div className="max-w-7xl mx-auto px-2 sm:px-3 py-1 sm:py-1.5 flex items-center justify-between gap-1.5 sm:gap-2 w-full flex-wrap relative z-20">
             {/* Brand Logo */}
             <button
               onClick={() => setActiveTab('home')}
@@ -231,9 +258,57 @@ export const Navbar: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
 
-        {/* DESKTOP ROW 2 (MERGED): Nav buttons (compact) + Search Bar on a single line, per request #9 */}
-        <div className="w-full flex items-center gap-1 sm:gap-1.5">
+        {/* Mobile & Tablet Row 1: Brand Logo + Signature Live Clock (Always pinned at top on scroll) */}
+        <div className="block lg:hidden px-2 py-1.5 w-full">
+          <div className="flex items-center justify-between gap-1.5 w-full">
+            {/* Logo */}
+            <button
+              onClick={() => setActiveTab('home')}
+              className="flex items-center gap-1.5 text-left group cursor-pointer shrink-0 select-none"
+              title="MarketBD.Net Home"
+            >
+              <div className="h-8 w-8 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-full border-2 border-white/90 shadow-sm bg-black">
+                <img
+                  src={customLogoUrl || officialMarketLogoImg}
+                  alt="MarketBD.Net Logo"
+                  className="w-full h-full object-cover shrink-0 rounded-full"
+                  loading="eager"
+                  decoding="async"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = officialMarketLogoImg;
+                  }}
+                />
+              </div>
+              <div className="flex flex-col leading-none">
+                <span className="text-sm font-black tracking-tight drop-shadow-sm whitespace-nowrap">
+                  <span className="text-[#FFE600]">M</span><span className="text-white">arketBD.</span><span className="text-[#FFE600]">Net</span>
+                </span>
+                <span className="text-[7px] text-amber-100 font-bold whitespace-nowrap max-w-[140px] truncate mt-0.5">
+                  {OFFICIAL_SLOGAN}
+                </span>
+              </div>
+            </button>
+
+            {/* Favorite Live Clock Widget in Navbar Center/Right */}
+            <div className="flex-1 flex items-center justify-end sm:justify-center min-w-0">
+              <LiveClockWidget />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Auto-measured spacer so scrolling secondary navigation and content start cleanly below the fixed clock bar */}
+      <div aria-hidden="true" style={{ height: `${fixedHeaderHeight}px` }} className="w-full shrink-0" />
+
+      {/* ================= SCROLLING SECONDARY NAVIGATION STRIP (Nav Links + Search) ================= */}
+      <div className="bg-[#FF0000] dark:bg-[#B91C1C] text-white border-b-2 border-[#CC0000] dark:border-red-950 transition-colors shadow-md w-full relative z-20">
+        {/* Desktop Row 2: Nav buttons + Search Bar */}
+        <div className="hidden lg:block">
+          <div className="max-w-7xl mx-auto px-2 sm:px-3 pt-1 pb-1.5 w-full">
+            <div className="w-full flex items-center gap-1 sm:gap-1.5">
           {/* Compact Nav Buttons - shrunk, icon-first, no fixed width, so they fit alongside search */}
           <div className="flex items-center gap-1 shrink-0">
             <button
@@ -408,45 +483,8 @@ export const Navbar: React.FC = () => {
         </div>
       </div>
 
-      {/* ================= MOBILE & TABLET DEDICATED STRUCTURE (Shown on all mobile & tablet < lg) ================= */}
-      <div className="block lg:hidden px-2 py-1.5 space-y-1.5 w-full bg-transparent text-white">
-        {/* MOBILE ROW 1: Logo + Live Clock (Favorite Clock Always Visible!) */}
-        <div className="flex items-center justify-between gap-1.5 w-full">
-          {/* Logo */}
-          <button
-            onClick={() => setActiveTab('home')}
-            className="flex items-center gap-1.5 text-left group cursor-pointer shrink-0 select-none"
-            title="MarketBD.Net Home"
-          >
-            <div className="h-8 w-8 aspect-square relative flex items-center justify-center shrink-0 overflow-hidden rounded-full border-2 border-white/90 shadow-sm bg-black">
-              <img
-                src={customLogoUrl || officialMarketLogoImg}
-                alt="MarketBD.Net Logo"
-                className="w-full h-full object-cover shrink-0 rounded-full"
-                loading="eager"
-                decoding="async"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = officialMarketLogoImg;
-                }}
-              />
-            </div>
-            <div className="flex flex-col leading-none">
-              <span className="text-sm font-black tracking-tight drop-shadow-sm whitespace-nowrap">
-                <span className="text-[#FFE600]">M</span><span className="text-white">arketBD.</span><span className="text-[#FFE600]">Net</span>
-              </span>
-              <span className="text-[7px] text-amber-100 font-bold whitespace-nowrap max-w-[140px] truncate mt-0.5">
-                {OFFICIAL_SLOGAN}
-              </span>
-            </div>
-          </button>
-
-          {/* Favorite Live Clock Widget in Navbar Center/Right */}
-          <div className="flex-1 flex items-center justify-end sm:justify-center min-w-0">
-            <LiveClockWidget />
-          </div>
-        </div>
-
+      {/* ================= MOBILE & TABLET SECONDARY NAVIGATION ROWS (< lg) ================= */}
+      <div className="block lg:hidden px-2 pt-1 pb-1.5 space-y-1.5 w-full bg-transparent text-white">
         {/* MOBILE ROW 2A: Quick Utilities (Theme, Lang, Login/Profile, Menu) - 4 Equal Columns */}
         <div className="grid grid-cols-4 gap-1.5 w-full items-center">
           {/* 1. Dark/Light Mode */}
@@ -701,7 +739,7 @@ export const Navbar: React.FC = () => {
           )}
         </div>
       </div>
-    </header>
+    </div>
 
     {/* Comprehensive Drawer Menu - Mounted at root level with z-[100] so it is never trapped behind header or other elements */}
     {isMobileMenuOpen && (

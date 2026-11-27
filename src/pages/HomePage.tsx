@@ -157,7 +157,7 @@ export const HomePage: React.FC = () => {
       <div className="space-y-4 sm:space-y-6 pb-12">
         <SEOHelmet />
 
-      {/* BIKROY-STYLE PURE RED TOP FRONT-PAGE BAR */}
+      {/* MARKETBD SIGNATURE RED TOP FRONT-PAGE BAR */}
       <section className="bg-[#FF0000] dark:bg-[#B91C1C] text-white rounded-xl px-4 py-3 sm:px-5 sm:py-3.5 border border-[#CC0000] dark:border-red-900 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-base sm:text-lg font-black tracking-tight text-white">

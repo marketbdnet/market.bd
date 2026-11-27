@@ -5,7 +5,7 @@ import { CATEGORIES } from '../data/bangladeshData';
 import officialMarketLogoImg from '../assets/images/marketbd_official_logo.jpg';
 import { storage } from '../utils/storage';
 import { validateBangladeshiPhone, isPhoneVisibleToBuyers } from '../utils/phoneUtils';
-import { setGlobalCategoryImageOverrides, getSecondLevelImageUrl, getSubcategoryImageUrl, getCategoryImageUrl } from '../utils/categoryImages';
+import { setGlobalCategoryImageOverrides, getSecondLevelImageUrl, getSubcategoryImageUrl, getCategoryImageUrl, getCategoryDualImages } from '../utils/categoryImages';
 import { checkAndExpireAds, renewExpiredAd } from '../utils/adExpiryEngine';
 import { isProductPublicActive, isProductPending, isProductRejected, isProductSold, isProductExpired, makeApprovedProduct, makePendingProduct, makeRejectedProduct } from '../utils/productStatus';
 import { sendLocalBrowserPushNotification, requestWebPushPermission } from '../services/pushNotificationService';
@@ -33,9 +33,9 @@ import {
 } from '../utils/authOwnership';
 import { clearAdminAuthToken } from '../utils/adminAuth';
 
-const CATEGORY_STORAGE_KEY = 'marketbd_categories_v3_bikroy17';
+const CATEGORY_STORAGE_KEY = 'marketbd_categories_v4_signature17';
 
-const isBikroy17CategoryList = (list: unknown): list is Category[] => {
+export const isMarketCategoryList = (list: unknown): list is Category[] => {
   if (!Array.isArray(list) || list.length < 15) return false;
   const ids = new Set(list.map((c: any) => c?.id).filter(Boolean));
   const hasLegacyRoot =
@@ -46,6 +46,38 @@ const isBikroy17CategoryList = (list: unknown): list is Category[] => {
     ids.has('events_tickets') ||
     ids.has('others');
   return !hasLegacyRoot && ids.has('seeking_work') && ids.has('repair_construction') && ids.has('business_industry');
+};
+
+export const normalizeIncomingCategories = (list: unknown): Category[] => {
+  if (!isMarketCategoryList(list)) return CATEGORIES;
+  return list.map((rawCat: Category) => {
+    const canonical = CATEGORIES.find(c => c.id === rawCat.id);
+    if (canonical && (!rawCat.catVersion || rawCat.catVersion < 2)) {
+      return {
+        ...rawCat,
+        nameEn: canonical.nameEn,
+        nameBn: canonical.nameBn,
+        image: canonical.image,
+        secondaryImage: canonical.secondaryImage,
+        images: canonical.images,
+        catVersion: 2,
+        subcategories: Array.isArray(rawCat.subcategories) && rawCat.subcategories.length > 0
+          ? rawCat.subcategories
+          : canonical.subcategories,
+        popularBrands: Array.isArray(rawCat.popularBrands) && rawCat.popularBrands.length > 0
+          ? rawCat.popularBrands
+          : canonical.popularBrands
+      };
+    }
+    const [img1, img2] = getCategoryDualImages(rawCat.id, rawCat.image, rawCat.secondaryImage, rawCat.images);
+    return {
+      ...rawCat,
+      image: img1,
+      secondaryImage: img2,
+      images: Array.isArray(rawCat.images) && rawCat.images.length >= 2 ? rawCat.images : [img1, img2],
+      catVersion: rawCat.catVersion || 2
+    };
+  });
 };
 
 export const DEFAULT_PAYMENT_PARTNERS: PaymentPartnerItem[] = [
@@ -1067,13 +1099,15 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               return merged;
             });
           }
-          if (isBikroy17CategoryList(d.categories)) {
-            setCategoriesState(d.categories);
-            storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(d.categories));
+          if (isMarketCategoryList(d.categories)) {
+            const normalizedCats = normalizeIncomingCategories(d.categories);
+            setCategoriesState(normalizedCats);
+            storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(normalizedCats));
           }
-          if (isBikroy17CategoryList(d.categories_config)) {
-            setCategoriesState(d.categories_config);
-            storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(d.categories_config));
+          if (isMarketCategoryList(d.categories_config)) {
+            const normalizedCats = normalizeIncomingCategories(d.categories_config);
+            setCategoriesState(normalizedCats);
+            storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(normalizedCats));
           }
           if (d.category_image_overrides || d.categoryImageOverrides) {
             const overrides = d.category_image_overrides || d.categoryImageOverrides;
@@ -1406,9 +1440,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const unsubCategories = onSnapshot(doc(db, 'settings', 'categories_config'), (snapshot) => {
         if (snapshot.exists()) {
           const val = snapshot.data()?.value;
-          if (isBikroy17CategoryList(val)) {
-            setCategoriesState(val);
-            storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(val));
+          if (isMarketCategoryList(val)) {
+            const normalizedCats = normalizeIncomingCategories(val);
+            setCategoriesState(normalizedCats);
+            storage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(normalizedCats));
           }
         }
       }, (err) => console.log('Categories listener notice:', err));
@@ -3326,7 +3361,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  // Clean Bikroy-style real-time chat state (server-authoritative via /api/chats + SSE, dummy threads purged)
+  // Clean real-time chat state (server-authoritative via /api/chats + SSE, dummy threads purged)
   const [rawChatThreads, setRawChatThreads] = useState<ChatThread[]>(() => {
     try {
       const saved = storage.getItem('marketbd_chat_threads');
@@ -4641,13 +4676,8 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const saved = storage.getItem(CATEGORY_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (isBikroy17CategoryList(parsed) && parsed.length >= CATEGORIES.length) {
-          return parsed.map((c: Category) => {
-            if (c.id === 'vehicles') {
-              return { ...c, nameBn: 'যানবাহন ও গাড়ি', nameEn: 'Vehicles' };
-            }
-            return c;
-          });
+        if (isMarketCategoryList(parsed) && parsed.length >= CATEGORIES.length) {
+          return normalizeIncomingCategories(parsed);
         }
       }
     } catch (e) {
@@ -4657,12 +4687,17 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const addCategory = (newCat: Omit<Category, 'count'> & { count?: number }) => {
+    const id = newCat.id ? newCat.id.trim().toLowerCase().replace(/\s+/g, '_') : `cat_${Date.now()}`;
+    const [img1, img2] = getCategoryDualImages(id, newCat.image, newCat.secondaryImage, newCat.images);
     const item: Category = {
-      id: newCat.id ? newCat.id.trim().toLowerCase().replace(/\s+/g, '_') : `cat_${Date.now()}`,
+      id,
       nameEn: newCat.nameEn.trim(),
       nameBn: newCat.nameBn.trim(),
       icon: newCat.icon || 'Layers',
-      image: newCat.image || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=300&q=80',
+      image: img1,
+      secondaryImage: img2,
+      images: Array.isArray(newCat.images) && newCat.images.length >= 2 ? newCat.images : [img1, img2],
+      catVersion: 2,
       count: newCat.count ?? 0,
       subcategories: newCat.subcategories || [],
       popularBrands: newCat.popularBrands || []
@@ -4681,11 +4716,19 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCategoriesState(prev => {
       const updated = prev.map(c => {
         if (c.id === id) {
-          return {
+          const merged = {
             ...c,
             ...updatedFields,
+            catVersion: 2,
             subcategories: updatedFields.subcategories ?? c.subcategories,
             popularBrands: updatedFields.popularBrands ?? c.popularBrands
+          };
+          const [img1, img2] = getCategoryDualImages(id, merged.image, merged.secondaryImage, merged.images);
+          return {
+            ...merged,
+            image: img1,
+            secondaryImage: img2,
+            images: Array.isArray(merged.images) && merged.images.length >= 2 ? merged.images : [img1, img2]
           };
         }
         return c;

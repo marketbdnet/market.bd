@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
-import { getCategoryImageUrl, getSubcategoryImageUrl, getSecondLevelImageUrl } from '../../utils/categoryImages';
+import { getCategoryImageUrl, getCategoryDualImages, getSubcategoryImageUrl, getSecondLevelImageUrl } from '../../utils/categoryImages';
 import { getLiveCategoryCount, getLiveSubcategoryCount, getLiveSecondLevelCount } from '../../utils/categoryCounts';
 import { toBengaliNumber } from '../../utils/dateUtils';
 import { ChevronRight, Home } from 'lucide-react';
@@ -59,7 +59,7 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
     return language === 'bn' ? `${toBengaliNumber(num)}টি` : `${num} ads`;
   };
 
-  // 1. Clean Bikroy-style Breadcrumb Bar
+  // 1. Clean Marketplace Breadcrumb Bar
   const renderBreadcrumb = () => {
     return (
       <nav
@@ -148,7 +148,7 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {categories.map(cat => {
-            const catImg = getCategoryImageUrl(cat.id, cat.image);
+            const [catImgOne, catImgTwo] = getCategoryDualImages(cat.id, cat.image, cat.secondaryImage, cat.images);
             const liveCatCount = getLiveCategoryCount(products, cat.id);
             return (
               <button
@@ -158,14 +158,22 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
                 className="flex items-center justify-between gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/70 transition text-left cursor-pointer group"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                  <div className="w-16 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 grid grid-cols-2 gap-0.5 p-0.5 shrink-0 overflow-hidden">
                     <img
-                      src={getOptimizedImageUrl(catImg, 160)}
-                      alt={cat.nameEn}
+                      src={getOptimizedImageUrl(catImgOne, 140)}
+                      alt={`${cat.nameEn} 1`}
                       loading="lazy"
                       decoding="async"
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-contain"
+                      className="w-full h-full object-cover rounded-[4px]"
+                    />
+                    <img
+                      src={getOptimizedImageUrl(catImgTwo, 140)}
+                      alt={`${cat.nameEn} 2`}
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover rounded-[4px]"
                     />
                   </div>
                   <div className="min-w-0">
@@ -190,18 +198,29 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
   const renderSubcategories = () => {
     if (!activeCategory) return null;
     const subs = activeCategory.subcategories || [];
-    const mainCatImg = getCategoryImageUrl(activeCategory.id, activeCategory.image);
+    const [mainCatImgOne, mainCatImgTwo] = getCategoryDualImages(
+      activeCategory.id,
+      activeCategory.image,
+      activeCategory.secondaryImage,
+      activeCategory.images
+    );
 
     return (
       <div className="space-y-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+            <div className="w-16 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 grid grid-cols-2 gap-0.5 p-0.5 shrink-0 overflow-hidden">
               <img
-                src={getOptimizedImageUrl(mainCatImg, 140)}
-                alt={activeCategory.nameEn}
+                src={getOptimizedImageUrl(mainCatImgOne, 140)}
+                alt={`${activeCategory.nameEn} 1`}
                 referrerPolicy="no-referrer"
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover rounded-[4px]"
+              />
+              <img
+                src={getOptimizedImageUrl(mainCatImgTwo, 140)}
+                alt={`${activeCategory.nameEn} 2`}
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover rounded-[4px]"
               />
             </div>
             <div className="min-w-0">
@@ -247,7 +266,7 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
                         const target = e.currentTarget;
                         if (!target.dataset.retried) {
                           target.dataset.retried = 'true';
-                          target.src = getOptimizedImageUrl(mainCatImg, 160);
+                          target.src = getOptimizedImageUrl(mainCatImgOne, 160);
                         }
                       }}
                     />

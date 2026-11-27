@@ -3,7 +3,7 @@ import { CANONICAL_400_PRODUCTS } from './canonicalCatalog400';
 import { normalizeCategoryId } from '../utils/categoryMapping';
 
 // Pure data (no .jpg ES imports) so both Vite client and Node tsx server.ts import cleanly.
-const SUPPLEMENTAL_BIKROY17_PRODUCTS: Product[] = [
+const SUPPLEMENTAL_MARKETBD17_PRODUCTS: Product[] = [
   // Repair & Construction -> construction_materials
   {
     id: 'prod-live-repair_construction-construction_materials-steel_rod_cement',
@@ -785,6 +785,102 @@ const SUPPLEMENTAL_BIKROY17_PRODUCTS: Product[] = [
   }
 ];
 
+const CATEGORY_GALLERY_FALLBACKS: Record<string, [string, string]> = {
+  vehicles: [
+    'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=600&q=80'
+  ],
+  property: [
+    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80'
+  ],
+  mobiles: [
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=600&q=80'
+  ],
+  electronics: [
+    'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=600&q=80'
+  ],
+  home_furniture: [
+    'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=600&q=80'
+  ],
+  fashion: [
+    'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&w=600&q=80'
+  ],
+  health_beauty: [
+    'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=600&q=80'
+  ],
+  services: [
+    'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=600&q=80'
+  ],
+  repair_construction: [
+    'https://images.unsplash.com/photo-1530124566582-a618bc2615dc?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=600&q=80'
+  ],
+  business_equipment: [
+    'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80'
+  ],
+  books_sports: [
+    'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=600&q=80'
+  ],
+  baby_kids: [
+    'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1522771930-78848d9293e8?auto=format&fit=crop&w=600&q=80'
+  ],
+  agriculture: [
+    'https://images.unsplash.com/photo-1592878904946-b3cd8ae243d0?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80'
+  ],
+  animal_pets: [
+    'https://images.unsplash.com/photo-1570042225831-d98fa7577f1e?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=600&q=80'
+  ],
+  jobs: [
+    'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=600&q=80'
+  ],
+  seeking_work: [
+    'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80'
+  ],
+  business_industry: [
+    'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?auto=format&fit=crop&w=600&q=80'
+  ]
+};
+
+const ensureMinimumTwoProductImages = (p: Product): Product => {
+  const existing = Array.isArray(p.images)
+    ? Array.from(new Set(p.images.map(u => String(u || '').trim()).filter(Boolean)))
+    : [];
+  if (existing.length >= 2) {
+    return existing.length === p.images?.length ? p : { ...p, images: existing };
+  }
+  const pool = CATEGORY_GALLERY_FALLBACKS[p.category] || CATEGORY_GALLERY_FALLBACKS.business_industry;
+  const completed = [...existing];
+  for (const candidate of pool) {
+    if (!completed.includes(candidate)) {
+      completed.push(candidate);
+    }
+    if (completed.length >= 2) break;
+  }
+  if (completed.length < 2) {
+    const backup = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80';
+    if (!completed.includes(backup)) completed.push(backup);
+  }
+  return {
+    ...p,
+    images: completed
+  };
+};
+
 const normalizedCanonicalProducts: Product[] = CANONICAL_400_PRODUCTS.map((p) => {
   const mappedCategory = normalizeCategoryId(p.category, p.subCategory);
   if (mappedCategory === p.category) return p;
@@ -796,5 +892,5 @@ const normalizedCanonicalProducts: Product[] = CANONICAL_400_PRODUCTS.map((p) =>
 
 export const INITIAL_PRODUCTS: Product[] = [
   ...normalizedCanonicalProducts,
-  ...SUPPLEMENTAL_BIKROY17_PRODUCTS
-];
+  ...SUPPLEMENTAL_MARKETBD17_PRODUCTS
+].map(ensureMinimumTwoProductImages);

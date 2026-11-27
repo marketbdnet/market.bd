@@ -1,31 +1,11 @@
 /**
  * MarketBD Comprehensive Category Image Catalog
- * High-resolution, realistic and clean isolated product images
- * for all 17 Main Categories, Subcategories, and Second-Level Categories.
+ * High-resolution, authentic category-matched dual item photography
+ * for all 17 MarketBD Categories, Subcategories, and Second-Level Categories.
  */
 
 import { storage } from './storage';
 
-// Import local isolated assets
-import catHouseImg from '../assets/images/cat_house_isolated_1785510865762.jpg';
-import catScooterImg from '../assets/images/cat_scooter_isolated_1785510882941.jpg';
-import catMobileImg from '../assets/images/cat_mobile_isolated_1785510896303.jpg';
-import catLaptopImg from '../assets/images/cat_laptop_isolated_1785510910798.jpg';
-import catSofaImg from '../assets/images/cat_sofa_isolated_1785510923610.jpg';
-import catSneakerImg from '../assets/images/cat_sneaker_isolated_1785510934540.jpg';
-import catTvImg from '../assets/images/cat_tv_isolated_1785510949732.jpg';
-import catPerfumeImg from '../assets/images/cat_perfume_isolated_1785510963843.jpg';
-import catTeddyImg from '../assets/images/cat_teddy_isolated_1785510975065.jpg';
-import catBooksImg from '../assets/images/cat_books_isolated_1785510988963.jpg';
-import catCatImg from '../assets/images/cat_cat_isolated_1785511000333.jpg';
-import catPlantImg from '../assets/images/cat_plant_isolated_1785511014721.jpg';
-import catDrillImg from '../assets/images/cat_drill_isolated_1785511025652.jpg';
-import catToolboxImg from '../assets/images/cat_toolbox_isolated_1785511040837.jpg';
-import catBriefcaseImg from '../assets/images/cat_briefcase_isolated_1785511054136.jpg';
-import catGiftImg from '../assets/images/cat_gift_isolated_1785511065334.jpg';
-import catServicesImg from '../assets/images/cat_services_isolated_1794925086045.jpg';
-import catCvImg from '../assets/images/cat_cv_isolated_1794925086947.jpg';
-import catIndustryImg from '../assets/images/cat_industry_isolated_1794925087601.jpg';
 import subThreeWheelersImg from '../assets/images/sub_three_wheelers_1794926944301.jpg';
 import subWaterTransportImg from '../assets/images/sub_water_transport_1794926943794.jpg';
 import subFeaturePhonesImg from '../assets/images/sub_feature_phones_1794926944480.jpg';
@@ -65,35 +45,108 @@ export function setGlobalCategoryImageOverrides(overrides: Record<string, string
 }
 
 /**
- * 1. Level 1: Main Category Images (All 17 Bikroy-style Categories + legacy fallback aliases)
+ * 1. Level 1: Dual Main Category Images (Minimum 2 distinct authentic item photos per category)
  */
-export const MAIN_CATEGORY_IMAGES: Record<string, string> = {
-  vehicles: catScooterImg,
-  property: catHouseImg,
-  mobiles: catMobileImg,
-  electronics: catTvImg,
-  home_furniture: catSofaImg,
-  fashion: catSneakerImg,
-  health_beauty: catPerfumeImg,
-  services: catServicesImg,
-  repair_construction: catDrillImg,
-  business_equipment: catToolboxImg,
-  books_sports: catBooksImg,
-  baby_kids: catTeddyImg,
-  agriculture: catPlantImg,
-  animal_pets: catCatImg,
-  jobs: catBriefcaseImg,
-  seeking_work: catCvImg,
-  business_industry: catIndustryImg,
+export const MAIN_CATEGORY_DUAL_IMAGES: Record<string, [string, string]> = {
+  vehicles: [
+    'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=500&q=80'
+  ],
+  property: [
+    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80'
+  ],
+  mobiles: [
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=500&q=80'
+  ],
+  electronics: [
+    'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=500&q=80'
+  ],
+  home_furniture: [
+    'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=500&q=80'
+  ],
+  fashion: [
+    'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&w=500&q=80'
+  ],
+  health_beauty: [
+    'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=500&q=80'
+  ],
+  services: [
+    'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=500&q=80'
+  ],
+  repair_construction: [
+    'https://images.unsplash.com/photo-1530124566582-a618bc2615dc?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=500&q=80'
+  ],
+  business_equipment: [
+    subShopPosImg,
+    'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=500&q=80'
+  ],
+  books_sports: [
+    'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=500&q=80'
+  ],
+  baby_kids: [
+    'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=500&q=80',
+    subBabyStrollerImg
+  ],
+  agriculture: [
+    'https://images.unsplash.com/photo-1592878904946-b3cd8ae243d0?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=500&q=80'
+  ],
+  animal_pets: [
+    'https://images.unsplash.com/photo-1570042225831-d98fa7577f1e?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=500&q=80'
+  ],
+  jobs: [
+    'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=500&q=80'
+  ],
+  seeking_work: [
+    'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=500&q=80'
+  ],
+  business_industry: [
+    'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?auto=format&fit=crop&w=500&q=80'
+  ],
 
   // Legacy fallback aliases
-  computers: catLaptopImg,
-  others: catGiftImg,
-  education_courses: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=600&q=80',
-  travel_tours: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=600&q=80',
-  food_restaurants: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
-  events_tickets: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=600&q=80'
+  computers: [
+    'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1587831990711-23ca6441447b?auto=format&fit=crop&w=500&q=80'
+  ],
+  others: [
+    'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=500&q=80',
+    subAntiquesImg
+  ],
+  education_courses: [
+    'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=500&q=80'
+  ],
+  travel_tours: [
+    'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=600&q=80',
+    subDomesticToursImg
+  ],
+  food_restaurants: [
+    'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=500&q=80'
+  ],
+  events_tickets: [
+    'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=500&q=80'
+  ]
 };
+
+export const MAIN_CATEGORY_IMAGES: Record<string, string> = Object.fromEntries(
+  Object.entries(MAIN_CATEGORY_DUAL_IMAGES).map(([key, pair]) => [key, pair[0]])
+);
 
 /**
  * 2. Level 2: Subcategory Images (Strict Category & Item Match)
@@ -499,8 +552,42 @@ export function getCategoryImageUrl(categoryId: string, explicitImage?: string):
   if (activeImageOverrides[key]) {
     return activeImageOverrides[key];
   }
-  if (explicitImage && explicitImage.trim() !== '') return explicitImage;
-  return MAIN_CATEGORY_IMAGES[key] || MAIN_CATEGORY_IMAGES.business_industry;
+  const canonicalPair = MAIN_CATEGORY_DUAL_IMAGES[key] || MAIN_CATEGORY_DUAL_IMAGES.business_industry;
+  if (explicitImage && explicitImage.trim() !== '' && !explicitImage.includes('_isolated_')) {
+    return explicitImage;
+  }
+  return canonicalPair[0];
+}
+
+/**
+ * Get at least 2 distinct realistic item photos for any Category (Level 1)
+ */
+export function getCategoryDualImages(
+  categoryId: string,
+  explicitPrimary?: string,
+  explicitSecondary?: string,
+  explicitImages?: string[]
+): [string, string] {
+  const key = String(categoryId || '').toLowerCase().trim();
+  const canonicalPair = MAIN_CATEGORY_DUAL_IMAGES[key] || MAIN_CATEGORY_DUAL_IMAGES.business_industry;
+  const cleanExplicit = (url?: string) =>
+    url && url.trim() !== '' && !url.includes('_isolated_') ? url.trim() : '';
+
+  const overridePrimary = cleanExplicit(activeImageOverrides[key]);
+  const arrFirst = Array.isArray(explicitImages) ? cleanExplicit(explicitImages[0]) : '';
+  const arrSecond = Array.isArray(explicitImages) ? cleanExplicit(explicitImages[1]) : '';
+
+  const first = overridePrimary || cleanExplicit(explicitPrimary) || arrFirst || canonicalPair[0];
+  let second = cleanExplicit(explicitSecondary) || arrSecond || canonicalPair[1];
+
+  if (!second || second === first) {
+    second = canonicalPair[1] !== first ? canonicalPair[1] : canonicalPair[0];
+  }
+  if (!second || second === first) {
+    second = MAIN_CATEGORY_DUAL_IMAGES.electronics[0];
+  }
+
+  return [first, second];
 }
 
 /**

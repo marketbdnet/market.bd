@@ -219,7 +219,7 @@ export const ChatDrawer: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto py-3 sm:py-5 px-2 sm:px-4">
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-lg overflow-hidden grid grid-cols-1 md:grid-cols-3 h-[80vh] max-h-[760px] min-h-[480px]">
-        {/* Left Pane: Simple Bikroy-style Inbox */}
+        {/* Left Pane: Inbox */}
         <div
           className={`border-r border-slate-200 dark:border-slate-800 flex flex-col min-h-0 bg-slate-50/70 dark:bg-slate-950 ${
             activeChat ? 'hidden md:flex' : 'flex'
@@ -390,7 +390,7 @@ export const ChatDrawer: React.FC = () => {
         >
           {activeChat ? (
             <>
-              {/* Clean Bikroy-style Conversation Header */}
+              {/* Conversation Header */}
               <div className="p-3 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 shrink-0">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <button

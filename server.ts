@@ -1660,7 +1660,7 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     const SITE_URL = 'https://marketbd.net';
     const today = new Date().toISOString().split('T')[0];
 
-    // Popular marketplace categories (Bikroy 17)
+    // Popular marketplace categories (MarketBD 17)
     const categories = [
       'vehicles', 'property', 'mobiles', 'electronics', 'home_furniture',
       'fashion', 'health_beauty', 'services', 'repair_construction', 'business_equipment',

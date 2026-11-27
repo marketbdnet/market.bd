@@ -3,7 +3,7 @@ import { useMarket } from '../../context/MarketContext';
 import { WatermarkedImage } from '../Product/WatermarkedImage';
 import { BkashLogo, NagadLogo, RocketLogo } from '../Common/BrandLogos';
 import { CATEGORIES, BANGLADESH_DIVISIONS, CATEGORY_BRANDS_MODELS } from '../../data/bangladeshData';
-import { getCategoryImageUrl } from '../../utils/categoryImages';
+import { getCategoryDualImages } from '../../utils/categoryImages';
 import { Product, AdType, Condition } from '../../types';
 import { storage as safeStorage, safeParseJSON } from '../../utils/storage';
 import { validateBangladeshiPhone, formatPhoneDisplay } from '../../utils/phoneUtils';
@@ -1249,7 +1249,7 @@ export const CategoryForms: React.FC = () => {
         }
       })()}
 
-      {/* STEP 1: Select Category (Clean Bikroy-style Grid with Category Images) */}
+      {/* STEP 1: Select Category (Clean Marketplace Grid with Dual Category Images) */}
       {step === 1 && (
         <div className="bg-white dark:bg-slate-900 rounded-xl p-4 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-2xs">
           <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">
@@ -1258,7 +1258,7 @@ export const CategoryForms: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
             {CATEGORIES.map(cat => {
-              const catImg = getCategoryImageUrl(cat.id, cat.image);
+              const [catImgOne, catImgTwo] = getCategoryDualImages(cat.id, cat.image, cat.secondaryImage, cat.images);
               const isSelected = category === cat.id;
               return (
                 <button
@@ -1274,11 +1274,18 @@ export const CategoryForms: React.FC = () => {
                       : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
                   }`}
                 >
-                  <div className="w-11 h-11 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                  <div className="w-16 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 grid grid-cols-2 gap-0.5 p-0.5 shrink-0 overflow-hidden">
                     <img
-                      src={catImg}
-                      alt={language === 'bn' ? cat.nameBn : cat.nameEn}
-                      className="w-full h-full object-contain"
+                      src={catImgOne}
+                      alt={`${language === 'bn' ? cat.nameBn : cat.nameEn} 1`}
+                      className="w-full h-full object-cover rounded-[4px]"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
+                    <img
+                      src={catImgTwo}
+                      alt={`${language === 'bn' ? cat.nameBn : cat.nameEn} 2`}
+                      className="w-full h-full object-cover rounded-[4px]"
                       loading="lazy"
                       referrerPolicy="no-referrer"
                     />

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
-import { getCategoryImageUrl, getSubcategoryImageUrl } from '../../utils/categoryImages';
+import { getCategoryImageUrl, getCategoryDualImages, getSubcategoryImageUrl } from '../../utils/categoryImages';
 import { getLiveCategoryCount, getLiveSubcategoryCount } from '../../utils/categoryCounts';
 import { toBengaliNumber } from '../../utils/dateUtils';
 import { ChevronDown, ChevronRight, Layers, X } from 'lucide-react';
@@ -29,7 +29,7 @@ export const CategoryGrid: React.FC = () => {
 
   return (
     <div className="w-full relative">
-      {/* Clean Bikroy-style Header */}
+      {/* MarketBD Category Header */}
       <div className="flex items-center justify-between pb-3 mb-2.5 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-2 min-w-0">
           <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -50,12 +50,13 @@ export const CategoryGrid: React.FC = () => {
         </button>
       </div>
 
-      {/* Simple Bikroy-style Vertical Category List (Image Left + Name & Ad Count Right) */}
+      {/* MarketBD Vertical Category List (Dual Item Photos Left + Name & Ad Count Right) */}
       <div className="divide-y divide-slate-100 dark:divide-slate-800/80 relative">
         {categories.map(cat => {
           const isHovered = hoveredCategory === cat.id;
           const isExpanded = expandedCategory === cat.id;
-          const catSingleImage = getCategoryImageUrl(cat.id, cat.image);
+          const [catImgOne, catImgTwo] = getCategoryDualImages(cat.id, cat.image, cat.secondaryImage, cat.images);
+          const catSingleImage = catImgOne;
           const hasSubs = Array.isArray(cat.subcategories) && cat.subcategories.length > 0;
           const liveCatCount = getLiveCategoryCount(products, cat.id);
 
@@ -70,21 +71,36 @@ export const CategoryGrid: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleCategoryClick(cat.id)}
-                  className="flex-1 min-w-0 flex items-center gap-3 text-left cursor-pointer group"
+                  className="flex-1 min-w-0 flex items-center gap-2.5 text-left cursor-pointer group"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                  <div className="w-16 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 grid grid-cols-2 gap-0.5 p-0.5 shrink-0 overflow-hidden">
                     <img
-                      src={getOptimizedImageUrl(catSingleImage, 160)}
-                      alt={cat.nameEn}
+                      src={getOptimizedImageUrl(catImgOne, 140)}
+                      alt={`${cat.nameEn} 1`}
                       loading="eager"
                       decoding="async"
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                      className="w-full h-full object-cover rounded-[4px] group-hover:scale-105 transition-transform duration-200"
                       onError={(e) => {
                         const target = e.currentTarget;
                         if (!target.dataset.retried) {
                           target.dataset.retried = 'true';
-                          target.src = getOptimizedImageUrl(getCategoryImageUrl('business_industry'), 160);
+                          target.src = getOptimizedImageUrl(getCategoryImageUrl('business_industry'), 140);
+                        }
+                      }}
+                    />
+                    <img
+                      src={getOptimizedImageUrl(catImgTwo, 140)}
+                      alt={`${cat.nameEn} 2`}
+                      loading="eager"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover rounded-[4px] group-hover:scale-105 transition-transform duration-200"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.dataset.retried) {
+                          target.dataset.retried = 'true';
+                          target.src = getOptimizedImageUrl(getCategoryImageUrl('electronics'), 140);
                         }
                       }}
                     />
@@ -259,10 +275,14 @@ export const MobileCategoryGrid: React.FC = () => {
             parentCatId: businessCat.id
           }))
         ];
+        const [jobsPrimary] = getCategoryDualImages(cat.id, cat.image, cat.secondaryImage, cat.images);
+        const [bizPrimary] = getCategoryDualImages(businessCat.id, businessCat.image, businessCat.secondaryImage, businessCat.images);
         return {
           ...cat,
-          nameBn: 'চাকরি ও ব্যবসা',
-          nameEn: 'Jobs & Business',
+          nameBn: 'ক্যারিয়ার ও বাণিজ্য',
+          nameEn: 'Careers & Trade',
+          secondaryImage: bizPrimary,
+          images: [jobsPrimary, bizPrimary],
           mergedBusinessId: businessCat.id,
           mergedSubcategories: mergedSubs
         };
@@ -317,7 +337,7 @@ export const MobileCategoryGrid: React.FC = () => {
             <div key={`mob-cat-row-${rowIdx}`} className="space-y-2">
               <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                 {rowCats.map(cat => {
-                  const catSingleImage = getCategoryImageUrl(cat.id, cat.image);
+                  const [catImgOne, catImgTwo] = getCategoryDualImages(cat.id, cat.image, cat.secondaryImage, cat.images);
                   const hasSubs = cat.mergedSubcategories.length > 0;
                   const isExpanded = expandedCatId === cat.id;
 
@@ -342,20 +362,35 @@ export const MobileCategoryGrid: React.FC = () => {
                           : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-emerald-500 dark:hover:border-emerald-500'
                       }`}
                     >
-                      {/* Large Category Image filling close to border lines */}
-                      <div className="w-full aspect-square rounded-lg bg-white dark:bg-slate-800/90 flex items-center justify-center overflow-hidden">
+                      {/* Dual Item Photography Showcase (2 distinct items per category) */}
+                      <div className="w-full aspect-[16/11] rounded-lg bg-slate-100 dark:bg-slate-800/90 grid grid-cols-2 gap-0.5 overflow-hidden">
                         <img
-                          src={getOptimizedImageUrl(catSingleImage, 240)}
-                          alt={language === 'bn' ? cat.nameBn : cat.nameEn}
+                          src={getOptimizedImageUrl(catImgOne, 180)}
+                          alt={`${language === 'bn' ? cat.nameBn : cat.nameEn} 1`}
                           loading="eager"
                           decoding="async"
                           referrerPolicy="no-referrer"
-                          className="w-full h-full object-contain scale-[1.06]"
+                          className="w-full h-full object-cover"
                           onError={(e) => {
                             const target = e.currentTarget;
                             if (!target.dataset.retried) {
                               target.dataset.retried = 'true';
-                              target.src = getOptimizedImageUrl(getCategoryImageUrl('business_industry'), 240);
+                              target.src = getOptimizedImageUrl(getCategoryImageUrl('business_industry'), 180);
+                            }
+                          }}
+                        />
+                        <img
+                          src={getOptimizedImageUrl(catImgTwo, 180)}
+                          alt={`${language === 'bn' ? cat.nameBn : cat.nameEn} 2`}
+                          loading="eager"
+                          decoding="async"
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            if (!target.dataset.retried) {
+                              target.dataset.retried = 'true';
+                              target.src = getOptimizedImageUrl(getCategoryImageUrl('electronics'), 180);
                             }
                           }}
                         />

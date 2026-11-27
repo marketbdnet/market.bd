@@ -202,10 +202,13 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans selection:bg-emerald-500 selection:text-white transition-colors w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans selection:bg-emerald-500 selection:text-white transition-colors w-full max-w-full overflow-x-clip">
+      <Navbar />
+      <Live3DTickerBar />
+
       {/* Admin Maintenance Mode Notice Bar */}
       {isMaintenanceActive && isAdmin && (
-        <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-slate-950 px-3 py-2 text-xs font-black shadow-md flex items-center justify-between gap-2 z-50 sticky top-0">
+        <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-slate-950 px-3 py-2 text-xs font-black shadow-md flex items-center justify-between gap-2 z-30">
           <div className="flex items-center gap-2 max-w-4xl mx-auto flex-1 justify-center">
             <span className="bg-slate-950 text-amber-400 text-[10px] uppercase font-black px-2 py-0.5 rounded-full shrink-0">
               🛠️ সাধারণ সুইচ অফ (Maintenance Active)
@@ -236,13 +239,10 @@ const MainContent: React.FC = () => {
         </div>
       )}
 
-      <Navbar />
-      <Live3DTickerBar />
-
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 py-3 pb-24 md:pb-4">
         {/* Universal Sticky Top Navigation Bar for Back & Next */}
         {(canGoBack || canGoForward) && (
-          <div className="mb-3 sticky top-1 z-30 flex items-center justify-between bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-2.5 sm:p-3 rounded-2xl border-2 border-emerald-500 shadow-md transition-all">
+          <div className="mb-3 sticky top-[calc(54px+max(8px,env(safe-area-inset-top,0px)))] sm:top-[calc(58px+max(8px,env(safe-area-inset-top,0px)))] z-30 flex items-center justify-between bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-2.5 sm:p-3 rounded-2xl border-2 border-emerald-500 shadow-md transition-all">
             <div className="flex items-center gap-2">
               {canGoBack && (
                 <button

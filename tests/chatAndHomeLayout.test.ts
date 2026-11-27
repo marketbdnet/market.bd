@@ -67,7 +67,7 @@ describe('Exact Post Date & Time Formatting (Recent & Featured Ads)', () => {
   });
 });
 
-describe('Bikroy-Style Clean Chat Architecture & Dummy Purge', () => {
+describe('MarketBD Clean Chat Architecture & Dummy Purge', () => {
   it('detects and purges legacy/dummy threads cleanly', () => {
     expect(isDummyChatThread(makeThread({ id: 'thread-1' }))).toBe(true);
     expect(isDummyChatThread(makeThread({ id: 'demo-abc' }))).toBe(true);

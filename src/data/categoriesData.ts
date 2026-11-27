@@ -1,21 +1,5 @@
 import { Category } from '../types';
-import catHouseImg from '../assets/images/cat_house_isolated_1785510865762.jpg';
-import catScooterImg from '../assets/images/cat_scooter_isolated_1785510882941.jpg';
-import catMobileImg from '../assets/images/cat_mobile_isolated_1785510896303.jpg';
-import catSofaImg from '../assets/images/cat_sofa_isolated_1785510923610.jpg';
-import catSneakerImg from '../assets/images/cat_sneaker_isolated_1785510934540.jpg';
-import catTvImg from '../assets/images/cat_tv_isolated_1785510949732.jpg';
-import catPerfumeImg from '../assets/images/cat_perfume_isolated_1785510963843.jpg';
-import catTeddyImg from '../assets/images/cat_teddy_isolated_1785510975065.jpg';
-import catBooksImg from '../assets/images/cat_books_isolated_1785510988963.jpg';
-import catCatImg from '../assets/images/cat_cat_isolated_1785511000333.jpg';
-import catPlantImg from '../assets/images/cat_plant_isolated_1785511014721.jpg';
-import catDrillImg from '../assets/images/cat_drill_isolated_1785511025652.jpg';
-import catToolboxImg from '../assets/images/cat_toolbox_isolated_1785511040837.jpg';
-import catBriefcaseImg from '../assets/images/cat_briefcase_isolated_1785511054136.jpg';
-import catServicesImg from '../assets/images/cat_services_isolated_1794925086045.jpg';
-import catCvImg from '../assets/images/cat_cv_isolated_1794925086947.jpg';
-import catIndustryImg from '../assets/images/cat_industry_isolated_1794925087601.jpg';
+import { MAIN_CATEGORY_DUAL_IMAGES } from '../utils/categoryImages';
 import subThreeWheelersImg from '../assets/images/sub_three_wheelers_1794926944301.jpg';
 import subWaterTransportImg from '../assets/images/sub_water_transport_1794926943794.jpg';
 import subFeaturePhonesImg from '../assets/images/sub_feature_phones_1794926944480.jpg';
@@ -34,13 +18,16 @@ import subSurplusMiscImg from '../assets/images/sub_surplus_misc_1794926968901.j
 import subMobileCasesImg from '../assets/images/sub_mobile_cases_1794926969537.jpg';
 
 export const CATEGORIES: Category[] = [
-  // 1. Vehicles
+  // 1. Motors & Mobility
   {
     id: 'vehicles',
-    nameEn: 'Vehicles',
-    nameBn: 'যানবাহন ও গাড়ি',
+    nameEn: 'Motors & Mobility',
+    nameBn: 'মোটর ও যানবাহন জগৎ',
     icon: 'Car',
-    image: catScooterImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.vehicles[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.vehicles[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.vehicles,
+    catVersion: 2,
     count: 0,
     popularBrands: ['Toyota', 'Yamaha', 'Honda', 'Suzuki', 'Bajaj', 'TVS', 'Hero', 'Royal Enfield', 'Nissan', 'Hyundai', 'Mitsubishi', 'Mercedes-Benz', 'BMW', 'Kia', 'Ford', 'Chevrolet', 'Audi', 'Tesla', 'Runner', 'KTM', 'Kawasaki', 'Lifan', 'Walton', 'Vespa'],
     subcategories: [
@@ -202,13 +189,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 2. Property
+  // 2. Real Estate & Living
   {
     id: 'property',
-    nameEn: 'Property',
-    nameBn: 'প্রপার্টি ও বাসস্থান',
+    nameEn: 'Real Estate & Living',
+    nameBn: 'রিয়েল এস্টেট ও বাসস্থান',
     icon: 'Home',
-    image: catHouseImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.property[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.property[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.property,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -280,13 +270,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 3. Phones & Tablets
+  // 3. Smartphones & Wearables
   {
     id: 'mobiles',
-    nameEn: 'Phones & Tablets',
-    nameBn: 'মোবাইল ও ট্যাবলেট',
+    nameEn: 'Smartphones & Wearables',
+    nameBn: 'স্মার্টফোন ও গ্যাজেট',
     icon: 'Smartphone',
-    image: catMobileImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.mobiles[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.mobiles[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.mobiles,
+    catVersion: 2,
     count: 0,
     popularBrands: ['Apple', 'Samsung', 'Xiaomi', 'Redmi', 'POCO', 'OnePlus', 'Realme', 'Vivo', 'iQOO', 'OPPO', 'Google Pixel', 'Motorola', 'Huawei', 'Honor', 'Infinix', 'TECNO', 'itel', 'Walton', 'Symphony', 'Nothing', 'Sony', 'Nokia', 'ASUS'],
     subcategories: [
@@ -420,13 +413,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 4. Electronics (includes Laptops, Desktops, Monitors, Printers & Home Electronics)
+  // 4. Computing & Digital Tech (Laptops, Desktops, Monitors, Printers & Home Electronics)
   {
     id: 'electronics',
-    nameEn: 'Electronics',
-    nameBn: 'ইলেকট্রনিক্স',
+    nameEn: 'Computing & Digital Tech',
+    nameBn: 'কম্পিউটার ও ডিজিটাল টেক',
     icon: 'Tv',
-    image: catTvImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.electronics[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.electronics[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.electronics,
+    catVersion: 2,
     count: 0,
     popularBrands: ['Sony', 'Samsung', 'LG', 'TCL', 'Xiaomi', 'Apple MacBook', 'HP', 'Dell', 'Lenovo', 'ASUS', 'Acer', 'MSI', 'Gree', 'General', 'Daikin', 'Walton', 'Vision', 'JBL', 'Canon', 'DJI', 'PlayStation', 'Hikvision'],
     subcategories: [
@@ -643,13 +639,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 5. Home, Furniture & Appliances
+  // 5. Home Living & Interiors
   {
     id: 'home_furniture',
-    nameEn: 'Home, Furniture & Appliances',
-    nameBn: 'ঘর, আসবাব ও অ্যাপ্লায়েন্স',
+    nameEn: 'Home Living & Interiors',
+    nameBn: 'ঘর সাজানো ও ফার্নিচার',
     icon: 'Armchair',
-    image: catSofaImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.home_furniture[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.home_furniture[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.home_furniture,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -720,13 +719,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 6. Fashion
+  // 6. Apparel & Lifestyle
   {
     id: 'fashion',
-    nameEn: 'Fashion',
-    nameBn: 'ফ্যাশন ও লাইফস্টাইল',
+    nameEn: 'Apparel & Lifestyle',
+    nameBn: 'পোশাক ও লাইফস্টাইল',
     icon: 'Shirt',
-    image: catSneakerImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.fashion[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.fashion[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.fashion,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -786,13 +788,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 7. Beauty & Personal Care
+  // 7. Skincare & Grooming
   {
     id: 'health_beauty',
-    nameEn: 'Beauty & Personal Care',
-    nameBn: 'সৌন্দর্য ও ব্যক্তিগত যত্ন',
+    nameEn: 'Skincare & Grooming',
+    nameBn: 'রূপচর্চা ও গ্রুমিং',
     icon: 'Sparkles',
-    image: catPerfumeImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.health_beauty[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.health_beauty[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.health_beauty,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -849,13 +854,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 8. Services (includes Education & Courses)
+  // 8. Pro Services & Learning
   {
     id: 'services',
-    nameEn: 'Services',
-    nameBn: 'সেবা ও সার্ভিসেস',
+    nameEn: 'Pro Services & Learning',
+    nameBn: 'প্রফেশনাল সার্ভিস ও কোর্স',
     icon: 'Wrench',
-    image: catServicesImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.services[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.services[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.services,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -926,13 +934,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 9. Repair & Construction
+  // 9. Builders & Maintenance
   {
     id: 'repair_construction',
-    nameEn: 'Repair & Construction',
-    nameBn: 'মেরামত ও নির্মাণ',
+    nameEn: 'Builders & Maintenance',
+    nameBn: 'নির্মাণ সামগ্রী ও মেরামত',
     icon: 'Wrench',
-    image: catDrillImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.repair_construction[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.repair_construction[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.repair_construction,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -987,13 +998,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 10. Commercial Equipment & Tools
+  // 10. Machinery & Store Gear
   {
     id: 'business_equipment',
-    nameEn: 'Commercial Equipment & Tools',
-    nameBn: 'ব্যবসায়িক সরঞ্জাম ও যন্ত্রপাতি',
+    nameEn: 'Machinery & Store Gear',
+    nameBn: 'মেশিনারি ও দোকান সরঞ্জাম',
     icon: 'Building2',
-    image: catToolboxImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.business_equipment[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.business_equipment[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.business_equipment,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -1038,13 +1052,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 11. Leisure & Activities (Books, Sports, Travel & Events)
+  // 11. Sports, Books & Travel
   {
     id: 'books_sports',
-    nameEn: 'Leisure & Activities',
-    nameBn: 'অবসর, বই ও খেলাধুলা',
+    nameEn: 'Sports, Books & Travel',
+    nameBn: 'খেলাধুলা, বই ও ভ্রমণ',
     icon: 'BookOpen',
-    image: catBooksImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.books_sports[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.books_sports[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.books_sports,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -1180,13 +1197,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 12. Babies & Kids
+  // 12. Kids, Toys & Baby Care
   {
     id: 'baby_kids',
-    nameEn: 'Babies & Kids',
-    nameBn: 'শিশু ও বাচ্চাদের সামগ্রী',
+    nameEn: 'Kids, Toys & Baby Care',
+    nameBn: 'শিশু, খেলনা ও বেবি কেয়ার',
     icon: 'Baby',
-    image: catTeddyImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.baby_kids[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.baby_kids[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.baby_kids,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -1231,13 +1251,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 13. Food, Agriculture & Farming
+  // 13. Agro, Harvest & Dining
   {
     id: 'agriculture',
-    nameEn: 'Food, Agriculture & Farming',
-    nameBn: 'খাবার, কৃষি ও খামার',
+    nameEn: 'Agro, Harvest & Dining',
+    nameBn: 'কৃষি, খামার ও সুস্বাদু খাবার',
     icon: 'Sprout',
-    image: catPlantImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.agriculture[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.agriculture[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.agriculture,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -1321,13 +1344,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 14. Animals & Pets
+  // 14. Livestock & Pet World
   {
     id: 'animal_pets',
-    nameEn: 'Animals & Pets',
-    nameBn: 'পশুপাখি ও পোষা প্রাণী',
+    nameEn: 'Livestock & Pet World',
+    nameBn: 'গবাদিপশু ও পোষা প্রাণী',
     icon: 'Dog',
-    image: catCatImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.animal_pets[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.animal_pets[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.animal_pets,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -1385,13 +1411,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 15. Jobs
+  // 15. Careers & Hiring
   {
     id: 'jobs',
-    nameEn: 'Jobs',
-    nameBn: 'চাকরি',
+    nameEn: 'Careers & Hiring',
+    nameBn: 'ক্যারিয়ার ও নিয়োগ বিজ্ঞপ্তি',
     icon: 'Briefcase',
-    image: catBriefcaseImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.jobs[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.jobs[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.jobs,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -1436,13 +1465,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 16. Seeking Work - CVs
+  // 16. Talent Profiles & CVs
   {
     id: 'seeking_work',
-    nameEn: 'Seeking Work - CVs',
-    nameBn: 'কাজের সন্ধান - সিভি',
+    nameEn: 'Talent Profiles & CVs',
+    nameBn: 'ট্যালেন্ট প্রোফাইল ও সিভি',
     icon: 'FileText',
-    image: catCvImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.seeking_work[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.seeking_work[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.seeking_work,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {
@@ -1494,13 +1526,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 17. Business & Industry
+  // 17. Wholesale & B2B Trade
   {
     id: 'business_industry',
-    nameEn: 'Business & Industry',
-    nameBn: 'ব্যবসা ও শিল্প',
+    nameEn: 'Wholesale & B2B Trade',
+    nameBn: 'পাইকারি বাণিজ্য ও শিল্প',
     icon: 'Package',
-    image: catIndustryImg,
+    image: MAIN_CATEGORY_DUAL_IMAGES.business_industry[0],
+    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.business_industry[1],
+    images: MAIN_CATEGORY_DUAL_IMAGES.business_industry,
+    catVersion: 2,
     count: 0,
     subcategories: [
       {

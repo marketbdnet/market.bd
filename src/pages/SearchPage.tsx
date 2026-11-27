@@ -24,25 +24,25 @@ import {
   Layers
 } from 'lucide-react';
 
-// Comprehensive synonym mapping for Bangla & English search terms (Bikroy 17 Categories)
+// Comprehensive synonym mapping for Bangla & English search terms (MarketBD 17 Categories)
 const QUERY_CATEGORY_SYNONYMS: Record<string, string[]> = {
-  vehicles: ['vehicle', 'vehicles', 'car', 'cars', 'bike', 'bikes', 'motorcycle', 'scooter', 'গাড়ি', 'গাড়ি', 'বাইক', 'মোটরসাইকেল', 'স্কুটার', 'যানবাহন', 'রয়্যাল এনাফিল্ড', 'বাইসাইকেল', 'সাইকেল', 'প্রাইভেট কার', 'প্রাইভেটকার', 'টয়োটা', 'toyota', 'corolla'],
-  property: ['property', 'properties', 'flat', 'flats', 'apartment', 'house', 'land', 'plot', 'ফ্ল্যাট', 'বাড়ি', 'বাসা', 'জমি', 'প্লট', 'প্রপার্টি', 'এপার্টমেন্ট'],
-  mobiles: ['mobile', 'mobiles', 'phone', 'phones', 'smartphone', 'smartphones', 'মোবাইল', 'ফোন', 'স্মার্টফোন', 'গ্যাজেট', 'আইফোন', 'iphone', 'samsung', 'vivo', 'xiaomi', 'realme', 'oppo', 'বাটন ফোন', 'ট্যাবলেট', 'ট্যাব', 'স্যামসাং', 'ভিভো', 'শাওমি', 'রেডমি'],
-  electronics: ['electronics', 'tv', 'fridge', 'ac', 'refrigerator', 'washing machine', 'computer', 'computers', 'laptop', 'laptops', 'pc', 'desktop', 'ইলেকট্রনিক্স', 'টিভি', 'ফ্রিজ', 'এসি', 'রেফ্রিজারেটর', 'কম্পিউটার', 'ল্যাপটপ', 'পিসি', 'মনিটর', 'প্রসেসর', 'ম্যাকবুক', 'macbook', 'ডেস্কটপ'],
-  home_furniture: ['living', 'furniture', 'sofa', 'bed', 'table', 'chair', 'appliances', 'আসবাবপত্র', 'সোফা', 'খাট', 'টেবিল', 'চেয়ার', 'ফার্নিচার', 'ঘর ও আসবাব', 'home_furniture'],
-  fashion: ['fashion', 'clothes', 'dress', 'shoes', 'sneakers', 'watch', 'জুতা', 'ঘড়ি', 'পোশাক', 'শাড়ি', 'পাঞ্জাবি', 'ফ্যাশন', 'ব্যাগ'],
-  health_beauty: ['health', 'beauty', 'perfume', 'cosmetics', 'স্কিনকেয়ার', 'কসমেটিকস', 'পারফিউম', 'সৌন্দর্য', 'health_beauty'],
-  services: ['service', 'services', 'education', 'course', 'courses', 'tutor', 'tuition', 'training', 'ielts', 'সার্ভিস', 'সেবা', 'শিক্ষা', 'কোর্স', 'টিউশন'],
-  repair_construction: ['repair', 'construction', 'plumber', 'electrician', 'cement', 'tiles', 'bricks', 'paint', 'মেরামত', 'নির্মাণ', 'ইলেকট্রিশিয়ান', 'প্লাম্বার', 'টাইলস', 'সিমেন্ট', 'রং'],
-  business_equipment: ['business', 'equipment', 'machinery', 'commercial', 'tools', 'espresso', 'pos', 'ব্যবসার সরঞ্জাম', 'মেশিনারি', 'যন্ত্রপাতি', 'জেনারেটর'],
+  vehicles: ['vehicle', 'vehicles', 'motors', 'mobility', 'car', 'cars', 'bike', 'bikes', 'motorcycle', 'scooter', 'গাড়ি', 'গাড়ি', 'বাইক', 'মোটরসাইকেল', 'স্কুটার', 'যানবাহন', 'রয়্যাল এনাফিল্ড', 'বাইসাইকেল', 'সাইকেল', 'প্রাইভেট কার', 'প্রাইভেটকার', 'টয়োটা', 'toyota', 'corolla'],
+  property: ['property', 'properties', 'real estate', 'living', 'flat', 'flats', 'apartment', 'house', 'land', 'plot', 'ফ্ল্যাট', 'বাড়ি', 'বাসা', 'বাসস্থান', 'জমি', 'প্লট', 'প্রপার্টি', 'রিয়েল এস্টেট', 'এপার্টমেন্ট'],
+  mobiles: ['mobile', 'mobiles', 'phone', 'phones', 'smartphone', 'smartphones', 'wearables', 'মোবাইল', 'ফোন', 'স্মার্টফোন', 'গ্যাজেট', 'আইফোন', 'iphone', 'samsung', 'vivo', 'xiaomi', 'realme', 'oppo', 'বাটন ফোন', 'ট্যাবলেট', 'ট্যাব', 'স্যামসাং', 'ভিভো', 'শাওমি', 'রেডমি'],
+  electronics: ['electronics', 'computing', 'digital tech', 'tv', 'fridge', 'ac', 'refrigerator', 'washing machine', 'computer', 'computers', 'laptop', 'laptops', 'pc', 'desktop', 'ইলেকট্রনিক্স', 'টিভি', 'ফ্রিজ', 'এসি', 'রেফ্রিজারেটর', 'কম্পিউটার', 'ল্যাপটপ', 'পিসি', 'মনিটর', 'প্রসেসর', 'ম্যাকবুক', 'macbook', 'ডেস্কটপ'],
+  home_furniture: ['living', 'interiors', 'furniture', 'sofa', 'bed', 'table', 'chair', 'appliances', 'আসবাবপত্র', 'সোফা', 'খাট', 'টেবিল', 'চেয়ার', 'ফার্নিচার', 'ঘর সাজানো', 'home_furniture'],
+  fashion: ['fashion', 'apparel', 'lifestyle', 'clothes', 'dress', 'shoes', 'sneakers', 'watch', 'জুতা', 'ঘড়ি', 'পোশাক', 'শাড়ি', 'পাঞ্জাবি', 'ফ্যাশন', 'ব্যাগ'],
+  health_beauty: ['health', 'beauty', 'skincare', 'grooming', 'perfume', 'cosmetics', 'স্কিনকেয়ার', 'কসমেটিকস', 'পারফিউম', 'সৌন্দর্য', 'রূপচর্চা', 'গ্রুমিং', 'health_beauty'],
+  services: ['service', 'services', 'pro services', 'learning', 'education', 'course', 'courses', 'tutor', 'tuition', 'training', 'ielts', 'সার্ভিস', 'সেবা', 'শিক্ষা', 'কোর্স', 'টিউশন'],
+  repair_construction: ['repair', 'construction', 'builders', 'maintenance', 'plumber', 'electrician', 'cement', 'tiles', 'bricks', 'paint', 'মেরামত', 'নির্মাণ', 'ইলেকট্রিশিয়ান', 'প্লাম্বার', 'টাইলস', 'সিমেন্ট', 'রং'],
+  business_equipment: ['business', 'equipment', 'machinery', 'store gear', 'commercial', 'tools', 'espresso', 'pos', 'ব্যবসার সরঞ্জাম', 'মেশিনারি', 'দোকান সরঞ্জাম', 'যন্ত্রপাতি', 'জেনারেটর'],
   books_sports: ['book', 'books', 'sports', 'leisure', 'cricket', 'bat', 'stationery', 'travel', 'tour', 'event', 'ticket', 'concert', 'guitar', 'বই', 'খেলাধুলা', 'অবসর', 'ভ্রমণ', 'ট্যুর', 'ইভেন্ট', 'টিকিট', 'books_sports'],
-  baby_kids: ['baby', 'kids', 'child', 'children', 'stroller', 'toy', 'toys', 'শিশু সামগ্রী', 'খেলনা', 'baby_kids'],
-  agriculture: ['agriculture', 'agri', 'farm', 'farming', 'tractor', 'food', 'restaurant', 'honey', 'organic', 'কৃষি', 'খামার', 'ট্রাক্টর', 'বীজ', 'খাবার', 'মধু'],
-  animal_pets: ['pet', 'pets', 'cat', 'dog', 'bird', 'cow', 'qurbani', 'পশু', 'পাখি', 'বিড়াল', 'কুকুর', 'পোষা প্রাণী', 'পশুপাখি', 'animal_pets'],
-  jobs: ['job', 'jobs', 'developer', 'hiring', 'salary', 'চাকরি', 'নিয়োগ'],
-  seeking_work: ['seeking work', 'cv', 'cvs', 'resume', 'biodata', 'job seeker', 'কাজের সন্ধান', 'সিভি', 'রিজিউমি', 'seeking_work'],
-  business_industry: ['industry', 'wholesale', 'factory', 'garments', 'packaging', 'antique', 'ব্যবসা ও শিল্প', 'পাইকারি', 'কারখানা', 'business_industry']
+  baby_kids: ['baby', 'kids', 'baby care', 'child', 'children', 'stroller', 'toy', 'toys', 'শিশু', 'বেবি কেয়ার', 'খেলনা', 'baby_kids'],
+  agriculture: ['agriculture', 'agro', 'harvest', 'dining', 'farm', 'farming', 'tractor', 'food', 'restaurant', 'honey', 'organic', 'কৃষি', 'খামার', 'ট্রাক্টর', 'বীজ', 'খাবার', 'মধু'],
+  animal_pets: ['pet', 'pets', 'livestock', 'cat', 'dog', 'bird', 'cow', 'qurbani', 'পশু', 'গবাদিপশু', 'পাখি', 'বিড়াল', 'কুকুর', 'পোষা প্রাণী', 'পশুপাখি', 'animal_pets'],
+  jobs: ['job', 'jobs', 'careers', 'hiring', 'developer', 'salary', 'চাকরি', 'ক্যারিয়ার', 'নিয়োগ'],
+  seeking_work: ['seeking work', 'talent profiles', 'cv', 'cvs', 'resume', 'biodata', 'job seeker', 'কাজের সন্ধান', 'ট্যালেন্ট প্রোফাইল', 'সিভি', 'রিজিউমি', 'seeking_work'],
+  business_industry: ['industry', 'wholesale', 'b2b trade', 'factory', 'garments', 'packaging', 'antique', 'ব্যবসা ও শিল্প', 'পাইকারি বাণিজ্য', 'কারখানা', 'business_industry']
 };
 
 // Flexible category match helper
