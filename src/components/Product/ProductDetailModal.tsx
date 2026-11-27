@@ -9,6 +9,7 @@ import { WatermarkedImage } from './WatermarkedImage';
 import { getMarketBdTenure } from '../../utils/tenure';
 import { SEOHelmet } from '../SEO/SEOHelmet';
 import { isPhoneVisibleToBuyers, formatPhoneDisplay, maskPhoneNumber, validateBangladeshiPhone } from '../../utils/phoneUtils';
+import { isEffectiveLoggedIn, isEffectiveAdmin, isAdOwner } from '../../utils/authOwnership';
 import {
   Phone,
   MessageSquare,
@@ -59,21 +60,15 @@ export const ProductDetailModal: React.FC = () => {
     reportAbusiveChat,
     currentUser,
     userRole,
+    isLoggedIn,
+    openAuthModal,
     openDeleteModal,
     setEditingAd,
     updateProductStatus
   } = useMarket();
 
-  const isOwner = !!(
-    currentUser &&
-    selectedProduct &&
-    (selectedProduct.seller?.id === currentUser.id ||
-      selectedProduct.seller?.phone === currentUser.phone ||
-      (currentUser.email && selectedProduct.seller?.email?.toLowerCase() === currentUser.email.toLowerCase()) ||
-      selectedProduct.sellerId === currentUser.id ||
-      selectedProduct.seller?.id === 'user-me')
-  );
-  const isAdmin = currentUser?.role === 'admin' || userRole === 'admin';
+  const isOwner = isAdOwner(selectedProduct, currentUser, isLoggedIn);
+  const isAdmin = isEffectiveAdmin(isLoggedIn, currentUser, userRole);
 
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [showPhone, setShowPhone] = useState(false);
@@ -141,6 +136,10 @@ export const ProductDetailModal: React.FC = () => {
 
   const handleReportSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+      openAuthModal('general');
+      return;
+    }
     reportAbusiveChat('ad-' + selectedProduct.id, selectedProduct.seller?.name || 'Seller', `${reportReason}: ${reportNotes}`);
     logUserActivity('Reported Ad', selectedProduct.title, selectedProduct.id);
     setShowReportModal(false);
@@ -153,6 +152,10 @@ export const ProductDetailModal: React.FC = () => {
 
   const handleReviewSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+      openAuthModal('general');
+      return;
+    }
     if (!newReviewComment.trim()) return;
     if (selectedProduct.seller?.id) {
       addSellerReview(selectedProduct.seller.id, newRating, newReviewComment);
@@ -168,6 +171,11 @@ export const ProductDetailModal: React.FC = () => {
 
   const handleSendOffer = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+      setShowOfferModal(false);
+      openAuthModal('chat');
+      return;
+    }
     const amount = Number(offerPriceInput);
     if (!amount || amount <= 0) return;
 
@@ -187,17 +195,22 @@ export const ProductDetailModal: React.FC = () => {
 
   const handleAskQuestion = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+      openAuthModal('general');
+      return;
+    }
     if (!newQuestionInput.trim()) return;
 
-    if (!selectedProduct.questions) {
-      selectedProduct.questions = [];
-    }
-
-    selectedProduct.questions.push({
+    const nextQuestion = {
       id: 'q-' + Date.now(),
-      question: newQuestionInput,
-      askedBy: language === 'bn' ? 'আপনি (বর্তমান ব্যবহারকারী)' : 'You',
+      question: newQuestionInput.trim(),
+      askedBy: currentUser.name || (language === 'bn' ? 'ব্যবহারকারী' : 'Verified Buyer'),
       askedDate: 'Just now'
+    };
+
+    setSelectedProduct({
+      ...selectedProduct,
+      questions: [...(selectedProduct.questions || []), nextQuestion]
     });
 
     setNewQuestionInput('');
@@ -729,7 +742,13 @@ export const ProductDetailModal: React.FC = () => {
 
                 {/* Make an Offer */}
                 <button
-                  onClick={() => setShowOfferModal(true)}
+                  onClick={() => {
+                    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+                      openAuthModal('chat');
+                      return;
+                    }
+                    setShowOfferModal(true);
+                  }}
                   className="w-full bg-pink-50 dark:bg-pink-950/60 hover:bg-pink-100 dark:hover:bg-pink-900/80 text-pink-700 dark:text-pink-300 font-extrabold py-3 px-4 rounded-xl border border-pink-200 dark:border-pink-900/60 transition flex items-center justify-center gap-2 text-sm cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4" />
@@ -807,7 +826,13 @@ export const ProductDetailModal: React.FC = () => {
 
               {/* Rate Seller Transaction Button */}
               <button
-                onClick={() => setShowRatingModal(true)}
+                onClick={() => {
+                  if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+                    openAuthModal('general');
+                    return;
+                  }
+                  setShowRatingModal(true);
+                }}
                 className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer"
               >
                 <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
@@ -838,7 +863,13 @@ export const ProductDetailModal: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => setShowReportModal(true)}
+                  onClick={() => {
+                    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+                      openAuthModal('general');
+                      return;
+                    }
+                    setShowReportModal(true);
+                  }}
                   className="py-2.5 px-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                   title="Report Abuse / Offensive Content"
                 >

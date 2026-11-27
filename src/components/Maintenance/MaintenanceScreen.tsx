@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
+import { OFFICIAL_SLOGAN } from '../../constants/branding';
+import { isEffectiveAdmin } from '../../utils/authOwnership';
 import {
   Wrench,
   Mail,
@@ -24,6 +26,7 @@ export const MaintenanceScreen: React.FC = () => {
     openAuthModal,
     currentUser,
     userRole,
+    isLoggedIn,
     setActiveTab,
     customLogoUrl
   } = useMarket();
@@ -57,7 +60,7 @@ export const MaintenanceScreen: React.FC = () => {
       });
   };
 
-  const isAdmin = userRole === 'admin' || currentUser?.role === 'admin' || currentUser?.email === 'official.marketbd@gmail.com';
+  const isAdmin = isEffectiveAdmin(isLoggedIn, currentUser, userRole);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 md:p-8 font-sans selection:bg-emerald-500 selection:text-white">
@@ -81,8 +84,8 @@ export const MaintenanceScreen: React.FC = () => {
                   <span className="text-white">arketBD.</span>
                   <span className="text-red-500">Net</span>
                 </span>
-                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                  Bangladesh Marketplace
+                <span className="text-[9px] text-slate-400 font-bold tracking-wider">
+                  {OFFICIAL_SLOGAN}
                 </span>
               </div>
             </div>
@@ -226,7 +229,7 @@ export const MaintenanceScreen: React.FC = () => {
 
       {/* Bottom Footer */}
       <footer className="max-w-4xl w-full mx-auto text-center py-4 border-t border-slate-800/80 text-xs text-slate-500">
-        <p>© 2026 MarketBD.Net — Bangladesh Trusted Classified Marketplace. All rights reserved.</p>
+        <p>© 2026 MarketBD.Net — {OFFICIAL_SLOGAN}. All rights reserved.</p>
       </footer>
     </div>
   );

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
+import { isEffectiveLoggedIn, isEffectiveAdmin, isAdOwner } from '../../utils/authOwnership';
 import { Trash2, AlertTriangle, X, CheckCircle, Sparkles, Check } from 'lucide-react';
 
 const REMOVAL_REASONS = [
@@ -42,14 +43,15 @@ const REMOVAL_REASONS = [
 ];
 
 export const AdDeleteModal: React.FC = () => {
-  const { language, adToDelete, closeDeleteModal, deleteProductWithReason, currentUser, userRole } = useMarket();
-  const isAdmin = currentUser?.role === 'admin' || userRole === 'admin';
+  const { language, adToDelete, closeDeleteModal, deleteProductWithReason, currentUser, userRole, isLoggedIn } = useMarket();
+  const isAdmin = isEffectiveAdmin(isLoggedIn, currentUser, userRole);
 
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [customNote, setCustomNote] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
 
-  if (!adToDelete) return null;
+  if (!adToDelete || !isEffectiveLoggedIn(isLoggedIn, currentUser)) return null;
+  if (!isAdmin && !isAdOwner(adToDelete, currentUser, isLoggedIn)) return null;
 
   const handleConfirmDelete = (e?: React.FormEvent) => {
     if (e) e.preventDefault();

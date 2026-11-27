@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { timingSafeEqual } from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { verifyAdminRequest } from './admin-auth';
 
 const SECRETS_FILE = path.join(process.cwd(), '.gateway_secrets.json');
 
@@ -57,6 +58,7 @@ function maskVal(val?: string): string {
 }
 
 function checkAdminSecret(req: any): boolean {
+  if (verifyAdminRequest(req)) return true;
   let savedAdminSecret = '';
   try {
     if (fs.existsSync(SECRETS_FILE)) {
@@ -66,7 +68,7 @@ function checkAdminSecret(req: any): boolean {
     savedAdminSecret = '';
   }
   const configured = (process.env.SMS_ADMIN_SECRET || savedAdminSecret || '').trim();
-  if (!configured) return true;
+  if (!configured) return false;
   const given = String(req.headers['x-admin-secret'] || '');
   if (!given) return false;
   const a = Buffer.from(given);

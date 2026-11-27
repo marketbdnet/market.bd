@@ -41,22 +41,39 @@ service cloud.firestore {
     match /products/{productId} {
       allow list: if true;
       allow get: if isValidId(productId);
-      allow create, update: if isValidId(productId)
+      allow create: if isValidId(productId)
+        && isSignedIn()
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
-        && request.resource.data.title.size() <= 200;
-      allow delete: if isValidId(productId) && isAdmin();
+        && request.resource.data.title.size() <= 200
+        && (isAdmin() || (request.resource.data.sellerId == request.auth.uid && request.resource.data.status == 'pending'));
+      allow update: if isValidId(productId)
+        && isSignedIn()
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 200
+        && (isAdmin() || (
+          (resource.data.sellerId == request.auth.uid || (resource.data.seller is map && resource.data.seller.id == request.auth.uid))
+          && ((resource.data.status in ['active', 'approved']) || !(request.resource.data.status in ['active', 'approved']))
+        ));
+      allow delete: if isValidId(productId) && isSignedIn()
+        && (isAdmin() || resource.data.sellerId == request.auth.uid || (resource.data.seller is map && resource.data.seller.id == request.auth.uid));
     }
 
-    // User Profiles - Owner or Admin write protection
+    // User Profiles - Strict PII isolation & self-role escalation prevention
     match /users/{userId} {
-      allow read: if isValidId(userId);
+      allow read: if isValidId(userId) && (isOwner(userId) || isAdmin());
       allow create: if isValidId(userId)
-        && (isSignedIn() || request.resource.data.phone != null)
+        && isSignedIn()
+        && isOwner(userId)
         && request.resource.data.name is string
         && request.resource.data.name.size() <= 100
         && (!('role' in request.resource.data) || request.resource.data.role in ['buyer', 'seller'] || isAdmin());
-      allow update: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow update: if isValidId(userId)
+        && (isAdmin() || (
+          isOwner(userId)
+          && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role || request.resource.data.role in ['buyer', 'seller'])
+        ));
       allow delete: if isValidId(userId) && isAdmin();
     }
 
@@ -69,16 +86,29 @@ service cloud.firestore {
         && (!('messages' in data) || (data.messages is list && data.messages.size() <= 500));
     }
 
+    function isThreadParticipant(data) {
+      return isSignedIn() && (
+        isAdmin()
+        || data.buyerId == request.auth.uid
+        || (data.seller is map && data.seller.id == request.auth.uid)
+      );
+    }
+
     // Chat System & Direct Messages (Buyer <-> Seller <-> Admin real-time sync)
     match /chats/{chatId} {
-      allow list: if true;
-      allow get: if isValidId(chatId);
-      allow create, update: if isValidId(chatId) && isValidChatThread(request.resource.data);
-      allow delete: if isValidId(chatId) && (isAdmin() || resource.data.buyerId is string);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.buyerId == request.auth.uid || (resource.data.seller is map && resource.data.seller.id == request.auth.uid));
+      allow get: if isValidId(chatId) && isThreadParticipant(resource.data);
+      allow create: if isValidId(chatId) && isSignedIn() && isValidChatThread(request.resource.data)
+        && (isAdmin() || request.resource.data.buyerId == request.auth.uid);
+      allow update: if isValidId(chatId) && isValidChatThread(request.resource.data) && isThreadParticipant(resource.data);
+      allow delete: if isValidId(chatId) && isSignedIn() && (isAdmin() || resource.data.buyerId == request.auth.uid);
 
       match /messages/{messageId} {
-        allow read: if isValidId(chatId);
+        allow read: if isValidId(chatId) && isThreadParticipant(get(/databases/$(database)/documents/chats/$(chatId)).data);
         allow create, update: if isValidId(chatId) && isValidId(messageId)
+          && isSignedIn()
+          && (isAdmin() || request.resource.data.senderId == request.auth.uid)
+          && isThreadParticipant(get(/databases/$(database)/documents/chats/$(chatId)).data)
           && request.resource.data.senderId is string
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 2000;
@@ -88,23 +118,22 @@ service cloud.firestore {
 
     // User Notifications
     match /user_notifications/{notificationId} {
-      allow read: if isSignedIn();
-      allow create, update: if isValidId(notificationId) && isSignedIn();
-      allow delete: if isValidId(notificationId) && isAdmin();
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create, update: if isValidId(notificationId) && isSignedIn() && (isAdmin() || request.resource.data.userId == request.auth.uid);
+      allow delete: if isValidId(notificationId) && (isAdmin() || resource.data.userId == request.auth.uid);
     }
 
     // Customer Care & System Activity Logs
     match /activities/{activityId} {
-      allow read: if isSignedIn() || isAdmin();
-      allow create: if isValidId(activityId);
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(activityId) && isSignedIn();
       allow update, delete: if isValidId(activityId) && isAdmin();
     }
 
     // Admin Activity & Audit Trail Logs
     match /admin_logs/{logId} {
       allow read: if isAdmin();
-      allow create: if isValidId(logId) && isSignedIn();
-      allow update, delete: if isValidId(logId) && isAdmin();
+      allow create, update, delete: if isValidId(logId) && isAdmin();
     }
 
     // System Settings & Site Configuration
@@ -115,8 +144,10 @@ service cloud.firestore {
 
     // Manual Payment Verification System
     match /payments/{paymentId} {
-      allow read: if true;
-      allow create: if isValidId(paymentId) && request.resource.data.status == 'pending_verification';
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isValidId(paymentId) && isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending_verification';
       allow update, delete: if isValidId(paymentId) && isAdmin();
     }
   }

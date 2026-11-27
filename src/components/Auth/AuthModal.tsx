@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { storage } from '../../utils/storage';
 import { verifyAdminPassword } from '../../utils/adminAuth';
+import { sanitizeUserProfileForCloud } from '../../utils/authOwnership';
 import { sendUnifiedSmsOtp, verifyUnifiedSmsOtp } from '../../services/smsService';
 import { UserProfile } from '../../types';
 import { GoogleLogo, FacebookLogo, GmailLogo } from '../Common/BrandLogos';
@@ -703,7 +704,7 @@ export const AuthModal: React.FC = () => {
               await updateProfile(newCred.user, { displayName: matchedUser.name });
             }
             matchedUser.id = newCred.user.uid;
-            safeFirestoreSetDoc(doc(db, 'users', newCred.user.uid), matchedUser, { merge: true }).catch(() => {});
+            safeFirestoreSetDoc(doc(db, 'users', newCred.user.uid), sanitizeUserProfileForCloud(matchedUser), { merge: true }).catch(() => {});
           } catch (createErr) {}
 
           await completeOrChallengeLogin({
@@ -924,8 +925,8 @@ export const AuthModal: React.FC = () => {
         if (updateRegisteredUser) {
           updateRegisteredUser(targetUser.id, { password: newPassword });
         }
-        // Sync new password to Firestore /users/{uid}
-        safeFirestoreSetDoc(doc(db, 'users', targetUser.id), { password: newPassword }, { merge: true }).catch(() => {});
+        // Sync updated profile metadata without storing plaintext password in Firestore
+        safeFirestoreSetDoc(doc(db, 'users', targetUser.id), sanitizeUserProfileForCloud(targetUser), { merge: true }).catch(() => {});
       }
 
       alert(
@@ -975,8 +976,8 @@ export const AuthModal: React.FC = () => {
         registeredAt: new Date().toISOString()
       };
 
-      // Persist into Firestore /users/{uid}
-      safeFirestoreSetDoc(doc(db, 'users', firebaseUid), newUser, { merge: true }).catch(() => {});
+      // Persist sanitized profile into Firestore /users/{uid} (never store plaintext password in cloud DB)
+      safeFirestoreSetDoc(doc(db, 'users', firebaseUid), sanitizeUserProfileForCloud(newUser), { merge: true }).catch(() => {});
 
       try {
         const credMapRaw = storage.getItem('marketbd_credentials_store');

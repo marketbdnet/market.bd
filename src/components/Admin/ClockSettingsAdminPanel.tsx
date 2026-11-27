@@ -48,7 +48,7 @@ export const ClockSettingsAdminPanel: React.FC = () => {
     clockSettings.bgColor || '#090d16'
   );
   const [borderColor, setBorderColor] = useState<string>(
-    clockSettings.borderColor || '#ef4444'
+    clockSettings.borderColor || '#ffffff'
   );
   const [showPulseIcon, setShowPulseIcon] = useState<boolean>(
     clockSettings.showPulseIcon !== false
@@ -85,7 +85,7 @@ export const ClockSettingsAdminPanel: React.FC = () => {
     setTextColor('#00FF66');
     setDateTextColor('#FFFFFF');
     setBgColor('#090d16');
-    setBorderColor('#ef4444');
+    setBorderColor('#ffffff');
     setGlowEffect(true);
     setFontWeight('black');
     setShowSeconds(true);
@@ -108,6 +108,7 @@ export const ClockSettingsAdminPanel: React.FC = () => {
       showSeconds,
       isWidgetEnabled,
       glowEffect,
+      clockVersion: 2,
     });
 
     setStatusMsg(
@@ -126,7 +127,7 @@ export const ClockSettingsAdminPanel: React.FC = () => {
     setTextColor('#00FF66');
     setDateTextColor('#FFFFFF');
     setBgColor('#090d16');
-    setBorderColor('#ef4444');
+    setBorderColor('#ffffff');
     setShowPulseIcon(true);
     setFontWeight('black');
     setShowSeconds(true);
@@ -186,44 +187,89 @@ export const ClockSettingsAdminPanel: React.FC = () => {
         </div>
 
         {/* Live Preview Box */}
-        <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 shadow-inner flex flex-col items-center gap-1.5 shrink-0 min-w-[240px]">
+        <div className="bg-slate-950/90 p-4 rounded-2xl border border-slate-800 shadow-inner flex flex-col items-center gap-2 shrink-0 min-w-[260px]">
           <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
             <Eye className="w-3 h-3 text-emerald-400" />
-            {language === 'bn' ? 'লাইভ প্রিভিউ (Live Preview)' : 'Live Preview'}
+            {language === 'bn' ? 'লাইভ প্রিভিউ (Signature Digital)' : 'Live Preview (Signature Digital)'}
           </span>
           <div
             style={{
+              background: `radial-gradient(120% 100% at 14% 50%, rgba(229, 9, 20, 0.22) 0%, rgba(229, 9, 20, 0.04) 48%, ${bgColor} 100%)`,
               backgroundColor: bgColor,
               borderColor: borderColor,
-              fontFamily: getPreviewFontFamilyCss(),
-              boxShadow: `0 0 10px ${borderColor}55, inset 0 0 8px rgba(0,0,0,0.85)`
+              boxShadow: glowEffect
+                ? `0 0 14px rgba(0, 0, 0, 0.65), 0 0 10px ${borderColor}45, inset 0 1px 0 rgba(255, 255, 255, 0.28)`
+                : `0 2px 8px rgba(0, 0, 0, 0.45)`
             }}
-            className="border px-4 py-2 rounded-xl shadow-lg flex items-center gap-2.5 transition-all"
+            className="relative overflow-hidden border-[1.5px] ring-1 ring-white/35 px-4 py-2 rounded-full shadow-lg flex items-center gap-2.5 transition-all"
           >
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-2 top-0 h-[42%] rounded-t-full bg-gradient-to-b from-white/[0.14] via-white/[0.04] to-transparent"
+            />
+            <span
+              aria-hidden="true"
+              style={{
+                background: 'linear-gradient(90deg, #E50914 0%, #E50914 28%, #FFFFFF 60%, rgba(255,255,255,0.16) 100%)',
+                boxShadow: '0 0 6px rgba(229, 9, 20, 0.65)'
+              }}
+              className="pointer-events-none absolute inset-x-4 bottom-[2px] h-[1.5px] rounded-full opacity-90"
+            />
             {showPulseIcon && (
-              <Clock
-                className="w-4 h-4 animate-pulse shrink-0"
-                style={{
-                  color: textColor,
-                  filter: glowEffect ? `drop-shadow(0 0 4px ${textColor})` : undefined
-                }}
-              />
+              <div className="relative z-10 w-5 h-5 flex items-center justify-center shrink-0">
+                <svg viewBox="0 0 24 24" className="w-full h-full overflow-visible">
+                  <path
+                    d="M 12 2.2 A 9.8 9.8 0 1 1 3.6 17"
+                    fill="none"
+                    stroke="#E50914"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                    className="mbd-clock-orbit-cw"
+                  />
+                  <path
+                    d="M 12 18.8 A 6.8 6.8 0 0 1 7.2 7.2"
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    opacity="0.92"
+                    className="mbd-clock-orbit-ccw"
+                  />
+                  <path
+                    d="M 12 7.6 L 12 12 L 15.2 13.8"
+                    fill="none"
+                    stroke={textColor}
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <circle cx="12" cy="12" r="1.2" fill="#FFFFFF" />
+                </svg>
+              </div>
             )}
-            <div className="flex flex-col text-left leading-none justify-center gap-1">
-              <span
+            <div className="relative z-10 flex flex-col text-left leading-none justify-center gap-0.5 pb-[2px]">
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  style={{
+                    fontFamily: "'Montserrat', 'Hind Siliguri', system-ui, sans-serif",
+                    color: dateTextColor,
+                    textShadow: '0 1px 2px rgba(0,0,0,0.95)'
+                  }}
+                  className="text-[9.5px] font-bold tracking-tight whitespace-nowrap leading-tight"
+                >
+                  {language === 'bn' ? 'শুক্রবার, ২৭ নভেম্বর ২০২৬' : 'Fri, 27 Nov 2026'}
+                </span>
+                <span className="inline-flex items-center px-1 py-[0.5px] rounded text-[7px] font-black tracking-[0.12em] uppercase text-white/95 bg-[#E50914]/25 border border-[#E50914]/70">
+                  BD
+                </span>
+              </div>
+              <div
                 style={{
-                  color: dateTextColor,
-                  textShadow: '0 1px 3px rgba(0,0,0,0.95), 0 0 4px rgba(255,255,255,0.45)'
-                }}
-                className="text-[10px] font-bold tracking-tight whitespace-nowrap leading-tight"
-              >
-                {language === 'bn' ? 'বুধবার, ১২ আগস্ট ২০২৬' : 'Wed, 12 Aug 2026'}
-              </span>
-              <span
-                style={{
+                  fontFamily: getPreviewFontFamilyCss(),
+                  fontVariantNumeric: 'tabular-nums',
                   color: textColor,
                   textShadow: glowEffect
-                    ? `0 0 10px ${textColor}, 0 0 4px ${textColor}, 0 1px 2px rgba(0,0,0,0.95)`
+                    ? `0 0 10px ${textColor}CC, 0 0 4px ${textColor}99, 0 1px 2px rgba(0,0,0,0.95)`
                     : '0 1px 2px rgba(0,0,0,0.9)',
                   fontSize:
                     fontSize === 'custom'
@@ -231,9 +277,9 @@ export const ClockSettingsAdminPanel: React.FC = () => {
                       : fontSize === 'xs'
                       ? '12px'
                       : fontSize === 'sm'
-                      ? '14px'
+                      ? fontFamily === 'vt323' ? '18px' : '14px'
                       : fontSize === 'md'
-                      ? '16px'
+                      ? fontFamily === 'vt323' ? '20px' : '16px'
                       : fontSize === 'lg'
                       ? '18px'
                       : fontSize === 'xl'
@@ -242,10 +288,26 @@ export const ClockSettingsAdminPanel: React.FC = () => {
                       ? '24px'
                       : '28px',
                 }}
-                className={`tracking-wider whitespace-nowrap font-${fontWeight}`}
+                className={`tracking-wider whitespace-nowrap flex items-center leading-none font-${fontWeight}`}
               >
-                {showSeconds ? '09:45:22 AM' : '09:45 AM'}
-              </span>
+                <span>09</span>
+                <span className="mbd-clock-colon mx-0.5 text-white/90">:</span>
+                <span>45</span>
+                {showSeconds && (
+                  <>
+                    <span className="mbd-clock-colon mx-0.5 text-white/80">:</span>
+                    <span className="inline-flex items-center justify-center px-1 py-[0.5px] rounded-[4px] bg-white/[0.08] border border-white/15 leading-none">
+                      22
+                    </span>
+                  </>
+                )}
+                <span
+                  style={{ fontFamily: "'Montserrat', system-ui, sans-serif" }}
+                  className="ml-1 text-[9px] font-black uppercase tracking-[0.12em] text-white/95"
+                >
+                  AM
+                </span>
+              </div>
             </div>
           </div>
         </div>

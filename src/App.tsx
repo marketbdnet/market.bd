@@ -9,6 +9,7 @@ import { HomePage } from './pages/HomePage';
 import { MaintenanceScreen } from './components/Maintenance/MaintenanceScreen';
 import { MasterLockdownScreen } from './components/Maintenance/MasterLockdownScreen';
 import { WelcomeIntroSplash } from './components/Common/WelcomeIntroSplash';
+import { isEffectiveAdmin } from './utils/authOwnership';
 import { ArrowLeft, ArrowRight, Home, Wrench, ShieldAlert, CheckCircle2, Zap } from 'lucide-react';
 
 // Resilient dynamic chunk loader that retries once and gracefully falls back without crashing
@@ -68,6 +69,7 @@ const MainContent: React.FC = () => {
     toggleSiteMaintenance,
     userRole,
     currentUser,
+    isLoggedIn,
     isAISearchOpen,
     isAuthModalOpen,
     isLocationModalOpen,
@@ -75,9 +77,7 @@ const MainContent: React.FC = () => {
     isInstallAppModalOpen
   } = useMarket();
 
-  const isAdmin =
-    userRole === 'admin' ||
-    currentUser?.role === 'admin';
+  const isAdmin = isEffectiveAdmin(isLoggedIn, currentUser, userRole);
 
   const isMasterLockdownActive = siteMaintenance?.isMasterLockdown === true;
   const isMaintenanceActive = siteMaintenance?.isMaintenance === true;

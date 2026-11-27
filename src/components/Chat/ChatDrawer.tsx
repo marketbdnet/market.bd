@@ -2,8 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { isPhoneVisibleToBuyers } from '../../utils/phoneUtils';
 import { formatChatTimestamp, isOwnChatMessage } from '../../utils/chatUtils';
+import { isEffectiveLoggedIn, isEffectiveAdmin } from '../../utils/authOwnership';
 import {
   Send,
+  Lock,
+  LogIn,
   Image as ImageIcon,
   DollarSign,
   Phone,
@@ -31,6 +34,9 @@ export const ChatDrawer: React.FC = () => {
     products,
     setSelectedProduct,
     setActiveTab,
+    isLoggedIn,
+    openAuthModal,
+    userRole,
     currentUser
   } = useMarket();
 
@@ -83,7 +89,7 @@ export const ChatDrawer: React.FC = () => {
   }, [activeChat?.id]);
 
   const getCounterpartName = (thread: typeof chatThreads[number]) => {
-    const isAdminViewer = currentUser?.role === 'admin' || currentUser?.id === 'admin-master';
+    const isAdminViewer = isEffectiveAdmin(isLoggedIn, currentUser, userRole);
     const isViewerSeller =
       Boolean(currentUser?.id && thread.seller?.id === currentUser.id) ||
       Boolean(isAdminViewer && (thread.isCustomerCare || thread.seller?.id === 'admin-master')) ||
@@ -170,6 +176,45 @@ export const ChatDrawer: React.FC = () => {
     { bn: 'লোকেশন কোথায়?', en: 'Where is the location?' },
     { bn: 'কুরিয়ার করা যাবে?', en: 'Can you deliver via courier?' }
   ];
+
+  if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4 text-center animate-in fade-in duration-300">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl space-y-5">
+          <div className="w-16 h-16 bg-sky-50 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 rounded-full flex items-center justify-center mx-auto border border-sky-100 dark:border-sky-800 shadow-sm">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white">
+              {language === 'bn' ? 'চ্যাট ও ইনবক্স দেখতে লগইন করুন' : 'Log in to access your Inbox'}
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
+              {language === 'bn'
+                ? 'ক্রেতা ও বিক্রেতার সাথে সরাসরি মেসেজ আদান-প্রদান ও অফার দেখতে অনুগ্রহ করে লগইন করুন।'
+                : 'Please sign in to send messages, negotiate offers, and manage your conversations.'}
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => openAuthModal('chat')}
+              className="w-full sm:w-auto px-8 py-3 bg-sky-600 hover:bg-sky-700 text-white font-extrabold rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm cursor-pointer"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>{language === 'bn' ? 'লগইন / সাইনআপ করুন' : 'Log In / Register'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('home')}
+              className="w-full sm:w-auto px-6 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition text-sm cursor-pointer"
+            >
+              {language === 'bn' ? 'হোমে ফিরে যান' : 'Back to Home'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto py-3 sm:py-5 px-2 sm:px-4">

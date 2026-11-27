@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMarket } from '../../context/MarketContext';
+import { OFFICIAL_SLOGAN } from '../../constants/branding';
 
 declare global {
   interface Window {
@@ -10,8 +11,9 @@ declare global {
 
 const WORDMARK = 'MarketBD';
 const CHARS = WORDMARK.split(''); // Index 0 = 'M' (#E50914 Red), Indices 1..7 = 'a','r','k','e','t','B','D' (#FFFFFF White)
-const TOTAL_DURATION_MS = 6600;
-const HOLD_BEFORE_EXIT_MS = 750;
+const LOGO_DURATION_MS = 6600;
+const TOTAL_DURATION_MS = 8400;
+const HOLD_BEFORE_EXIT_MS = 1150;
 const BRAND_RED = '#E50914';
 
 // Calibrated SVG stroke perimeters for fontSize=82 heavy geometric sans
@@ -85,6 +87,7 @@ export const WelcomeIntroSplash: React.FC = () => {
   });
 
   const measureTextRef = useRef<SVGTextElement | null>(null);
+  const sloganRef = useRef<HTMLParagraphElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const targetsRef = useRef<GlyphRenderTargets>({
@@ -150,11 +153,12 @@ export const WelcomeIntroSplash: React.FC = () => {
     }
   }, [isVisible]);
 
-  // Original MarketBD Signature Choreography (6.6s slow-motion):
+  // Original MarketBD Signature Choreography (6.6s slow-motion + Act 5 Official Slogan Reveal):
   //   Act 1 (0.00 -> 0.24): Center-outward horizon beam + Welcome tracking-condense title
   //   Act 2 (0.14 -> 0.46): Twin Red/White orbital emblem arcs + Crimson Red "M" depth lock-in
   //   Act 3 (0.34 -> 0.82): Progressive white vector etching + diagonal light-fill on "arketBD"
   //   Act 4 (0.76 -> 1.00): Bi-color Red+White baseline gleam & synchronized floor reflection settle
+  //   Act 5 (6.4s -> 8.1s): Tracking-condense white reveal of "Buy, Sell & Exchange with Trust"
   useEffect(() => {
     if (!isVisible) return;
 
@@ -174,7 +178,8 @@ export const WelcomeIntroSplash: React.FC = () => {
     let fadeTimeout: number | undefined;
     let removeTimeout: number | undefined;
 
-    const applyFrame = (p: number) => {
+    const applyFrame = (elapsed: number) => {
+      const p = clamp01(elapsed / LOGO_DURATION_MS);
       const targets = targetsRef.current;
       const wordW = charLayout.totalWidth;
       const centerX = wordW * 0.5;
@@ -275,14 +280,24 @@ export const WelcomeIntroSplash: React.FC = () => {
         targets.seamGlowMain.setAttribute('x2', (wordW * seamProg).toFixed(1));
         targets.seamGlowMain.style.opacity = seamProg > 0.01 ? (0.85 * clamp01(seamProg * 1.4)).toFixed(3) : '0';
       }
+
+      // Act 5: Official Slogan Reveal matching "Welcome to" tracking-condense elegance (6.4s -> 8.1s)
+      if (sloganRef.current) {
+        const sloganFrac = easeOutCubic(clamp01((elapsed - 6400) / 1600));
+        const trackingEm = lerp(0.32, 0.14, sloganFrac);
+        const risePx = lerp(8, 0, sloganFrac);
+        sloganRef.current.style.opacity = sloganFrac.toFixed(3);
+        sloganRef.current.style.letterSpacing = `${trackingEm.toFixed(3)}em`;
+        sloganRef.current.style.transform = `translateY(${risePx.toFixed(2)}px)`;
+      }
     };
 
     const tick = (now: number) => {
       const elapsed = now - startTime;
-      const p = clamp01(elapsed / TOTAL_DURATION_MS);
-      applyFrame(p);
+      const totalP = clamp01(elapsed / TOTAL_DURATION_MS);
+      applyFrame(elapsed);
 
-      if (p < 1) {
+      if (totalP < 1) {
         rafRef.current = window.requestAnimationFrame(tick);
       } else {
         fadeTimeout = window.setTimeout(() => setIsFadingOut(true), HOLD_BEFORE_EXIT_MS);
@@ -290,8 +305,8 @@ export const WelcomeIntroSplash: React.FC = () => {
       }
     };
 
-    const initialP = clamp01((performance.now() - startTime) / TOTAL_DURATION_MS);
-    applyFrame(initialP);
+    const initialElapsed = Math.max(0, performance.now() - startTime);
+    applyFrame(initialElapsed);
     rafRef.current = window.requestAnimationFrame(tick);
 
     return () => {
@@ -506,6 +521,19 @@ export const WelcomeIntroSplash: React.FC = () => {
             </g>
           </svg>
         </div>
+
+        {/* Official Slogan Reveal matching "Welcome to" elegance */}
+        <p
+          ref={sloganRef}
+          className="text-white font-semibold tracking-[0.14em] text-xs sm:text-lg md:text-2xl mt-2 sm:mt-4 text-center px-2"
+          style={{
+            fontFamily: "'Montserrat', system-ui, sans-serif",
+            opacity: reducedMotion ? 1 : 0,
+            textShadow: '0 0 18px rgba(255, 255, 255, 0.22)',
+          }}
+        >
+          {OFFICIAL_SLOGAN}
+        </p>
       </div>
 
       {/* Subtle Skip / Enter Affordance */}

@@ -4,6 +4,7 @@ import { sendUnifiedSmsOtp, verifyUnifiedSmsOtp } from '../services/smsService';
 import { useMarket } from '../context/MarketContext';
 import { getRemainingAutoApproveTime } from '../utils/autoApprovalTimer';
 import { isProductPublicActive, isProductPending, isProductRejected } from '../utils/productStatus';
+import { isEffectiveAdmin } from '../utils/authOwnership';
 import { WatermarkedImage } from '../components/Product/WatermarkedImage';
 import marketBdLogoImg from '../assets/images/marketbd_official_logo.jpg';
 import {
@@ -63,6 +64,10 @@ import { SiteMaintenanceAdminPanel } from '../components/Admin/SiteMaintenanceAd
 import { AllAdsAdminPanel } from '../components/Admin/AllAdsAdminPanel';
 import { ActivityLoggingAdminPanel } from '../components/Admin/ActivityLoggingAdminPanel';
 import { AdminOptionsListView, AdminTabType } from '../components/Admin/AdminOptionsListView';
+import { OFFICIAL_SLOGAN } from '../constants/branding';
+import { PaymentRecord } from '../types/payment';
+import { fetchAllPayments } from '../services/paymentService';
+import { calculateRealVerifiedRevenue } from '../utils/revenueHelper';
 
 export const AdminPage: React.FC = () => {
   const {
@@ -86,6 +91,7 @@ export const AdminPage: React.FC = () => {
     goBack,
     currentUser,
     userRole,
+    isLoggedIn,
     setUserRole,
     login,
     logout,
@@ -97,7 +103,7 @@ export const AdminPage: React.FC = () => {
     toggleBlockUser
   } = useMarket();
 
-  const isAdmin = currentUser?.role === 'admin' || userRole === 'admin';
+  const isAdmin = isEffectiveAdmin(isLoggedIn, currentUser, userRole);
 
   // Admin Portal Login Form State
   const [adminIdInput, setAdminIdInput] = useState('');
@@ -141,15 +147,27 @@ export const AdminPage: React.FC = () => {
       return;
     }
 
-    // Gateway not ready yet (e.g. SMS_API_KEY missing on Vercel) -> emergency backup code so admin isn't locked out of Gateways setup
+    if (res.code !== 'NOT_CONFIGURED') {
+      setAdminSmsToken('');
+      setAdminSmsExp(0);
+      setGeneratedOtp('');
+      setOtpErrorMsg(
+        language === 'bn'
+          ? `❌ লাইভ SMS OTP পাঠানো যায়নি: ${res.hint || res.error || 'সার্ভার ত্রুটি'}। অনুগ্রহ করে আবার চেষ্টা করুন।`
+          : `❌ Live SMS OTP could not be sent: ${res.hint || res.error || 'Server error'}. Please retry.`
+      );
+      return;
+    }
+
+    // Gateway API key not set yet -> one-time onboarding recovery code after server password verification
     const backupOtp = Math.floor(100000 + Math.random() * 900000).toString();
     setAdminSmsToken('');
     setAdminSmsExp(0);
     setGeneratedOtp(backupOtp);
     setAdminSmsNotice(
       language === 'bn'
-        ? `⚠️ লাইভ SMS OTP পাঠানো যায়নি: ${res.hint || res.error || 'গেটওয়ে কনফিগার করা নেই'}। Gateways প্যানেল সেটআপ করতে নিচের জরুরি রিকভারি কোড ব্যবহার করুন।`
-        : `⚠️ Live SMS OTP could not be sent: ${res.hint || res.error || 'Gateway not configured'}. Use emergency recovery code below to enter Gateways setup.`
+        ? `⚠️ লাইভ SMS OTP গেটওয়ে কনফিগার করা নেই (${res.hint || res.error || 'NOT_CONFIGURED'})। Gateways প্যানেল সেটআপ করতে নিচের জরুরি রিকভারি কোড ব্যবহার করুন।`
+        : `⚠️ Live SMS OTP gateway is not configured yet. Use the emergency setup recovery code below to enter Gateways settings.`
     );
   };
 
@@ -267,16 +285,25 @@ export const AdminPage: React.FC = () => {
   const [customReasonText, setCustomReasonText] = useState<string>('');
 
   const [reportFeedback, setReportFeedback] = useState<string>('');
+  const [verifiedPayments, setVerifiedPayments] = useState<PaymentRecord[]>([]);
+
+  React.useEffect(() => {
+    if (!isAdmin) return;
+    let active = true;
+    fetchAllPayments()
+      .then(list => {
+        if (active) setVerifiedPayments(list);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [isAdmin, products.length]);
+
   const activeAdsCount = products.filter(p => isProductPublicActive(p)).length;
   const pendingAds = products.filter(p => isProductPending(p));
   const rejectedAds = products.filter(p => isProductRejected(p));
-  const totalPromotionRevenue = products.reduce(
-    (sum, p) =>
-      sum +
-      (Number(p.paymentInfo?.amount) ||
-        (p.adType === 'featured' ? 599 : p.adType === 'top_ad' ? 299 : p.adType === 'urgent' ? 199 : 0)),
-    0
-  );
+  const totalPromotionRevenue = calculateRealVerifiedRevenue(products, verifiedPayments);
 
   if (!isAdmin) {
     if (showOtpStep) {
@@ -730,12 +757,10 @@ export const AdminPage: React.FC = () => {
                 </div>
               </div>
               <h3 className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-2">
-                ৳{products
-                  .reduce((sum, p) => sum + (Number(p.paymentInfo?.amount) || 0), 0)
-                  .toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US')}
+                ৳{totalPromotionRevenue.toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US')}
               </h3>
               <p className="text-[10px] text-amber-600 font-bold mt-1">
-                {language === 'bn' ? 'ভেরিফাইড প্রমোশন পেমেন্ট' : 'Verified promotion totals'}
+                {language === 'bn' ? 'রিয়েল ভেরিফাইড ব্যালেন্স' : 'Real verified balance'}
               </p>
             </div>
 
@@ -1482,7 +1507,7 @@ export const AdminPage: React.FC = () => {
                     <span className="text-red-500 font-black">Net</span>
                   </span>
                   <span className="text-[10px] block text-white font-bold">
-                    Buy Sell with trust
+                    {OFFICIAL_SLOGAN}
                   </span>
                 </div>
               </div>

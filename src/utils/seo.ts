@@ -165,7 +165,7 @@ export function getHomeSEO(): SEOData {
   };
 
   return {
-    title: `MarketBD.Net - বাংলাদেশের ১ নম্বর অনলাইন মার্কেটপ্লেস | Buy & Sell Online in Bangladesh`,
+    title: `MarketBD.Net — Buy, Sell & Exchange with Trust | বাংলাদেশের অনলাইন মার্কেটপ্লেস`,
     description: DEFAULT_DESCRIPTION,
     keywords: 'MarketBD, MarketBD.Net, online shopping Bangladesh, buy sell mobiles, laptop price in BD, used cars Dhaka, property sale Bangladesh, buy bikes online BD',
     image: DEFAULT_LOGO,

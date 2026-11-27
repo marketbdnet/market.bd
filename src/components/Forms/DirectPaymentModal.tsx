@@ -114,11 +114,11 @@ export const DirectPaymentModal: React.FC<DirectPaymentModalProps> = ({
   const handleVerifyOtp = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanOtp = otp.trim();
-    if (!cleanOtp || cleanOtp.length < 4) {
+    if (!cleanOtp || cleanOtp.length !== 6 || cleanOtp !== generatedOtp) {
       setError(
         language === 'bn'
           ? 'সঠিক ৬ ডিজিটের ওটিপি ভেরিফিকেশন কোড দিন'
-          : 'Please enter valid 6-digit verification OTP'
+          : 'Please enter exact 6-digit verification OTP'
       );
       return;
     }

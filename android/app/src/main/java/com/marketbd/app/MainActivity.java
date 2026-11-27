@@ -650,12 +650,15 @@ public class MainActivity extends AppCompatActivity {
      */
     private static final class MarketBdSignatureSplashView extends View {
         private static final String WORDMARK = "MarketBD";
-        private static final long ANIM_DURATION_MS = 6600L;
-        private static final long HOLD_DURATION_MS = 750L;
+        private static final String OFFICIAL_SLOGAN = "Buy, Sell & Exchange with Trust";
+        private static final long LOGO_DURATION_MS = 6600L;
+        private static final long ANIM_DURATION_MS = 8400L;
+        private static final long HOLD_DURATION_MS = 1150L;
         private static final int BRAND_RED = Color.parseColor("#E50914");
 
         private final Paint ambientGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint welcomePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint sloganPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint mFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -700,6 +703,15 @@ public class MainActivity extends AppCompatActivity {
             }
             welcomePaint.setTextSize(TypedValue.applyDimension(
                     TypedValue.COMPLEX_UNIT_SP, 22, context.getResources().getDisplayMetrics()));
+
+            sloganPaint.setColor(Color.WHITE);
+            sloganPaint.setTypeface(welcomeTf);
+            sloganPaint.setTextAlign(Paint.Align.CENTER);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                sloganPaint.setLetterSpacing(0.32f);
+            }
+            sloganPaint.setTextSize(TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_SP, 15, context.getResources().getDisplayMetrics()));
 
             Typeface heavyTf = Typeface.create("sans-serif-black", Typeface.BOLD);
             fillPaint.setColor(Color.WHITE);
@@ -847,6 +859,19 @@ public class MainActivity extends AppCompatActivity {
             );
             seamGlowPaint.setShader(seamGlowShader);
 
+            // Fit slogan cleanly within screen width with target tracking
+            float maxSloganWidth = w * 0.90f;
+            float baseSloganSize = TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_SP, 15, getResources().getDisplayMetrics());
+            sloganPaint.setTextSize(baseSloganSize);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                sloganPaint.setLetterSpacing(0.14f);
+            }
+            float sloganW = sloganPaint.measureText(OFFICIAL_SLOGAN);
+            if (sloganW > maxSloganWidth && sloganW > 0f) {
+                sloganPaint.setTextSize(baseSloganSize * (maxSloganWidth / sloganW));
+            }
+
             geometryReady = true;
             reflectionMaskShader = null;
         }
@@ -861,11 +886,14 @@ public class MainActivity extends AppCompatActivity {
             float h = getHeight();
             canvas.drawRect(0f, 0f, w, h, ambientGlowPaint);
 
+            float elapsedMs = animProgress * ANIM_DURATION_MS;
+            float logoP = clamp01(elapsedMs / (float) LOGO_DURATION_MS);
+
             float wordLeftX = (w - wordWidth) * 0.5f;
-            float baselineY = h * 0.50f;
+            float baselineY = h * 0.49f;
 
             // 1. Crisp White "Welcome to" with tracking condense reveal above MarketBD
-            float welcomeFrac = easeOutCubic(clamp01(animProgress / 0.23f));
+            float welcomeFrac = easeOutCubic(clamp01(logoP / 0.23f));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 welcomePaint.setLetterSpacing(lerp(0.38f, 0.18f, welcomeFrac));
             }
@@ -875,10 +903,10 @@ public class MainActivity extends AppCompatActivity {
             canvas.drawText("Welcome to", w * 0.5f, welcomeY, welcomePaint);
 
             // 2. Upright Primary Wordmark (Crimson M + Etched/Filled White arketBD + Orbital Arcs)
-            drawWordmarkPass(canvas, wordLeftX, baselineY, false, 1f);
+            drawWordmarkPass(canvas, logoP, wordLeftX, baselineY, false, 1f);
 
-            // 3. Bi-Color Signature Baseline Seam Gleam (Act 4: 0.74 -> 0.96)
-            float seamProg = easeOutCubic(clamp01((animProgress - 0.74f) / 0.22f));
+            // 3. Bi-Color Signature Baseline Seam Gleam (Act 4: 0.74 -> 0.96 of logo timeline)
+            float seamProg = easeOutCubic(clamp01((logoP - 0.74f) / 0.22f));
             if (seamProg > 0.01f) {
                 float seamY = baselineY + Math.max(1.5f, 1.2f * density);
                 seamGlowPaint.setAlpha(Math.round(216f * clamp01(seamProg * 1.4f)));
@@ -890,7 +918,7 @@ public class MainActivity extends AppCompatActivity {
 
             // 4. Synchronized Floor Mirror Reflection (directly below baseline seam)
             float reflectBaselineY = baselineY + Math.max(3f, 2.2f * density);
-            drawWordmarkPass(canvas, wordLeftX, reflectBaselineY, true, 0.54f);
+            drawWordmarkPass(canvas, logoP, wordLeftX, reflectBaselineY, true, 0.54f);
 
             // 5. Smooth Black Floor Mirror Fade Gradient
             float maskBottom = reflectBaselineY + capHeight * 0.92f;
@@ -909,16 +937,27 @@ public class MainActivity extends AppCompatActivity {
                 reflectionMaskPaint.setShader(reflectionMaskShader);
             }
             canvas.drawRect(0f, reflectBaselineY, w, maskBottom + 12f * density, reflectionMaskPaint);
+
+            // 6. Act 5: Official Slogan Reveal matching "Welcome to" tracking-condense style (6.4s -> 8.0s)
+            float sloganFrac = easeOutCubic(clamp01((elapsedMs - 6400f) / 1600f));
+            if (sloganFrac > 0.005f) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    sloganPaint.setLetterSpacing(lerp(0.28f, 0.14f, sloganFrac));
+                }
+                float sloganRiseY = lerp(8f * density, 0f, sloganFrac);
+                sloganPaint.setAlpha(Math.round(255f * sloganFrac));
+                float sloganY = maskBottom + 26f * density + sloganRiseY;
+                canvas.drawText(OFFICIAL_SLOGAN, w * 0.5f, sloganY, sloganPaint);
+            }
         }
 
-        private void drawWordmarkPass(Canvas canvas, float wordLeftX, float baselineY, boolean flipped, float baseOpacity) {
+        private void drawWordmarkPass(Canvas canvas, float p, float wordLeftX, float baselineY, boolean flipped, float baseOpacity) {
             canvas.save();
             canvas.translate(wordLeftX, baselineY);
             if (flipped) {
                 canvas.scale(1f, -1f);
             }
 
-            float p = animProgress;
             float centerX = wordWidth * 0.5f;
             float mSlotCenter = charXs[0] + mAdvance * 0.48f;
             float mAnchorY = -capHeight * 0.50f;

@@ -10,7 +10,7 @@ import { checkAndExpireAds, renewExpiredAd } from '../utils/adExpiryEngine';
 import { isProductPublicActive, isProductPending, isProductRejected, isProductSold, isProductExpired, makeApprovedProduct, makePendingProduct, makeRejectedProduct } from '../utils/productStatus';
 import { sendLocalBrowserPushNotification, requestWebPushPermission } from '../services/pushNotificationService';
 import { db, auth, safeFirestoreSetDoc, safeFirestoreDeleteDoc, onAuthStateChanged, signOut } from '../lib/firebase';
-import { doc, onSnapshot, collection, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, getDoc, query, where } from 'firebase/firestore';
 import { INITIAL_ADMIN_LOGS, saveAdminLogToFirestore, subscribeToFirestoreAdminLogs, fetchAllAdminLogsFromFirestore, formatAdminLogTimestamp } from '../services/adminLogService';
 import {
   REACTIONS_STORAGE_KEY,
@@ -24,6 +24,14 @@ import {
   isDummyChatThread,
   filterUserChatThreads,
 } from '../utils/chatUtils';
+import {
+  isEffectiveLoggedIn,
+  isEffectiveAdmin,
+  isAdOwner,
+  sanitizeUserProfileForCloud,
+  getApiAuthHeaders
+} from '../utils/authOwnership';
+import { clearAdminAuthToken } from '../utils/adminAuth';
 
 const CATEGORY_STORAGE_KEY = 'marketbd_categories_v3_bikroy17';
 
@@ -95,12 +103,44 @@ export const DEFAULT_CLOCK_SETTINGS: ClockSettings = {
   textColor: '#00FF66',
   dateTextColor: '#FFFFFF',
   bgColor: '#090d16',
-  borderColor: '#ef4444',
+  borderColor: '#ffffff',
   showPulseIcon: true,
   fontWeight: 'black',
   showSeconds: true,
   isWidgetEnabled: true,
   glowEffect: true,
+  clockVersion: 2,
+};
+
+export const isLegacyStaleClockConfig = (cfg: any): boolean => {
+  if (!cfg || typeof cfg !== 'object') return true;
+  if (Number(cfg.clockVersion || 0) >= 2) return false;
+  // Ignore stub objects from legacy API endpoints (e.g. { timeFormat: '12h', forcedTimeZone: 'Asia/Dhaka' })
+  if (!cfg.textColor && !cfg.bgColor && !cfg.fontFamily) return true;
+  const text = String(cfg.textColor || '').trim().toLowerCase();
+  const dateText = String(cfg.dateTextColor || '').trim().toLowerCase();
+  const bg = String(cfg.bgColor || '').trim().toLowerCase();
+  const border = String(cfg.borderColor || '').trim().toLowerCase();
+  return (
+    bg === '#0f172a' ||
+    border === '#334155' ||
+    text === '#fbbf24' ||
+    text === '#22c55e' ||
+    text === '#34d399' ||
+    dateText === '#fbbf24' ||
+    dateText === '#6ee7b7'
+  );
+};
+
+export const sanitizeIncomingClockSettings = (incoming: any, prev: ClockSettings): ClockSettings => {
+  if (isLegacyStaleClockConfig(incoming)) {
+    return prev?.clockVersion && prev.clockVersion >= 2 ? prev : DEFAULT_CLOCK_SETTINGS;
+  }
+  const merged: ClockSettings = { ...DEFAULT_CLOCK_SETTINGS, ...prev, ...incoming };
+  if (merged.borderColor === '#334155' || merged.borderColor === '#ef4444') {
+    merged.borderColor = '#ffffff';
+  }
+  return merged;
 };
 
 export const DEFAULT_SYSTEM_NOTICE: SystemNoticeConfig = {
@@ -409,7 +449,7 @@ interface MarketContextType {
   updateSiteMaintenance: (config: Partial<SiteMaintenanceConfig>) => void;
   toggleSiteMaintenance: (isMaintenance?: boolean) => void;
   toggleMasterLockdown: (isLocked?: boolean) => void;
-  unlockMasterLockdown: (enteredPin: string) => boolean;
+  unlockMasterLockdown: (enteredPin: string) => Promise<boolean>;
 
   // Running Live Clock Customization Settings
   clockSettings: ClockSettings;
@@ -512,60 +552,109 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const normalizeProductsList = (productList: Product[]): Product[] => {
-    return productList.map((p) => {
-      const isExplicitlyVisible = p.showPhoneNumber === true ||
-        p.seller?.showPhoneNumber === true ||
-        (p.seller?.hidePhone === false && p.seller?.showPhoneNumber !== false);
-
-      const rawPhone = p.seller?.phone || '';
-      const phoneValidation = rawPhone ? validateBangladeshiPhone(rawPhone) : null;
-      const cleanPhone = phoneValidation?.isValid ? phoneValidation.normalized : rawPhone;
-
-      let canonicalStatus: 'active' | 'approved' | 'pending' | 'sold' | 'rejected' | 'expired' = 'active';
-      if (isProductPending(p)) {
-        canonicalStatus = 'pending';
-      } else if (isProductRejected(p)) {
-        canonicalStatus = 'rejected';
-      } else if (isProductSold(p)) {
-        canonicalStatus = 'sold';
-      } else if (isProductExpired(p)) {
-        canonicalStatus = 'expired';
-      } else {
-        canonicalStatus = 'active';
-      }
-
-      const isLiveActive = canonicalStatus === 'active';
-
-      // Audit and ensure high-resolution valid image array
-      const fallbackImg1 = getSecondLevelImageUrl(p.category, p.subCategory || '', p.secondLevelCategory || '', p.model || p.title);
-      const fallbackImg2 = getSubcategoryImageUrl(p.category, p.subCategory || '');
-      const validImages = Array.isArray(p.images)
-        ? p.images.filter(img => typeof img === 'string' && img.trim() !== '')
-        : [];
-      const guaranteedImages = validImages.length > 0 ? validImages : [fallbackImg1, fallbackImg2].filter(Boolean);
-
-      return {
-        ...p,
-        images: guaranteedImages,
-        postedAt: p.postedAt || '2026-09-01T12:00:00.000Z',
-        createdAt: p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
-        updatedAt: p.updatedAt || p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
-        expiresAt: p.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        status: canonicalStatus,
-        isApproved: isLiveActive ? (p.isApproved ?? true) : false,
-        isActive: isLiveActive,
-        moderationStatus: canonicalStatus === 'pending' ? 'pending' : (canonicalStatus === 'rejected' ? 'rejected' : 'approved'),
-        showPhoneNumber: isExplicitlyVisible,
-        seller: {
-          ...p.seller,
-          phone: cleanPhone,
-          hidePhone: !isExplicitlyVisible,
-          showPhoneNumber: isExplicitlyVisible,
-          isOnline: p.seller?.isOnline ?? true,
+  const deletedProductIdsRef = React.useRef<Set<string>>((() => {
+    const initial = new Set<string>();
+    try {
+      const compactSaved = storage.getItem('marketbd_custom_products_v5');
+      if (compactSaved) {
+        const parsed = JSON.parse(compactSaved);
+        if (Array.isArray(parsed?.deleted)) {
+          parsed.deleted.forEach((id: any) => {
+            if (typeof id === 'string' && id.trim()) initial.add(id.trim());
+          });
         }
-      };
+      }
+      const deletedSaved = storage.getItem('marketbd_deleted_products_v1');
+      if (deletedSaved) {
+        const parsedDel = JSON.parse(deletedSaved);
+        if (Array.isArray(parsedDel)) {
+          parsedDel.forEach((id: any) => {
+            if (typeof id === 'string' && id.trim()) initial.add(id.trim());
+          });
+        }
+      }
+    } catch {}
+    return initial;
+  })());
+
+  const recordDeletedIds = (ids: string[]) => {
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    let changed = false;
+    ids.forEach(rawId => {
+      const id = typeof rawId === 'string' ? rawId.trim() : '';
+      if (id && !deletedProductIdsRef.current.has(id)) {
+        deletedProductIdsRef.current.add(id);
+        changed = true;
+      }
     });
+    if (changed) {
+      try {
+        storage.setItem('marketbd_deleted_products_v1', JSON.stringify(Array.from(deletedProductIdsRef.current)));
+      } catch {}
+    }
+  };
+
+  const normalizeProductsList = (productList: Product[]): Product[] => {
+    return productList
+      .filter((p) => {
+        if (!p || !p.id) return false;
+        if (deletedProductIdsRef.current.has(p.id)) return false;
+        if ((p as any).isDeleted === true || (p.status as string) === 'deleted') return false;
+        return true;
+      })
+      .map((p) => {
+        const isExplicitlyVisible = p.showPhoneNumber === true ||
+          p.seller?.showPhoneNumber === true ||
+          (p.seller?.hidePhone === false && p.seller?.showPhoneNumber !== false);
+
+        const rawPhone = p.seller?.phone || '';
+        const phoneValidation = rawPhone ? validateBangladeshiPhone(rawPhone) : null;
+        const cleanPhone = phoneValidation?.isValid ? phoneValidation.normalized : rawPhone;
+
+        let canonicalStatus: 'active' | 'approved' | 'pending' | 'sold' | 'rejected' | 'expired' = 'active';
+        if (isProductPending(p)) {
+          canonicalStatus = 'pending';
+        } else if (isProductRejected(p)) {
+          canonicalStatus = 'rejected';
+        } else if (isProductSold(p)) {
+          canonicalStatus = 'sold';
+        } else if (isProductExpired(p)) {
+          canonicalStatus = 'expired';
+        } else {
+          canonicalStatus = 'active';
+        }
+
+        const isLiveActive = canonicalStatus === 'active';
+
+        // Audit and ensure high-resolution valid image array
+        const fallbackImg1 = getSecondLevelImageUrl(p.category, p.subCategory || '', p.secondLevelCategory || '', p.model || p.title);
+        const fallbackImg2 = getSubcategoryImageUrl(p.category, p.subCategory || '');
+        const validImages = Array.isArray(p.images)
+          ? p.images.filter(img => typeof img === 'string' && img.trim() !== '')
+          : [];
+        const guaranteedImages = validImages.length > 0 ? validImages : [fallbackImg1, fallbackImg2].filter(Boolean);
+
+        return {
+          ...p,
+          images: guaranteedImages,
+          postedAt: p.postedAt || '2026-09-01T12:00:00.000Z',
+          createdAt: p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
+          updatedAt: p.updatedAt || p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
+          expiresAt: p.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          status: canonicalStatus,
+          isApproved: isLiveActive ? (p.isApproved ?? true) : false,
+          isActive: isLiveActive,
+          moderationStatus: canonicalStatus === 'pending' ? 'pending' : (canonicalStatus === 'rejected' ? 'rejected' : 'approved'),
+          showPhoneNumber: isExplicitlyVisible,
+          seller: {
+            ...p.seller,
+            phone: cleanPhone,
+            hidePhone: !isExplicitlyVisible,
+            showPhoneNumber: isExplicitlyVisible,
+            isOnline: p.seller?.isOnline ?? true,
+          }
+        };
+      });
   };
 
   const canonicalProductsCacheRef = React.useRef<Product[] | null>(null);
@@ -597,7 +686,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // Store a tiny 16-item fast-boot snapshot (<15KB) for 0ms repeat launches on Android
       const activeFastSeed = list
-        .filter((p) => p && p.id && isProductPublicActive(p))
+        .filter((p) => p && p.id && !deletedProductIdsRef.current.has(p.id) && isProductPublicActive(p))
         .slice(0, 16)
         .map((p) => ({
           ...p,
@@ -607,6 +696,8 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }));
       if (activeFastSeed.length > 0) {
         storage.setItem('marketbd_fast_seed_v1', JSON.stringify(activeFastSeed));
+      } else {
+        storage.removeItem('marketbd_fast_seed_v1');
       }
 
       // Wait until the canonical catalog chunk has loaded before writing delta cache
@@ -617,7 +708,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const customOrModified: Product[] = [];
       const presentCanonicalIds = new Set<string>();
       for (const p of list) {
-        if (!p || !p.id) continue;
+        if (!p || !p.id || deletedProductIdsRef.current.has(p.id)) continue;
         const base = canonicalIdMapRef.current.get(p.id);
         const isModified =
           !base || p.status !== 'active' || p.title !== base.title || p.price !== base.price;
@@ -634,13 +725,13 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           presentCanonicalIds.add(p.id);
         }
       }
-      const deletedCanonicalIds: string[] = [];
+      const deletedSet = new Set<string>(deletedProductIdsRef.current);
       canonicalIdMapRef.current.forEach((_v, id) => {
-        if (!presentCanonicalIds.has(id)) deletedCanonicalIds.push(id);
+        if (!presentCanonicalIds.has(id)) deletedSet.add(id);
       });
       storage.setItem(
         'marketbd_custom_products_v5',
-        JSON.stringify({ custom: customOrModified.slice(0, 80), deleted: deletedCanonicalIds })
+        JSON.stringify({ custom: customOrModified.slice(0, 80), deleted: Array.from(deletedSet) })
       );
     } catch {
       // Non-fatal if storage quota restricted
@@ -830,19 +921,30 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return null;
   });
 
+  // Auth refs for functions declared prior to auth state hooks
+  const isLoggedInRef = React.useRef<boolean>(false);
+  const currentUserRef = React.useRef<UserProfile | null>(null);
+  const userRoleRef = React.useRef<'buyer' | 'seller' | 'admin'>('buyer');
+  const openAuthModalRef = React.useRef<(purpose?: 'post-ad' | 'general' | 'chat') => void>(() => {});
+
   // Cloud Realtime Synchronization Engine (Firebase Firestore + Server Sync with Debounce & Circuit Breaker)
   const syncTimeoutMapRef = React.useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const syncToCloud = (key: string, data: any) => {
+    const safeData =
+      key === 'registered_users' && Array.isArray(data)
+        ? data.map((u: any) => (u && typeof u === 'object' ? sanitizeUserProfileForCloud(u) : u))
+        : data;
+
     // 1. Debounce and safely sync with Firestore
     const existingTimeout = syncTimeoutMapRef.current.get(key);
     if (existingTimeout) clearTimeout(existingTimeout);
 
     const timeout = setTimeout(() => {
-      safeFirestoreSetDoc(doc(db, 'settings', key), { value: data, updatedAt: new Date().toISOString() }, { merge: true })
+      safeFirestoreSetDoc(doc(db, 'settings', key), { value: safeData, updatedAt: new Date().toISOString() }, { merge: true })
         .catch(() => {});
       if (key === 'site_maintenance') {
-        safeFirestoreSetDoc(doc(db, 'settings', 'siteMaintenance'), { value: data, updatedAt: new Date().toISOString() }, { merge: true })
+        safeFirestoreSetDoc(doc(db, 'settings', 'siteMaintenance'), { value: safeData, updatedAt: new Date().toISOString() }, { merge: true })
           .catch(() => {});
       }
       syncTimeoutMapRef.current.delete(key);
@@ -854,10 +956,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       fetch('/api/sync/state', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiAuthHeaders(currentUserRef.current),
         body: JSON.stringify({
-          [key]: data,
-          ...(key === 'site_maintenance' ? { siteMaintenance: data } : {})
+          [key]: safeData,
+          ...(key === 'site_maintenance' ? { siteMaintenance: safeData } : {})
         })
       }).catch(() => {});
     } catch (e) {}
@@ -868,7 +970,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // 1. Initial lightweight hydration from server sync API with 4s timeout guard
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const fetchTimer = controller ? setTimeout(() => controller.abort(), 4000) : null;
-    fetch('/api/sync/state?lite=1', controller ? { signal: controller.signal } : undefined)
+    fetch('/api/sync/state?lite=1', {
+      headers: getApiAuthHeaders(currentUserRef.current, false),
+      ...(controller ? { signal: controller.signal } : {})
+    })
       .then(res => res.json())
       .then(res => {
         if (fetchTimer) clearTimeout(fetchTimer);
@@ -915,9 +1020,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               return merged;
             });
           }
-          if (d.clockSettings) {
+          const incomingClock = d.clockSettings || d.clock_settings;
+          if (incomingClock && !isLegacyStaleClockConfig(incomingClock)) {
             setClockSettingsState(prev => {
-              const merged = { ...prev, ...d.clockSettings };
+              const merged = sanitizeIncomingClockSettings(incomingClock, prev);
               storage.setItem('marketbd_clock_settings_v1', JSON.stringify(merged));
               return merged;
             });
@@ -977,13 +1083,28 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               storage.setItem('marketbd_category_images_overrides_v1', JSON.stringify(overrides));
             }
           }
+          if (Array.isArray(d.deletedProductIds) && d.deletedProductIds.length > 0) {
+            recordDeletedIds(d.deletedProductIds);
+            setProducts(prev => {
+              const filtered = prev.filter(p => !deletedProductIdsRef.current.has(p.id));
+              if (filtered.length !== prev.length) {
+                persistCompactProductsCache(filtered);
+                return filtered;
+              }
+              return prev;
+            });
+          }
           if (d.marketplace_products && Array.isArray(d.marketplace_products) && d.marketplace_products.length > 0) {
             ensureCanonicalProducts().then((baseList) => {
               setProducts(prev => {
                 const map = new Map<string, Product>();
-                baseList.forEach(p => { if (p && p.id) map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true }); });
+                baseList.forEach(p => {
+                  if (p && p.id && !deletedProductIdsRef.current.has(p.id)) {
+                    map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true });
+                  }
+                });
                 d.marketplace_products.forEach((p: Product) => {
-                  if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
+                  if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id) && !deletedProductIdsRef.current.has(p.id)) {
                     const existing = map.get(p.id);
                     map.set(p.id, existing ? { ...existing, ...p } : p);
                   }
@@ -1075,9 +1196,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const unsubClock = onSnapshot(doc(db, 'settings', 'clock_settings'), (snapshot) => {
         if (snapshot.exists()) {
           const val = snapshot.data()?.value || snapshot.data();
-          if (val) {
+          if (val && !isLegacyStaleClockConfig(val)) {
             setClockSettingsState(prev => {
-              const merged = { ...prev, ...val };
+              const merged = sanitizeIncomingClockSettings(val, prev);
               storage.setItem('marketbd_clock_settings_v1', JSON.stringify(merged));
               return merged;
             });
@@ -1158,16 +1279,50 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }).catch(() => {});
       }
 
+      // Shared tombstone listener: ensures deletions made on Android or Web propagate to all devices immediately
+      const unsubDeletedProducts = onSnapshot(doc(db, 'settings', 'deleted_products'), (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          const ids = Array.isArray(data?.ids) ? data.ids : (Array.isArray(data?.value) ? data.value : []);
+          if (Array.isArray(ids) && ids.length > 0) {
+            recordDeletedIds(ids);
+            setProducts(prev => {
+              const filtered = prev.filter(p => !deletedProductIdsRef.current.has(p.id));
+              if (filtered.length !== prev.length) {
+                persistCompactProductsCache(filtered);
+                return filtered;
+              }
+              return prev;
+            });
+          }
+        }
+      }, () => {});
+      unsubs.push(unsubDeletedProducts);
+
       // Authoritative Realtime listener for individual documents in 'products' Firestore collection (Direct Android & Web sync)
       const unsubProductsCol = onSnapshot(collection(db, 'products'), (snapshot) => {
         const cloudAds: Product[] = [];
+        const softDeletedInCloud: string[] = [];
         snapshot.forEach(docSnap => {
-          const data = docSnap.data() as Product;
+          const data = docSnap.data() as Product & { isDeleted?: boolean };
           if (data && docSnap.id) {
-            cloudAds.push({ ...data, id: docSnap.id });
+            if (data.isDeleted === true || (data.status as string) === 'deleted') {
+              softDeletedInCloud.push(docSnap.id);
+            } else {
+              cloudAds.push({ ...data, id: docSnap.id });
+            }
           }
         });
+        if (softDeletedInCloud.length > 0) {
+          recordDeletedIds(softDeletedInCloud);
+        }
         const docChanges = snapshot.docChanges();
+        const removedInSnapshot = new Set<string>();
+        docChanges.forEach(change => {
+          if (change.type === 'removed') {
+            removedInSnapshot.add(change.doc.id);
+          }
+        });
 
         // Cross-Device Realtime Live Notification Trigger:
         // Detects when any ad posted from this device/account transitions to active/approved
@@ -1219,18 +1374,18 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ensureCanonicalProducts().then((baseList) => {
           setProducts(prev => {
             const map = new Map<string, Product>();
-            baseList.forEach(p => { if (p && p.id) map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true }); });
+            baseList.forEach(p => {
+              if (p && p.id && !deletedProductIdsRef.current.has(p.id) && !removedInSnapshot.has(p.id)) {
+                map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true });
+              }
+            });
             cloudAds.forEach(ca => {
-              if (ca && ca.id && ca.title && ca.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(ca.id)) {
+              if (ca && ca.id && ca.title && ca.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(ca.id) && !deletedProductIdsRef.current.has(ca.id)) {
                 const existing = map.get(ca.id);
                 map.set(ca.id, existing ? { ...existing, ...ca } : ca);
               }
             });
-            docChanges.forEach(change => {
-              if (change.type === 'removed') {
-                map.delete(change.doc.id);
-              }
-            });
+            removedInSnapshot.forEach(id => map.delete(id));
 
             const rawMerged = Array.from(map.values()).sort((a, b) => 
               new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
@@ -1241,7 +1396,11 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             return merged;
           });
         }).catch(() => {});
-      }, (err) => console.log('Products collection listener notice:', err));
+      }, (err) => {
+        console.log('Products collection listener notice:', err);
+        // Fallback to REST endpoint when Firestore listener hits quota or offline limits
+        refreshProducts().catch(() => {});
+      });
       unsubs.push(unsubProductsCol);
 
       const unsubCategories = onSnapshot(doc(db, 'settings', 'categories_config'), (snapshot) => {
@@ -1291,54 +1450,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }, () => {});
       unsubs.push(unsubUsers);
 
-      // Authoritative Realtime listener for cross-device User Notifications (e.g. ad approval on Web delivered to Android)
-      const unsubUserNotifications = onSnapshot(collection(db, 'user_notifications'), (snapshot) => {
-        try {
-          const myPostedAdsRaw = storage.getItem('marketbd_my_posted_ads');
-          const myPostedAds: string[] = myPostedAdsRaw ? JSON.parse(myPostedAdsRaw) : [];
-
-          snapshot.docChanges().forEach(change => {
-            if (change.type === 'added' || change.type === 'modified') {
-              const data = change.doc.data();
-              if (!data) return;
-
-              const isMine = (
-                (data.targetProductId && myPostedAds.includes(data.targetProductId)) ||
-                (currentUser?.email && data.sellerEmail === currentUser.email) ||
-                (currentUser?.phone && data.sellerPhone === currentUser.phone)
-              );
-
-              if (isMine && !storage.getItem('marketbd_notif_seen_' + change.doc.id)) {
-                storage.setItem('marketbd_notif_seen_' + change.doc.id, 'true');
-
-                setNotifications(prev => {
-                  if (prev.some(n => n.id === change.doc.id)) return prev;
-                  return [
-                    {
-                      id: change.doc.id,
-                      title: data.title || 'বিজ্ঞাপন আপডেট',
-                      message: data.message || '',
-                      time: 'Just now',
-                      isRead: false,
-                      type: data.type || 'approval'
-                    },
-                    ...prev
-                  ];
-                });
-
-                sendLocalBrowserPushNotification({
-                  title: data.title || 'বিজ্ঞাপন আপডেট',
-                  body: data.message || '',
-                  url: data.targetProductId ? `#/product/${data.targetProductId}` : '/'
-                });
-              }
-            }
-          });
-        } catch (err) {
-          console.warn('User notifications listener note:', err);
-        }
-      }, () => {});
-      unsubs.push(unsubUserNotifications);
+      // Note: user_notifications listener is attached inside Firebase Auth listener when signed in to conserve Firestore read quota
 
       // Explicit Super Admin Remote Session Revocation Listener (triggers ONLY when
       // an admin explicitly presses "Terminate Other Sessions", never on normal web/Android login).
@@ -1391,6 +1503,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     let isMounted = true;
     let unsubUserDoc: (() => void) | null = null;
+    let unsubScopedNotifications: (() => void) | null = null;
 
     const unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
       if (!isMounted) return;
@@ -1402,6 +1515,48 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             unsubUserDoc();
             unsubUserDoc = null;
           }
+          if (unsubScopedNotifications) {
+            unsubScopedNotifications();
+            unsubScopedNotifications = null;
+          }
+
+          unsubScopedNotifications = onSnapshot(
+            query(collection(db, 'user_notifications'), where('userId', '==', fbUser.uid)),
+            (snapshot) => {
+              if (!isMounted) return;
+              try {
+                snapshot.docChanges().forEach(change => {
+                  if (change.type === 'added' || change.type === 'modified') {
+                    const data = change.doc.data();
+                    if (!data) return;
+                    if (!storage.getItem('marketbd_notif_seen_' + change.doc.id)) {
+                      storage.setItem('marketbd_notif_seen_' + change.doc.id, 'true');
+                      setNotifications(prev => {
+                        if (prev.some(n => n.id === change.doc.id)) return prev;
+                        return [
+                          {
+                            id: change.doc.id,
+                            title: data.title || 'বিজ্ঞাপন আপডেট',
+                            message: data.message || '',
+                            time: 'Just now',
+                            isRead: false,
+                            type: data.type || 'approval'
+                          },
+                          ...prev
+                        ];
+                      });
+                      sendLocalBrowserPushNotification({
+                        title: data.title || 'বিজ্ঞাপন আপডেট',
+                        body: data.message || '',
+                        url: data.targetProductId ? `#/product/${data.targetProductId}` : '/'
+                      });
+                    }
+                  }
+                });
+              } catch {}
+            },
+            () => {}
+          );
 
           unsubUserDoc = onSnapshot(doc(db, 'users', fbUser.uid), (docSnap) => {
             if (!isMounted) return;
@@ -1425,8 +1580,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 location: data.location,
                 tradeLicense: data.tradeLicense,
                 nidNumber: data.nidNumber,
-                notes: data.notes,
-                password: data.password
+                notes: data.notes
               };
             } else {
               // Create default profile for this Firebase Auth user
@@ -1444,7 +1598,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 avatar: fbUser.photoURL || undefined,
                 authProvider: fbUser.providerData?.[0]?.providerId || 'firebase'
               };
-              safeFirestoreSetDoc(doc(db, 'users', fbUser.uid), profile, { merge: true }).catch(() => {});
+              safeFirestoreSetDoc(doc(db, 'users', fbUser.uid), sanitizeUserProfileForCloud(profile), { merge: true }).catch(() => {});
             }
 
             if (profile.isBlocked || profile.status === 'blocked') {
@@ -1469,7 +1623,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             // Sync session to localStorage
             storage.setItem('marketbd_is_logged_in', 'true');
             storage.setItem('marketbd_user_role', profile.role || 'seller');
-            storage.setItem('marketbd_auth_user', JSON.stringify(profile));
+            storage.setItem('marketbd_auth_user', JSON.stringify(sanitizeUserProfileForCloud(profile)));
           }, (err) => {
             if (err?.code !== 'cancelled') {
               console.warn('[Firebase Auth] Firestore user profile sync notice:', err?.message || err);
@@ -1484,25 +1638,39 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           unsubUserDoc();
           unsubUserDoc = null;
         }
+        if (unsubScopedNotifications) {
+          unsubScopedNotifications();
+          unsubScopedNotifications = null;
+        }
 
-        // Maintain persistent login session across page refreshes, browser reopens, and temporary network offline states.
-        // The session is strictly maintained until the user explicitly clicks the Logout button.
+        // Maintain persistent login session across page refreshes only if both login flag and valid user record exist
         const savedAuth = storage.getItem('marketbd_auth_user');
         const isLoggedInFlag = storage.getItem('marketbd_is_logged_in') === 'true';
 
         if (savedAuth && isLoggedInFlag) {
           try {
             const parsed: UserProfile = JSON.parse(savedAuth);
-            if (parsed && !parsed.isBlocked && parsed.status !== 'blocked') {
+            if (parsed && typeof parsed.id === 'string' && parsed.id.trim() && !parsed.isBlocked && parsed.status !== 'blocked') {
+              if (parsed.id !== 'admin-master' && parsed.role === 'admin') {
+                parsed.role = 'seller';
+              }
               setCurrentUser(parsed);
               setIsLoggedIn(true);
-              setUserRole(parsed.role || (storage.getItem('marketbd_user_role') as any) || 'seller');
+              setUserRole(parsed.role || 'seller');
               return;
             }
           } catch (e) {
             console.warn('[Session Persistence] Failed to restore local user session:', e);
           }
         }
+
+        // Clear partial/stale auth state when no valid session exists
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        setUserRole('buyer');
+        storage.removeItem('marketbd_is_logged_in');
+        storage.removeItem('marketbd_user_role');
+        storage.removeItem('marketbd_auth_user');
       }
     });
 
@@ -1510,22 +1678,32 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isMounted = false;
       unsubAuth();
       if (unsubUserDoc) unsubUserDoc();
+      if (unsubScopedNotifications) unsubScopedNotifications();
     };
   }, []);
 
   // Manual / Pull-to-Refresh listings updater
   const refreshProducts = async (): Promise<void> => {
     try {
-      const res = await fetch('/api/products');
+      const res = await fetch('/api/products', {
+        headers: getApiAuthHeaders(currentUserRef.current, false)
+      });
       if (res.ok) {
         const data = await res.json();
+        if (Array.isArray(data.deletedIds) && data.deletedIds.length > 0) {
+          recordDeletedIds(data.deletedIds);
+        }
         const productArray = Array.isArray(data.data) ? data.data : (Array.isArray(data.products) ? data.products : (Array.isArray(data) ? data : null));
-        if (productArray && productArray.length > 0) {
+        if (productArray) {
           const baseList = await ensureCanonicalProducts();
           const map = new Map<string, Product>();
-          baseList.forEach(p => { if (p && p.id) map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true }); });
+          baseList.forEach(p => {
+            if (p && p.id && !deletedProductIdsRef.current.has(p.id)) {
+              map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true });
+            }
+          });
           productArray.forEach((p: Product) => {
-            if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
+            if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id) && !deletedProductIdsRef.current.has(p.id)) {
               const existing = map.get(p.id);
               map.set(p.id, existing ? { ...existing, ...p } : p);
             }
@@ -1636,7 +1814,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               safeFirestoreSetDoc(doc(db, 'products', p.id), p, { merge: true }).catch(() => {});
               fetch('/api/products/' + p.id, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getApiAuthHeaders(currentUserRef.current),
                 body: JSON.stringify(p)
               }).catch(() => {});
             });
@@ -1654,6 +1832,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [language]);
 
   const forceAutoApproveAllPending = (productId?: string) => {
+    if (!isEffectiveAdmin(isLoggedInRef.current, currentUserRef.current, userRoleRef.current)) return;
     setProducts(prevProducts => {
       const liveNotifs: AppNotification[] = [];
       const newlyApproved: Product[] = [];
@@ -1700,7 +1879,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             safeFirestoreSetDoc(doc(db, 'products', p.id), p, { merge: true }).catch(() => {});
             fetch('/api/products/' + p.id, {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
+              headers: getApiAuthHeaders(currentUserRef.current),
               body: JSON.stringify(p)
             }).catch(() => {});
           });
@@ -1714,6 +1893,16 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const renewAd = (productId: string) => {
+    if (!isEffectiveLoggedIn(isLoggedInRef.current, currentUserRef.current)) {
+      openAuthModalRef.current('general');
+      return;
+    }
+    const adminOk = isEffectiveAdmin(isLoggedInRef.current, currentUserRef.current, userRoleRef.current);
+    const targetAd = products.find(p => p.id === productId);
+    if (!targetAd || (!adminOk && !isAdOwner(targetAd, currentUserRef.current, isLoggedInRef.current))) {
+      return;
+    }
+
     let renewedTitle = 'বিজ্ঞাপন';
     setProducts(prev => prev.map(p => {
       if (p.id === productId) {
@@ -1821,6 +2010,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const toggleReaction = (productId: string, type: 'like' | 'dislike' | 'love') => {
+    if (!isEffectiveLoggedIn(isLoggedInRef.current, currentUserRef.current)) {
+      openAuthModalRef.current('general');
+      return;
+    }
     setReactions(prev => {
       const next = computeNextReactions(prev, productId, type);
       try {
@@ -1829,7 +2022,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         fetch('/api/sync/state', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiAuthHeaders(currentUserRef.current),
           body: JSON.stringify({
             product_reactions: extractGlobalReactionCounts(next),
           }),
@@ -1839,9 +2032,11 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  // Followed Sellers (persisted, starts clean)
+  // Followed Sellers (persisted for logged-in users, cleared on logout)
   const [followedSellers, setFollowedSellers] = useState<string[]>(() => {
     try {
+      const hasSession = storage.getItem('marketbd_is_logged_in') === 'true' && Boolean(storage.getItem('marketbd_auth_user'));
+      if (!hasSession) return [];
       const saved = storage.getItem('marketbd_followed_sellers');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -1854,6 +2049,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const toggleFollowSeller = (sellerId: string) => {
+    if (!isEffectiveLoggedIn(isLoggedInRef.current, currentUserRef.current)) {
+      openAuthModalRef.current('general');
+      return;
+    }
     setFollowedSellers(prev => {
       const next = prev.includes(sellerId) ? prev.filter(id => id !== sellerId) : [...prev, sellerId];
       storage.setItem('marketbd_followed_sellers', JSON.stringify(next));
@@ -1876,10 +2075,14 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const addSellerReview = (sellerId: string, rating: number, comment: string) => {
+    if (!isEffectiveLoggedIn(isLoggedInRef.current, currentUserRef.current)) {
+      openAuthModalRef.current('general');
+      return;
+    }
     const newRev: SellerReview = {
       id: 'rev-' + Date.now(),
       sellerId,
-      reviewerName: currentUser?.name || 'Verified Buyer',
+      reviewerName: currentUserRef.current?.name || 'Verified Buyer',
       rating,
       comment,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -1906,6 +2109,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const addSavedAlert = (query: string, category?: string) => {
+    if (!isEffectiveLoggedIn(isLoggedInRef.current, currentUserRef.current)) {
+      openAuthModalRef.current('general');
+      return;
+    }
     if (!query || !query.trim()) return;
     const qClean = String(query).trim().toLowerCase();
     const exists = (savedAlerts || []).some(a => a && a.query && String(a.query).trim().toLowerCase() === qClean);
@@ -2066,15 +2273,19 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     details?: string;
     metadata?: Record<string, any>;
   }) => {
+    if (!isEffectiveAdmin(isLoggedInRef.current, currentUserRef.current, userRoleRef.current)) {
+      return;
+    }
+
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
     const device = isMobile ? 'Android / Mobile App' : 'Desktop / PC Browser';
 
     const newLog: AdminActivityLog = {
       id: 'adm-log-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
-      adminId: currentUser?.id || 'admin-master',
-      adminName: currentUser?.name || 'Official Super Admin',
-      adminEmail: currentUser?.email || 'official.marketbd@gmail.com',
+      adminId: currentUserRef.current?.id || 'admin-master',
+      adminName: currentUserRef.current?.name || 'Official Super Admin',
+      adminEmail: currentUserRef.current?.email || 'official.marketbd@gmail.com',
       action: entry.action,
       actionType: entry.actionType,
       targetId: entry.targetId,
@@ -2101,7 +2312,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       fetch('/api/sync/state', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiAuthHeaders(currentUserRef.current),
         body: JSON.stringify({ latestAdminLog: newLog })
       }).catch(() => {});
     } catch (e) {}
@@ -2389,7 +2600,15 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [adToDelete, setAdToDelete] = useState<Product | null>(null);
 
   const openDeleteModal = (product: Product) => {
-    if (product.status === 'pending') {
+    if (!isEffectiveLoggedIn(isLoggedInRef.current, currentUserRef.current)) {
+      openAuthModalRef.current('general');
+      return;
+    }
+    const adminOk = isEffectiveAdmin(isLoggedInRef.current, currentUserRef.current, userRoleRef.current);
+    if (!adminOk && !isAdOwner(product, currentUserRef.current, isLoggedInRef.current)) {
+      return;
+    }
+    if (product.status === 'pending' && !adminOk) {
       alert(
         language === 'bn'
           ? '⚠️ এডমিন এপ্রুভালের পূর্বে আন্ডার রিভিউ থাকা বিজ্ঞাপন রিমুভ করা সম্ভব নয়! এডমিন পোস্টটি অনুমোদন বা বাতিল করার পর সিদ্ধান্ত নেওয়া যাবে।'
@@ -2405,16 +2624,28 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteProductWithReason = (productId: string, reason: string, customNote?: string) => {
-    let deletedTitle = 'বিজ্ঞাপন';
-    let remainingList: Product[] = [];
+    if (!isEffectiveLoggedIn(isLoggedInRef.current, currentUserRef.current)) {
+      openAuthModalRef.current('general');
+      return;
+    }
+    const adminOk = isEffectiveAdmin(isLoggedInRef.current, currentUserRef.current, userRoleRef.current);
+    const targetProduct = products.find(p => p.id === productId);
+    if (!targetProduct) {
+      setAdToDelete(null);
+      return;
+    }
+    if (!adminOk && !isAdOwner(targetProduct, currentUserRef.current, isLoggedInRef.current)) {
+      setAdToDelete(null);
+      return;
+    }
+
+    const deletedTitle = targetProduct.title || 'বিজ্ঞাপন';
+
+    // Record local & cloud tombstone immediately so canonical and cached ads never resurrect
+    recordDeletedIds([productId]);
 
     setProducts(prev => {
-      const target = prev.find(p => p.id === productId);
-      if (target) {
-        deletedTitle = target.title;
-      }
       const filtered = prev.filter(p => p.id !== productId);
-      remainingList = filtered;
       try {
         persistCompactProductsCache(filtered);
       } catch (e) {}
@@ -2422,10 +2653,25 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
     setAdToDelete(null);
 
-    // Delete directly from Firestore products collection & REST endpoint for Android sync
+    // Delete from Firestore products collection, record tombstone if admin, and notify REST endpoint
     try {
       safeFirestoreDeleteDoc(doc(db, 'products', productId)).catch(() => {});
-      fetch('/api/products/' + productId, { method: 'DELETE' }).catch(() => {});
+      if (adminOk) {
+        safeFirestoreSetDoc(
+          doc(db, 'settings', 'deleted_products'),
+          { ids: Array.from(deletedProductIdsRef.current), updatedAt: new Date().toISOString() },
+          { merge: true }
+        ).catch(() => {});
+        fetch('/api/sync/state', {
+          method: 'POST',
+          headers: getApiAuthHeaders(currentUserRef.current, true),
+          body: JSON.stringify({ deletedProductIds: Array.from(deletedProductIdsRef.current) })
+        }).catch(() => {});
+      }
+      fetch('/api/products/' + encodeURIComponent(productId), {
+        method: 'DELETE',
+        headers: getApiAuthHeaders(currentUserRef.current, adminOk)
+      }).catch(() => {});
     } catch (e) {}
 
     const titleText = language === 'bn' ? 'বিজ্ঞাপন রিমুভ / মুছে ফেলা হয়েছে 🗑️' : 'Ad Removed 🗑️';
@@ -2451,15 +2697,16 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       body: messageText
     });
 
-    // 🛡️ Log Admin Action in Firestore
-    logAdminAction({
-      action: 'Deleted Ad',
-      actionType: 'ad_moderation',
-      targetId: productId,
-      targetTitle: deletedTitle,
-      details: `Ad permanently removed from marketplace. Reason: ${reason}${customNote ? ` (${customNote})` : ''}`,
-      metadata: { productId, reason, customNote }
-    });
+    if (adminOk) {
+      logAdminAction({
+        action: 'Deleted Ad',
+        actionType: 'ad_moderation',
+        targetId: productId,
+        targetTitle: deletedTitle,
+        details: `Ad permanently removed from marketplace. Reason: ${reason}${customNote ? ` (${customNote})` : ''}`,
+        metadata: { productId, reason, customNote }
+      });
+    }
   };
 
   // App Release & Auto Update Management
@@ -2566,40 +2813,33 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsUpdateDismissed(true);
   };
 
-  // Auth State with localStorage Session Persistence
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return storage.getItem('marketbd_is_logged_in') === 'true';
-  });
-  const [userRole, setUserRole] = useState<'buyer' | 'seller' | 'admin'>(() => {
-    const savedRole = storage.getItem('marketbd_user_role') as any;
-    const savedUser = storage.getItem('marketbd_auth_user');
-    if (savedRole === 'admin' && savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        if (parsed && parsed.id !== 'admin-master') {
-          return 'seller';
-        }
-      } catch (e) {}
-    }
-    return savedRole || 'buyer';
-  });
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+  // Auth State with strict localStorage session validation (never treat missing user as logged in)
+  const initialStoredUser = React.useMemo<UserProfile | null>(() => {
+    if (storage.getItem('marketbd_is_logged_in') !== 'true') return null;
     const saved = storage.getItem('marketbd_auth_user');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.id !== 'admin-master' && parsed.role === 'admin') {
-          parsed.role = 'seller';
-          storage.setItem('marketbd_auth_user', JSON.stringify(parsed));
-          storage.setItem('marketbd_user_role', 'seller');
-        }
-        return parsed;
-      } catch (e) {
+    if (!saved) return null;
+    try {
+      const parsed = JSON.parse(saved);
+      if (!parsed || typeof parsed.id !== 'string' || !parsed.id.trim() || parsed.isBlocked || parsed.status === 'blocked') {
         return null;
       }
+      if (parsed.id !== 'admin-master' && parsed.role === 'admin') {
+        parsed.role = 'seller';
+        storage.setItem('marketbd_auth_user', JSON.stringify(parsed));
+        storage.setItem('marketbd_user_role', 'seller');
+      }
+      return parsed;
+    } catch {
+      return null;
     }
-    return null;
+  }, []);
+
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => Boolean(initialStoredUser));
+  const [userRole, setUserRole] = useState<'buyer' | 'seller' | 'admin'>(() => {
+    if (!initialStoredUser) return 'buyer';
+    return initialStoredUser.role || 'seller';
   });
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => initialStoredUser);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalPurpose, setAuthModalPurpose] = useState<'post-ad' | 'general' | 'chat'>('general');
   const pendingChatProductRef = React.useRef<Product | null>(null);
@@ -2608,6 +2848,11 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setAuthModalPurpose(purpose);
     setIsAuthModalOpen(true);
   };
+
+  isLoggedInRef.current = isLoggedIn;
+  userRoleRef.current = userRole;
+  currentUserRef.current = currentUser;
+  openAuthModalRef.current = openAuthModal;
 
   const closeAuthModal = () => {
     setIsAuthModalOpen(false);
@@ -2839,20 +3084,24 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    const finalPassword = profile.password || foundUser?.password || '123456';
-    profile.password = finalPassword;
+    const finalPassword = profile.password || foundUser?.password;
+    if (finalPassword) {
+      profile.password = finalPassword;
+    } else {
+      delete profile.password;
+    }
 
     try {
       const credMapRaw = storage.getItem('marketbd_credentials_store');
       const credMap = credMapRaw ? JSON.parse(credMapRaw) : {};
       const normP = (profile.phone || '').replace(/\D/g, '').replace(/^880?/, '').replace(/^0/, '');
       const normE = (profile.email || '').trim().toLowerCase();
-      if (normP) credMap[normP] = { ...profile, password: finalPassword };
-      if (normE) credMap[normE] = { ...profile, password: finalPassword };
+      if (normP) credMap[normP] = finalPassword ? { ...profile, password: finalPassword } : { ...profile };
+      if (normE) credMap[normE] = finalPassword ? { ...profile, password: finalPassword } : { ...profile };
       storage.setItem('marketbd_credentials_store', JSON.stringify(credMap));
     } catch (e) {}
 
-    // Automatically ensure this user exists in registeredUsers list and preserve password
+    // Automatically ensure this user exists in registeredUsers list without synthesizing hardcoded passwords
     setRegisteredUsersState(prev => {
       const idx = prev.findIndex(u => {
         const uPhone = (u.phone || '').replace(/\D/g, '');
@@ -2868,16 +3117,23 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (idx >= 0) {
         updated = [...prev];
         const existingPw = updated[idx].password;
-        const finalPw = profile.password || existingPw || (foundUser ? foundUser.password : undefined) || '123456';
-        updated[idx] = { 
-          ...updated[idx], 
-          ...profile, 
-          password: finalPw,
-          lastLogin: new Date().toISOString() 
+        const resolvedPw = profile.password || existingPw || foundUser?.password;
+        updated[idx] = {
+          ...updated[idx],
+          ...profile,
+          ...(resolvedPw ? { password: resolvedPw } : {}),
+          lastLogin: new Date().toISOString()
         };
       } else {
-        const finalPw = profile.password || (foundUser ? foundUser.password : undefined) || '123456';
-        updated = [{ ...profile, password: finalPw, lastLogin: new Date().toISOString() }, ...prev];
+        const resolvedPw = profile.password || foundUser?.password;
+        updated = [
+          {
+            ...profile,
+            ...(resolvedPw ? { password: resolvedPw } : {}),
+            lastLogin: new Date().toISOString()
+          },
+          ...prev
+        ];
       }
       storage.setItem('marketbd_registered_users', JSON.stringify(updated));
       syncToCloud('registered_users', updated);
@@ -2888,22 +3144,23 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (typeof window !== 'undefined') {
       window.sessionStorage?.removeItem('marketbd_2fa_pending');
     }
+    const cloudSafeProfile = sanitizeUserProfileForCloud(profile);
     storage.setItem('marketbd_this_device_session_id', THIS_DEVICE_SESSION_ID);
     storage.setItem('marketbd_session_login_at_ms', String(loginTimeMs));
     storage.setItem('marketbd_is_logged_in', 'true');
     storage.setItem('marketbd_user_role', role);
-    storage.setItem('marketbd_auth_user', JSON.stringify(profile));
+    storage.setItem('marketbd_auth_user', JSON.stringify(cloudSafeProfile));
 
-    setCurrentUser(profile);
+    setCurrentUser(cloudSafeProfile);
     setIsLoggedIn(true);
     setUserRole(role);
     setIsAuthModalOpen(false);
 
-    // Persist user profile directly into Firestore /users/{uid} for cloud persistence
+    // Persist sanitized user profile (without plaintext password) into Firestore /users/{uid}
     safeFirestoreSetDoc(
       doc(db, 'users', profile.id),
       {
-        ...profile,
+        ...cloudSafeProfile,
         activeSessionId: THIS_DEVICE_SESSION_ID,
         activeSessionUpdatedAt: new Date(loginTimeMs).toISOString(),
       },
@@ -2940,8 +3197,8 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } else if (authModalPurpose === 'chat' || pendingChatProductRef.current) {
       const pendingProduct = pendingChatProductRef.current;
       pendingChatProductRef.current = null;
-      if (pendingProduct) {
-        const buyerId = profile.id || 'user-me';
+      if (pendingProduct && profile.id) {
+        const buyerId = profile.id;
         const threadId = `thread-${pendingProduct.id}-${buyerId}`;
         const existing = rawChatThreads.find(
           t => !isDummyChatThread(t) && (t.id === threadId || (t.productId === pendingProduct.id && t.buyerId === buyerId))
@@ -2975,7 +3232,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (typeof fetch !== 'undefined') {
             fetch('/api/chats/thread', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: getApiAuthHeaders(cloudSafeProfile),
               body: JSON.stringify({ thread: newThread })
             }).catch(() => {});
           }
@@ -3013,11 +3270,20 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const logout = () => {
     signOut(auth).catch(() => {});
+    clearAdminAuthToken();
     setIsLoggedIn(false);
     setCurrentUser(null);
     setUserRole('buyer');
+    setWishlist([]);
+    setFollowedSellers([]);
+    setActiveChat(null);
+    setRawChatThreads([]);
+    setAdToDelete(null);
+    setEditingAd(null);
+    setNotifications([]);
+    pendingChatProductRef.current = null;
 
-    // Clear persistent login session
+    // Clear persistent login & private user session data
     storage.removeItem('marketbd_is_logged_in');
     storage.removeItem('marketbd_user_role');
     storage.removeItem('marketbd_auth_user');
@@ -3025,8 +3291,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     storage.removeItem('marketbd_admin_login_at_ms');
     storage.removeItem('marketbd_session_login_at_ms');
     storage.removeItem('marketbd_this_device_session_id');
+    storage.removeItem('marketbd_followed_sellers');
 
-    if (activeTab === 'post-ad' || activeTab === 'admin') {
+    if (activeTab === 'post-ad' || activeTab === 'admin' || activeTab === 'dashboard' || activeTab === 'chat') {
       setActiveTab('home');
     }
   };
@@ -3095,7 +3362,11 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const toggleWishlist = (productId: string) => {
-    setWishlist(prev => 
+    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+      openAuthModal('general');
+      return;
+    }
+    setWishlist(prev =>
       prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
     );
   };
@@ -3182,7 +3453,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentUser.phone) params.set('phone', currentUser.phone);
     if (currentUser.email) params.set('email', currentUser.email);
 
-    fetch(`/api/chats?${params.toString()}`)
+    fetch(`/api/chats?${params.toString()}`, {
+      headers: getApiAuthHeaders(currentUser, false)
+    })
       .then(async res => {
         const ct = res.headers.get('content-type') || '';
         if (!res.ok || !ct.includes('application/json')) return null;
@@ -3263,8 +3536,8 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [isLoggedIn, currentUser?.id, currentUser?.phone, currentUser?.email]);
 
   const markChatThreadRead = (threadId: string) => {
-    if (!threadId) return;
-    const readerId = currentUser?.id || 'user-me';
+    if (!threadId || !isEffectiveLoggedIn(isLoggedIn, currentUser)) return;
+    const readerId = currentUser.id;
 
     setRawChatThreads(prev => {
       const updated = prev.map(thread => {
@@ -3289,7 +3562,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (typeof fetch !== 'undefined') {
       fetch('/api/chats/read', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiAuthHeaders(currentUser),
         body: JSON.stringify({ threadId, readerId })
       }).catch(() => {});
     }
@@ -3312,7 +3585,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteChatThread = (threadId: string) => {
-    if (!threadId) return;
+    if (!threadId || !isEffectiveLoggedIn(isLoggedIn, currentUser)) return;
     setRawChatThreads(prev => {
       const updated = prev.filter(t => t.id !== threadId);
       storage.setItem('marketbd_chat_threads', JSON.stringify(updated));
@@ -3321,7 +3594,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setActiveChat(curr => (curr && curr.id === threadId ? null : curr));
 
     if (typeof fetch !== 'undefined') {
-      fetch(`/api/chats/${encodeURIComponent(threadId)}`, { method: 'DELETE' }).catch(() => {});
+      fetch(`/api/chats/${encodeURIComponent(threadId)}`, {
+        method: 'DELETE',
+        headers: getApiAuthHeaders(currentUser, false)
+      }).catch(() => {});
     }
     safeFirestoreDeleteDoc(doc(db, 'chats', threadId)).catch(() => {});
   };
@@ -3334,13 +3610,17 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Real-time messaging (server-authoritative via /api/chats/message + Firestore)
   const sendMessage = (threadId: string, text: string, offerAmount?: number, imageUrl?: string) => {
+    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+      openAuthModal('chat');
+      return;
+    }
     const trimmedText = (text || '').trim();
     const displayMsg = trimmedText || (imageUrl ? (language === 'bn' ? '📷 [ছবি]' : '📷 [Photo]') : '');
     if (!threadId || !displayMsg) return;
 
     const msgId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const nowIso = new Date().toISOString();
-    const senderId = currentUser?.id || 'user-me';
+    const senderId = currentUser.id;
     const currentThread =
       rawChatThreads.find(t => t.id === threadId) ||
       (activeChat?.id === threadId ? activeChat : undefined);
@@ -3405,7 +3685,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (typeof fetch !== 'undefined') {
       fetch('/api/chats/message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiAuthHeaders(currentUser),
         body: JSON.stringify({
           threadId,
           message: newMessage,
@@ -3440,13 +3720,13 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const openChatForProduct = (product: Product): string => {
-    if (!isLoggedIn) {
+    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
       pendingChatProductRef.current = product;
       openAuthModal('chat');
       return '';
     }
 
-    const buyerId = currentUser?.id || 'user-me';
+    const buyerId = currentUser.id;
     const existing = chatThreads.find(
       t => t.productId === product.id && (t.buyerId === buyerId || t.seller?.id === buyerId)
     );
@@ -3474,9 +3754,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       productPrice: product.price || 0,
       seller: product.seller,
       buyerId,
-      buyerName: currentUser?.name || (language === 'bn' ? 'ক্রেতা' : 'Buyer'),
-      buyerPhone: currentUser?.phone,
-      buyerEmail: currentUser?.email,
+      buyerName: currentUser.name || (language === 'bn' ? 'ক্রেতা' : 'Buyer'),
+      buyerPhone: currentUser.phone,
+      buyerEmail: currentUser.email,
       lastMessage: '',
       lastMessageTime: nowIso,
       unreadCount: 0,
@@ -3496,7 +3776,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (typeof fetch !== 'undefined') {
       fetch('/api/chats/thread', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiAuthHeaders(currentUser),
         body: JSON.stringify({ thread: newThread })
       }).catch(() => {});
     }
@@ -3507,7 +3787,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const openChatWithCustomer = (customer: UserProfile, product?: Product): string => {
-    if (!isLoggedIn) {
+    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
       openAuthModal('chat');
       return '';
     }
@@ -3605,7 +3885,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (typeof fetch !== 'undefined') {
       fetch('/api/chats/thread', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiAuthHeaders(currentUser),
         body: JSON.stringify({ thread: newThread })
       }).catch(() => {});
     }
@@ -3630,6 +3910,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const phoneValidation = validateBangladeshiPhone(rawPhone);
     const cleanPhone = phoneValidation.isValid ? phoneValidation.normalized : rawPhone;
 
+    const effectiveSellerId = auth.currentUser?.uid || currentUser?.id || adData.seller?.id || 'user-' + Date.now();
     const rawProduct = {
       id: 'prod-' + Date.now(),
       title: adData.title || 'Untitled Ad',
@@ -3650,14 +3931,15 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       descriptionBn: adData.descriptionBn || adData.description,
       location: adData.location || { division: 'dhaka', district: 'dhaka_d', thana: 'dhanmondi' },
       showPhoneNumber: isExplicitlyVisible,
+      sellerId: effectiveSellerId,
       seller: {
-        id: currentUser?.id || adData.seller?.id || 'user-' + Date.now(),
+        id: effectiveSellerId,
         name: currentUser?.name || adData.seller?.name || 'MarketBD Seller',
         avatar: currentUser?.avatar || adData.seller?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
         phone: cleanPhone,
         hidePhone: !isExplicitlyVisible,
         showPhoneNumber: isExplicitlyVisible,
-        email: currentUser?.email || adData.seller?.email || 'official.marketbd@gmail.com',
+        email: currentUser?.email || adData.seller?.email || '',
         memberSince: currentUser?.memberSince || '2026',
         location: adData.location || { division: 'dhaka', district: 'dhaka_d', thana: 'dhanmondi' },
         isVerified: true,
@@ -3680,11 +3962,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       moderationStatus: 'pending'
     };
 
-    // FIX: new ads were previously force-set to status:'active' /
-    // isApproved:true / moderationStatus:'approved' right here, so every ad
-    // (free or paid) went live instantly and admin approval was never
-    // actually required. Now every new ad starts pending — the existing
-    // auto-approval timer / admin panel is what promotes it to active.
+    // New ads start in pending status until admin approval or auto-approval timer completes.
     const newProduct: Product = makePendingProduct(rawProduct as Product);
 
     setProducts(prev => {
@@ -3697,13 +3975,13 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return updated;
     });
 
-    // Save directly to Firestore 'products' collection & API for immediate real-time sync with Android app
+    // Save directly to Firestore 'products' collection & authenticated REST API
     try {
       safeFirestoreSetDoc(doc(db, 'products', newProduct.id), newProduct, { merge: true })
         .catch(() => {});
       fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiAuthHeaders(currentUser),
         body: JSON.stringify(newProduct)
       }).catch(() => {});
     } catch (e) {}
@@ -3783,13 +4061,28 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [editingAd, setEditingAd] = useState<Product | null>(null);
 
   const updateProductStatus = (id: string, status: 'active' | 'approved' | 'pending' | 'sold' | 'rejected', reason?: string) => {
-    let targetTitle = '';
+    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+      openAuthModal('general');
+      return;
+    }
+    const adminOk = isEffectiveAdmin(isLoggedIn, currentUser, userRole);
+    const existingTarget = products.find(p => p.id === id);
+    if (!existingTarget) return;
+
+    const ownerOk = isAdOwner(existingTarget, currentUser, isLoggedIn);
+    if (!adminOk && !ownerOk) return;
+
+    const effectiveStatus: 'active' | 'pending' | 'sold' | 'rejected' = (status === 'approved' ? 'active' : status);
+    // Non-admins cannot self-reject or approve pending/rejected ads directly to live
+    if (!adminOk) {
+      if (effectiveStatus === 'rejected') return;
+      if (effectiveStatus === 'active' && existingTarget.status !== 'sold') return;
+    }
+
+    let targetTitle = existingTarget.title;
     let updatedTargetProduct: Product | undefined;
     let approvedLiveProduct: Product | undefined;
     let shouldSendLiveNotif = false;
-    let fullUpdatedList: Product[] = [];
-
-    const effectiveStatus: 'active' | 'pending' | 'sold' | 'rejected' = (status === 'approved' ? 'active' : status);
 
     setProducts(prev => {
       const updated = prev.map(p => {
@@ -3821,7 +4114,6 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         return p;
       });
-      fullUpdatedList = updated;
       try {
         persistCompactProductsCache(updated);
       } catch (e) {
@@ -3834,26 +4126,27 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       if (updatedTargetProduct) {
         safeFirestoreSetDoc(doc(db, 'products', id), updatedTargetProduct, { merge: true }).catch(() => {});
-        fetch('/api/products/' + id, {
+        fetch('/api/products/' + encodeURIComponent(id), {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiAuthHeaders(currentUser),
           body: JSON.stringify(updatedTargetProduct)
         }).catch(() => {});
       }
     } catch (e) {}
 
-    // 🛡️ Log Admin Action in Firestore
-    logAdminAction({
-      action: effectiveStatus === 'active' ? 'Approved Ad' : effectiveStatus === 'rejected' ? 'Rejected Ad' : effectiveStatus === 'sold' ? 'Marked Ad as Sold' : 'Updated Ad Status',
-      actionType: 'ad_moderation',
-      targetId: id,
-      targetTitle: targetTitle || id,
-      details: effectiveStatus === 'active'
-        ? `Ad approved and published to live marketplace queue.`
-        : effectiveStatus === 'rejected'
-        ? `Ad rejected. Reason: ${reason || 'Terms violation'}`
-        : `Ad status updated to ${effectiveStatus}.`
-    });
+    if (adminOk) {
+      logAdminAction({
+        action: effectiveStatus === 'active' ? 'Approved Ad' : effectiveStatus === 'rejected' ? 'Rejected Ad' : effectiveStatus === 'sold' ? 'Marked Ad as Sold' : 'Updated Ad Status',
+        actionType: 'ad_moderation',
+        targetId: id,
+        targetTitle: targetTitle || id,
+        details: effectiveStatus === 'active'
+          ? `Ad approved and published to live marketplace queue.`
+          : effectiveStatus === 'rejected'
+          ? `Ad rejected. Reason: ${reason || 'Terms violation'}`
+          : `Ad status updated to ${effectiveStatus}.`
+      });
+    }
 
     if (effectiveStatus === 'active' && shouldSendLiveNotif && approvedLiveProduct) {
       const notifId = 'notif-live-' + approvedLiveProduct.id;
@@ -3954,15 +4247,21 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateExistingAd = (id: string, adData: Partial<Product>) => {
-    let updatedTitle = '';
-    let mergedList: Product[] = [];
+    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+      openAuthModal('general');
+      return;
+    }
+    const adminOk = isEffectiveAdmin(isLoggedIn, currentUser, userRole);
+    const existingTarget = products.find(p => p.id === id);
+    if (!existingTarget || (!adminOk && !isAdOwner(existingTarget, currentUser, isLoggedIn))) {
+      return;
+    }
+
     let mergedTargetAd: Product | undefined;
 
     setProducts(prev => {
       const updated = prev.map(p => {
         if (p.id === id) {
-          updatedTitle = adData.title || p.title;
-
           const isExplicitlyVisible = adData.showPhoneNumber !== undefined
             ? Boolean(adData.showPhoneNumber)
             : adData.seller?.showPhoneNumber !== undefined
@@ -3982,6 +4281,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             seller: {
               ...p.seller,
               ...(adData.seller || {}),
+              id: p.seller?.id || currentUser?.id || '',
               phone: cleanPhone,
               hidePhone: !isExplicitlyVisible,
               showPhoneNumber: isExplicitlyVisible
@@ -3992,7 +4292,6 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         return p;
       });
-      mergedList = updated;
       try {
         persistCompactProductsCache(updated);
       } catch (e) {}
@@ -4024,13 +4323,13 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setEditingAd(null);
 
-    // Sync edited ad to Firestore and Server API
+    // Sync edited ad to Firestore and authenticated Server API
     try {
       if (mergedTargetAd) {
         safeFirestoreSetDoc(doc(db, 'products', id), mergedTargetAd, { merge: true }).catch(() => {});
-        fetch('/api/products/' + id, {
+        fetch('/api/products/' + encodeURIComponent(id), {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiAuthHeaders(currentUser),
           body: JSON.stringify(mergedTargetAd)
         }).catch(() => {});
       }
@@ -4272,33 +4571,39 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const unlockMasterLockdown = (enteredPin: string): boolean => {
-    // SECURITY FIX: previously fell back to '7860' and also accepted the
-    // hardcoded strings 'marketbdadmin' and '123456' as universal bypass
-    // codes, regardless of what PIN the admin had actually configured. Those
-    // were visible to anyone in the shipped JS bundle. Now only the PIN the
-    // admin explicitly set in site settings is accepted. Note: this check
-    // still runs client-side, so treat it as a UI gate, not real security —
-    // for real protection, verify the PIN in a server/Cloud Function call
-    // instead of comparing it in the browser.
-    const expectedPin = siteMaintenance.masterUnlockPin;
-    if (!!expectedPin && enteredPin.trim() === expectedPin) {
-      setSiteMaintenanceState(prev => {
-        const updated = { ...prev, isMasterLockdown: false, updatedAt: new Date().toISOString() };
-        storage.setItem('marketbd_site_maintenance_v1', JSON.stringify(updated));
-        syncToCloud('site_maintenance', updated);
+  const unlockMasterLockdown = async (enteredPin: string): Promise<boolean> => {
+    const cleanPin = enteredPin.trim();
+    if (!cleanPin) return false;
 
-        // 🛡️ Log Admin Action in Firestore
-        logAdminAction({
-          action: 'Unlocked Master Lockdown',
-          actionType: 'security',
-          targetTitle: 'PIN Unlock Protocol',
-          details: 'Master lockdown unlocked successfully via PIN authentication.'
-        });
-
-        return updated;
+    try {
+      const res = await fetch('/api/admin/unlock-lockdown', {
+        method: 'POST',
+        headers: getApiAuthHeaders(currentUser),
+        body: JSON.stringify({ pin: cleanPin })
       });
-      return true;
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.success) {
+          setSiteMaintenanceState(prev => {
+            const updated = { ...prev, isMasterLockdown: false, updatedAt: new Date().toISOString() };
+            storage.setItem('marketbd_site_maintenance_v1', JSON.stringify(updated));
+            return updated;
+          });
+          return true;
+        }
+      }
+    } catch {
+      // Fallback only when backend unreachable AND an admin explicitly configured a local PIN
+      const expectedPin = siteMaintenance.masterUnlockPin;
+      if (Boolean(expectedPin) && cleanPin === expectedPin) {
+        setSiteMaintenanceState(prev => {
+          const updated = { ...prev, isMasterLockdown: false, updatedAt: new Date().toISOString() };
+          storage.setItem('marketbd_site_maintenance_v1', JSON.stringify(updated));
+          syncToCloud('site_maintenance', updated);
+          return updated;
+        });
+        return true;
+      }
     }
     return false;
   };
@@ -4308,7 +4613,12 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       const saved = storage.getItem('marketbd_clock_settings_v1');
       if (saved) {
-        return { ...DEFAULT_CLOCK_SETTINGS, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved);
+        if (isLegacyStaleClockConfig(parsed)) {
+          storage.setItem('marketbd_clock_settings_v1', JSON.stringify(DEFAULT_CLOCK_SETTINGS));
+          return DEFAULT_CLOCK_SETTINGS;
+        }
+        return { ...DEFAULT_CLOCK_SETTINGS, ...parsed };
       }
     } catch (e) {
       console.error('Error reading stored clock settings:', e);
@@ -4318,7 +4628,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const updateClockSettings = (settings: Partial<ClockSettings>) => {
     setClockSettingsState(prev => {
-      const updated = { ...prev, ...settings };
+      const updated = { ...prev, ...settings, clockVersion: 2 };
       storage.setItem('marketbd_clock_settings_v1', JSON.stringify(updated));
       syncToCloud('clock_settings', updated);
       return updated;

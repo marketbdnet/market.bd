@@ -266,6 +266,7 @@ export interface ClockSettings {
   showSeconds: boolean;
   isWidgetEnabled: boolean;
   glowEffect?: boolean;
+  clockVersion?: number;
 }
 
 export interface SystemNoticeConfig {

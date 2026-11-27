@@ -98,21 +98,42 @@ export function formatDirectApkUrl(rawUrl: string | undefined): string {
 export async function getApkServerStatus(): Promise<ApkServerStatus> {
   try {
     const resp = await fetch('/api/apk-status', { cache: 'no-store' });
-    if (!resp.ok) {
-      return { available: false, source: 'none', downloadUrl: null, fileName: 'MarketBD.apk', sizeBytes: null };
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json?.available) {
+        return {
+          available: true,
+          source: json?.source || 'local',
+          downloadUrl: json?.downloadUrl || '/MarketBD.apk',
+          fileName: json?.fileName || 'MarketBD.apk',
+          sizeBytes: typeof json?.sizeBytes === 'number' ? json.sizeBytes : null,
+          version: json?.version
+        };
+      }
     }
-    const json = await resp.json();
-    return {
-      available: Boolean(json?.available),
-      source: json?.source || 'none',
-      downloadUrl: json?.downloadUrl || null,
-      fileName: json?.fileName || 'MarketBD.apk',
-      sizeBytes: typeof json?.sizeBytes === 'number' ? json.sizeBytes : null,
-      version: json?.version
-    };
   } catch {
-    return { available: false, source: 'none', downloadUrl: null, fileName: 'MarketBD.apk', sizeBytes: null };
+    // Fallback to static HEAD probe below
   }
+
+  try {
+    const headResp = await fetch('/MarketBD.apk', { method: 'HEAD', cache: 'no-store' });
+    const ct = (headResp.headers.get('content-type') || '').toLowerCase();
+    if (headResp.ok && !ct.includes('text/html') && !ct.includes('application/json')) {
+      const len = headResp.headers.get('content-length');
+      const parsedLen = len ? Number(len) : null;
+      return {
+        available: true,
+        source: 'local',
+        downloadUrl: '/MarketBD.apk',
+        fileName: 'MarketBD.apk',
+        sizeBytes: Number.isFinite(parsedLen) && (parsedLen ?? 0) > 0 ? parsedLen : null
+      };
+    }
+  } catch {
+    // Ignore probe errors
+  }
+
+  return { available: false, source: 'none', downloadUrl: null, fileName: 'MarketBD.apk', sizeBytes: null };
 }
 
 export async function uploadApkFileToServer(

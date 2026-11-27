@@ -1,11 +1,14 @@
 import React from 'react';
 import { useMarket } from '../../context/MarketContext';
-import { ShieldCheck, Phone, Mail, MapPin, Smartphone, Award, HeartHandshake } from 'lucide-react';
+import { OFFICIAL_SLOGAN } from '../../constants/branding';
+import { ShieldCheck, Phone, Mail, MapPin, Smartphone, Award, HeartHandshake, Download } from 'lucide-react';
 import { PaymentPartnersWidget, PartnershipBadgeLogo } from '../Common/BrandLogos';
 import officialMarketLogoImg from '../../assets/images/marketbd_official_logo.jpg';
+import { isEffectiveAdmin } from '../../utils/authOwnership';
 
 export const Footer: React.FC = () => {
-  const { language, setFilters, setActiveTab, customLogoUrl, userRole, currentUser, systemNotice } = useMarket();
+  const { language, setFilters, setActiveTab, customLogoUrl, userRole, currentUser, isLoggedIn, systemNotice, openInstallAppModal } = useMarket();
+  const isAdmin = isEffectiveAdmin(isLoggedIn, currentUser, userRole);
 
   return (
     <footer className="bg-slate-900 text-slate-300 pt-12 pb-6 border-t border-slate-800">
@@ -91,14 +94,11 @@ export const Footer: React.FC = () => {
                 <span className="text-lg font-black tracking-tight">
                   <span className="text-red-500">M</span><span className="text-white">arketBD.</span><span className="text-red-500">Net</span>
                 </span>
-                <span className="text-xs text-red-400 font-medium">
-                  {language === 'bn' ? 'বিশ্বস্ত ক্রয়-বিক্রয় মাধ্যম' : 'Trusted Buy & Sell Marketplace'}
+                <span className="text-xs text-red-400 font-bold">
+                  {OFFICIAL_SLOGAN}
                 </span>
               </div>
             </div>
-            <p className="text-xs text-white font-bold mb-2">
-              Buy Sell with trust
-            </p>
             <p className="text-xs text-slate-400 leading-relaxed mb-4 max-w-sm">
               {language === 'bn' ? (
                 <><span className="bg-slate-950 text-white font-bold px-1.5 py-0.5 rounded border border-slate-800 text-[10px]"><span className="text-red-500 font-black">M</span>arketBD.<span className="text-red-500 font-black">Net</span></span> হলো বাংলাদেশের বৃহত্তম অল-ইন-ওয়ান ডিজিটাল মার্কেটপ্লেস। নতুন ও ব্যবহৃত পণ্য, রকমারি বই, বাইক, ফ্ল্যাট ও গাড়ি কেনাবেচার সবচেয়ে বিশ্বস্ত প্ল্যাটফর্ম।</>
@@ -212,7 +212,16 @@ export const Footer: React.FC = () => {
                   {language === 'bn' ? 'ভেরিফাইড সেলার হওয়ার উপায়' : 'Become a Verified Seller'}
                 </button>
               </li>
-              {(userRole === 'admin' || currentUser?.role === 'admin') && (
+              <li>
+                <button
+                  onClick={openInstallAppModal}
+                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black px-3 py-1.5 rounded-lg text-xs transition cursor-pointer flex items-center gap-1.5 shadow-sm mt-1"
+                >
+                  <Download className="w-3.5 h-3.5 shrink-0" />
+                  <span>{language === 'bn' ? 'অ্যাপ ডাউনলোড (Android / iOS)' : 'Download App (Android / iOS)'}</span>
+                </button>
+              </li>
+              {isAdmin && (
                 <li className="pt-2 border-t border-slate-800">
                   <button
                     onClick={() => setActiveTab('admin')}
@@ -285,7 +294,7 @@ export const Footer: React.FC = () => {
               </ul>
             </div>
 
-            {(userRole === 'admin' || currentUser?.role === 'admin') && (
+            {isAdmin && (
               <div className="space-y-2">
                 <h6 className="font-bold text-white text-xs flex items-center gap-1.5">
                   <span>

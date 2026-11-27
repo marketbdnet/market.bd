@@ -219,8 +219,17 @@ export async function safeFirestoreDeleteDoc(docRef: DocumentReference): Promise
     await deleteDoc(docRef);
     return true;
   } catch (err: any) {
-    if (err?.code === 'resource-exhausted') {
+    const errorMsg = err?.message || '';
+    const isQuota =
+      err?.code === 'resource-exhausted' ||
+      errorMsg.includes('Quota limit exceeded') ||
+      errorMsg.includes('resource-exhausted') ||
+      errorMsg.includes('daily write units');
+    if (isQuota) {
       firestoreQuotaExceededUntil = Date.now() + 10 * 60 * 1000;
+      console.warn('[Firestore] Free tier write quota limit reached during delete.');
+    } else {
+      console.error('[Firestore delete notice]:', errorMsg, err);
     }
     return false;
   }

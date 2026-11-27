@@ -35,7 +35,7 @@ import {
 } from '../../services/paymentGateway';
 import { storage } from '../../utils/storage';
 
-const DEFAULT_OTP_TEMPLATE = 'Your MarketBD.Net OTP is {otp}';
+const DEFAULT_OTP_TEMPLATE = 'Your MarketBD.Net OTP is {otp}. Do not reply.';
 
 export const GatewaysAdminPanel: React.FC = () => {
   const { language, products } = useMarket();
@@ -67,6 +67,9 @@ export const GatewaysAdminPanel: React.FC = () => {
   const [smsSid, setSmsSid] = useState(storage.getItem('marketbd_sms_sid') || '');
   const [smsMaskingEnabled, setSmsMaskingEnabled] = useState(
     storage.getItem('marketbd_sms_masking_enabled') === 'true'
+  );
+  const [smsNoReplyMode, setSmsNoReplyMode] = useState(
+    storage.getItem('marketbd_sms_no_reply_mode') !== 'false'
   );
   const [smsIsLive, setSmsIsLive] = useState(storage.getItem('marketbd_live_mode') !== 'false');
   const [adminSecret, setAdminSecret] = useState(storage.getItem('marketbd_sms_admin_secret') || '');
@@ -141,6 +144,7 @@ export const GatewaysAdminPanel: React.FC = () => {
         }
         setSmsSid(c.sid || '');
         setSmsMaskingEnabled(c.maskingEnabled);
+        if (typeof c.noReplyMode === 'boolean') setSmsNoReplyMode(c.noReplyMode);
         setSmsIsLive(c.isLiveMode);
         setOtpTemplate(c.otpTemplate || DEFAULT_OTP_TEMPLATE);
         setHasServerApiKey(c.hasApiKey);
@@ -151,6 +155,7 @@ export const GatewaysAdminPanel: React.FC = () => {
             const d = snap.data();
             if (d?.otpTemplate) setOtpTemplate(String(d.otpTemplate));
             if (typeof d?.maskingEnabled === 'boolean') setSmsMaskingEnabled(d.maskingEnabled);
+            if (typeof d?.noReplyMode === 'boolean') setSmsNoReplyMode(d.noReplyMode);
             if (d?.providerName) setProviderName(String(d.providerName));
             if (d?.senderId) {
               const sidVal = String(d.senderId);
@@ -252,13 +257,23 @@ export const GatewaysAdminPanel: React.FC = () => {
       return;
     }
 
-    setSmsSaving(true);
     const resolvedSenderId = smsMaskingEnabled
       ? (maskingSenderId.trim() || smsSenderId.trim() || 'MarketBD.Net')
       : (nonMaskingSenderId.trim() && nonMaskingSenderId.trim() !== 'MarketBD.Net'
           ? nonMaskingSenderId.trim()
           : '1234');
 
+    const cleanedDigits = resolvedSenderId.replace(/[\s\-+]/g, '');
+    if (smsNoReplyMode && /^(?:88)?01[3-9]\d{8}$/.test(cleanedDigits)) {
+      setSmsStatusMsg(
+        bn
+          ? '❌ রিপ্লাই অপশন বন্ধ রাখতে ব্যক্তিগত মোবাইল নম্বর Sender ID হিসেবে দেওয়া যাবে না। Alphanumeric ব্র্যান্ড নাম (MarketBD.Net) বা 1234 ব্যবহার করুন।'
+          : '❌ Personal mobile numbers cannot be used as Sender ID in No-Reply mode. Use MarketBD.Net or 1234.'
+      );
+      return;
+    }
+
+    setSmsSaving(true);
     const serverRes = await saveUnifiedSmsConfig({
       providerId,
       providerName: providerName.trim(),
@@ -267,6 +282,7 @@ export const GatewaysAdminPanel: React.FC = () => {
       senderId: resolvedSenderId,
       sid: smsSid.trim(),
       maskingEnabled: smsMaskingEnabled,
+      noReplyMode: smsNoReplyMode,
       isLiveMode: smsIsLive,
       otpTemplate: otpTemplate.trim(),
       adminSecret,
@@ -299,6 +315,7 @@ export const GatewaysAdminPanel: React.FC = () => {
     storage.setItem('marketbd_sms_provider_name', providerName.trim());
     storage.setItem('marketbd_sms_api_url', smsApiUrl.trim());
     storage.setItem('marketbd_sms_masking_enabled', String(smsMaskingEnabled));
+    storage.setItem('marketbd_sms_no_reply_mode', String(smsNoReplyMode));
     storage.setItem('marketbd_sms_sender_id', resolvedSenderId);
     if (smsMaskingEnabled) {
       storage.setItem('marketbd_sms_masking_sender_id', resolvedSenderId);
@@ -317,6 +334,7 @@ export const GatewaysAdminPanel: React.FC = () => {
         senderId: resolvedSenderId,
         otpTemplate: otpTemplate.trim(),
         maskingEnabled: smsMaskingEnabled,
+        noReplyMode: smsNoReplyMode,
         isLiveMode: smsIsLive,
       },
       { merge: true }
@@ -432,6 +450,7 @@ export const GatewaysAdminPanel: React.FC = () => {
       senderId: resolvedSenderId,
       sid: smsSid.trim(),
       maskingEnabled: smsMaskingEnabled,
+      noReplyMode: smsNoReplyMode,
       isLiveMode: smsIsLive,
       otpTemplate: activeTemplate,
       adminSecret,
@@ -909,6 +928,28 @@ export const GatewaysAdminPanel: React.FC = () => {
                   className="w-4 h-4 accent-pink-600 cursor-pointer"
                 />
               </label>
+
+              {/* One-Way / No-Reply Mode Toggle */}
+              <div className="p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/40 space-y-1.5">
+                <label className="flex items-center justify-between gap-2 text-xs cursor-pointer select-none">
+                  <span className="font-extrabold text-emerald-900 dark:text-emerald-200">
+                    {bn
+                      ? '🚫 গ্রাহকের রিপ্লাই অপশন বন্ধ (One-Way No-Reply SMS)'
+                      : '🚫 Disable Customer Replies (One-Way No-Reply Mode)'}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={smsNoReplyMode}
+                    onChange={e => setSmsNoReplyMode(e.target.checked)}
+                    className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                  />
+                </label>
+                <p className="text-[10px] text-emerald-800 dark:text-emerald-300 leading-snug">
+                  {bn
+                    ? 'সব OTP ও SMS-এ "Do not reply" যুক্ত হবে এবং রিপ্লাইযোগ্য ১১-ডিজিট নম্বর Sender ID হিসেবে ব্লক থাকবে। (গ্রাহকের ফোনে রিপ্লাই ইনপুট বক্স পুরোপুরি লুকাতে প্রোভাইডারের অনুমোদিত Alphanumeric Masking "MarketBD.Net" চালু রাখুন।)'
+                    : 'Appends "Do not reply" to outgoing OTP/SMS and blocks personal 11-digit phone numbers as Sender ID. For carrier-level hiding of the handset reply box, use an approved Alphanumeric Masking Sender ID (MarketBD.Net).'}
+                </p>
+              </div>
             </div>
 
             {/* Admin Secret */}

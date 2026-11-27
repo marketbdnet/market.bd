@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMarket } from '../../context/MarketContext';
-import { Clock } from 'lucide-react';
+
+const BRAND_RED = '#E50914';
 
 export const LiveClockWidget: React.FC = () => {
   const { language, clockSettings } = useMarket();
@@ -129,13 +130,18 @@ export const LiveClockWidget: React.FC = () => {
 
   const { dateStr, hoursStr, minStr, secStr, ampmStr, showSec } = getDateTimeComponents();
 
-  // Font family calculation
+  const isLegacyUnversioned = !clockSettings?.clockVersion || clockSettings.clockVersion < 2;
+  const resolvedFontKey =
+    isLegacyUnversioned && clockSettings?.fontFamily === 'orbitron' && clockSettings?.textColor === '#fbbf24'
+      ? 'vt323'
+      : clockSettings?.fontFamily || 'vt323';
+
   const getFontFamilyCss = () => {
-    switch (clockSettings?.fontFamily) {
+    switch (resolvedFontKey) {
       case 'vt323':
-        return "'VT323', monospace";
+        return "'VT323', 'Share Tech Mono', monospace";
       case 'orbitron':
-        return "'Orbitron', sans-serif";
+        return "'Orbitron', 'Montserrat', sans-serif";
       case 'sharetech':
         return "'Share Tech Mono', monospace";
       case 'firacode':
@@ -145,13 +151,13 @@ export const LiveClockWidget: React.FC = () => {
       case 'siliguri':
         return "'Hind Siliguri', sans-serif";
       case 'sans':
-        return 'ui-sans-serif, system-ui, sans-serif';
+        return "'Montserrat', ui-sans-serif, system-ui, sans-serif";
       case 'serif':
         return "'Playfair Display', Georgia, serif";
       case 'custom':
-        return clockSettings?.customFontFamily || 'monospace';
+        return clockSettings?.customFontFamily || "'Orbitron', monospace";
       default:
-        return "'VT323', monospace";
+        return "'VT323', 'Share Tech Mono', monospace";
     }
   };
 
@@ -164,15 +170,16 @@ export const LiveClockWidget: React.FC = () => {
   };
 
   const getTimeFontSizeClass = () => {
+    const isVt323 = resolvedFontKey === 'vt323';
     switch (clockSettings?.fontSize) {
       case 'xs':
-        return 'text-xs';
+        return isVt323 ? 'text-sm sm:text-base' : 'text-[11px] sm:text-xs';
       case 'sm':
-        return 'text-xs sm:text-sm';
+        return isVt323 ? 'text-[15px] sm:text-[18px]' : 'text-xs sm:text-sm';
       case 'md':
-        return 'text-sm sm:text-base';
+        return isVt323 ? 'text-base sm:text-xl' : 'text-sm sm:text-base';
       case 'lg':
-        return 'text-base sm:text-lg';
+        return isVt323 ? 'text-lg sm:text-2xl' : 'text-base sm:text-lg';
       case 'xl':
         return 'text-lg sm:text-xl';
       case '2xl':
@@ -180,30 +187,29 @@ export const LiveClockWidget: React.FC = () => {
       case '3xl':
         return 'text-2xl sm:text-3xl';
       default:
-        return 'text-xs sm:text-sm';
+        return isVt323 ? 'text-[15px] sm:text-[18px]' : 'text-xs sm:text-sm';
     }
   };
 
   const getDateFontSizeClass = () => {
     switch (clockSettings?.fontSize) {
       case 'xs':
-        return 'text-[8px]';
+        return 'text-[7.5px] sm:text-[8.5px]';
       case 'sm':
-        return 'text-[9px] sm:text-[10px]';
+        return 'text-[8px] sm:text-[9.5px]';
       case 'md':
-        return 'text-[10px] sm:text-xs';
+        return 'text-[9px] sm:text-[10.5px]';
       case 'lg':
-        return 'text-xs';
+        return 'text-[10px] sm:text-xs';
       case 'xl':
       case '2xl':
       case '3xl':
-        return 'text-xs sm:text-sm';
+        return 'text-xs';
       default:
-        return 'text-[9px] sm:text-[10px]';
+        return 'text-[8px] sm:text-[9.5px]';
     }
   };
 
-  // Font weight
   const getFontWeightClass = () => {
     switch (clockSettings?.fontWeight) {
       case 'normal':
@@ -217,103 +223,177 @@ export const LiveClockWidget: React.FC = () => {
       case 'black':
         return 'font-black';
       default:
-        return 'font-bold';
+        return 'font-black';
     }
   };
 
   const fontFamilyCss = getFontFamilyCss();
-  const bgColor = clockSettings?.bgColor || '#090d16';
-  const borderColor = clockSettings?.borderColor && clockSettings.borderColor !== '#334155' && clockSettings.borderColor !== '#ef4444'
-    ? clockSettings.borderColor
-    : '#ffffff';
+  const rawBg = clockSettings?.bgColor?.trim();
+  const isDefaultBg = !rawBg || rawBg.toLowerCase() === '#090d16' || (isLegacyUnversioned && rawBg.toLowerCase() === '#0f172a');
+  const bgColor = isDefaultBg ? '#040507' : rawBg;
 
-  // Fallback to sparkling ultra-bright neon green if empty or dull old default
+  const rawBorder = clockSettings?.borderColor?.trim();
+  const borderColor =
+    rawBorder && rawBorder !== '#334155' && rawBorder !== '#ef4444'
+      ? rawBorder
+      : '#ffffff';
+
   const rawColor = clockSettings?.textColor?.trim();
-  const timeColor = (!rawColor || rawColor === '#22c55e' || rawColor === '#34d399')
-    ? '#00FF66'
-    : rawColor;
+  const timeColor =
+    !rawColor ||
+    rawColor === '#22c55e' ||
+    rawColor === '#34d399' ||
+    (isLegacyUnversioned && rawColor.toLowerCase() === '#fbbf24')
+      ? '#00FF66'
+      : rawColor;
 
   const rawDateColor = clockSettings?.dateTextColor?.trim();
-  const dateColor = (!rawDateColor || rawDateColor === '#6ee7b7')
-    ? '#FFFFFF'
-    : rawDateColor;
+  const dateColor =
+    !rawDateColor ||
+    rawDateColor === '#6ee7b7' ||
+    (isLegacyUnversioned && rawDateColor.toLowerCase() === '#fbbf24')
+      ? '#FFFFFF'
+      : rawDateColor;
 
   const isGlow = clockSettings?.glowEffect !== false;
+  const showCrest = clockSettings?.showPulseIcon !== false;
 
   return (
     <div
       id="live-navbar-clock-widget"
       style={{
-        fontFamily: fontFamilyCss,
+        background: `radial-gradient(120% 100% at 14% 50%, rgba(229, 9, 20, 0.22) 0%, rgba(229, 9, 20, 0.04) 48%, ${bgColor} 100%)`,
         backgroundColor: bgColor,
         borderColor: borderColor,
-        boxShadow: `0 0 10px ${borderColor}44, inset 0 0 10px rgba(0,0,0,0.85)`
+        boxShadow: isGlow
+          ? `0 0 14px rgba(0, 0, 0, 0.55), 0 0 10px ${borderColor}40, inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(229, 9, 20, 0.35)`
+          : `0 2px 8px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2)`
       }}
-      className="h-8 sm:h-8.5 px-2.5 sm:px-3 rounded-full border-2 ring-1 ring-white/50 flex items-center justify-center gap-1.5 shrink-0 select-none cursor-default shadow-md"
+      className="relative overflow-hidden h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-full border-[1.5px] ring-1 ring-white/35 flex items-center justify-center gap-1.5 sm:gap-2 shrink-0 select-none cursor-default max-w-full"
       title={language === 'bn' ? 'বাংলাদেশ সময় (লাইভ)' : 'Bangladesh Time (Live)'}
     >
-      <div className="flex flex-col text-center sm:text-left leading-none justify-center gap-0.5 min-w-0">
-        {/* Line 1: Date & Month in pure crisp white with shadow */}
-        <span
-          style={{
-            color: dateColor,
-            textShadow: '0 1px 3px rgba(0,0,0,0.95), 0 0 4px rgba(255,255,255,0.4)',
-          }}
-          className={`${getDateFontSizeClass()} font-black tracking-tight whitespace-nowrap text-white text-[9px] sm:text-[10px] leading-tight`}
-        >
-          {dateStr}
-        </span>
-        {/* Line 2: Real Bangladesh Current Time with shiny/glowing vibrant text */}
+      {/* Top Specular Mirror Sheen (Welcome to MarketBD Glass Stage Aesthetic) */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-2 top-0 h-[42%] rounded-t-full bg-gradient-to-b from-white/[0.14] via-white/[0.04] to-transparent"
+      />
+
+      {/* Signature Bi-Color Horizon Beam Underline (Crimson #E50914 -> Pure White) */}
+      <span
+        aria-hidden="true"
+        style={{
+          background: `linear-gradient(90deg, ${BRAND_RED} 0%, ${BRAND_RED} 28%, #FFFFFF 60%, rgba(255,255,255,0.16) 100%)`,
+          boxShadow: `0 0 6px rgba(229, 9, 20, 0.65)`
+        }}
+        className="pointer-events-none absolute inset-x-3.5 bottom-[2px] h-[1.5px] rounded-full opacity-90"
+      />
+
+      {/* Left Twin-Arc Orbital Chronometer Emblem */}
+      {showCrest && (
         <div
-          style={{
-            color: timeColor,
-            textShadow: isGlow
-              ? `0 0 10px ${timeColor}, 0 0 4px ${timeColor}, 0 1px 2px rgba(0,0,0,0.95)`
-              : '0 1px 3px rgba(0,0,0,0.9)',
-            ...getTimeFontSizeStyle(),
-          }}
-          className={`${getTimeFontSizeClass()} ${getFontWeightClass()} tracking-wider whitespace-nowrap text-[11px] sm:text-xs flex items-center font-mono font-black drop-shadow-md`}
+          aria-hidden="true"
+          className="relative z-10 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center shrink-0"
         >
-          <span style={{ color: timeColor }} className="font-black">{hoursStr}</span>
+          <svg viewBox="0 0 24 24" className="w-full h-full overflow-visible">
+            {/* Outer Crimson Orbital Arc */}
+            <path
+              d="M 12 2.2 A 9.8 9.8 0 1 1 3.6 17"
+              fill="none"
+              stroke={BRAND_RED}
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              className="mbd-clock-orbit-cw"
+            />
+            {/* Inner Crisp White Orbital Arc */}
+            <path
+              d="M 12 18.8 A 6.8 6.8 0 0 1 7.2 7.2"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              opacity="0.92"
+              className="mbd-clock-orbit-ccw"
+            />
+            {/* Minimalist Precision Hands */}
+            <path
+              d="M 12 7.6 L 12 12 L 15.2 13.8"
+              fill="none"
+              stroke={timeColor}
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="12" cy="12" r="1.2" fill="#FFFFFF" />
+          </svg>
+        </div>
+      )}
+
+      {/* Telemetry Stack: Date Line + Luminous Digital Digits */}
+      <div className="relative z-10 flex flex-col text-left leading-none justify-center gap-[1.5px] min-w-0 pb-[2px]">
+        {/* Line 1: Crisp Editorial Date + BDT Meridian Tag */}
+        <div className="flex items-center justify-between gap-1.5 leading-none">
           <span
             style={{
-              color: timeColor,
-              textShadow: isGlow ? `0 0 8px ${timeColor}` : undefined
+              fontFamily: "'Montserrat', 'Hind Siliguri', system-ui, sans-serif",
+              color: dateColor,
+              textShadow: '0 1px 2px rgba(0,0,0,0.95)'
             }}
-            className="mx-0.5 animate-pulse font-black opacity-95"
+            className={`${getDateFontSizeClass()} font-bold tracking-tight whitespace-nowrap truncate`}
           >
-            :
+            {dateStr}
           </span>
-          <span style={{ color: timeColor }} className="font-black">{minStr}</span>
+          <span
+            style={{
+              fontFamily: "'Montserrat', system-ui, sans-serif",
+              borderColor: 'rgba(229, 9, 20, 0.7)'
+            }}
+            className="hidden md:inline-flex items-center px-1 py-[0.5px] rounded text-[7px] font-black tracking-[0.12em] uppercase text-white/95 bg-[#E50914]/25 border shrink-0"
+          >
+            BD
+          </span>
+        </div>
+
+        {/* Line 2: High-Precision Tabular Digital Readout */}
+        <div
+          style={{
+            fontFamily: fontFamilyCss,
+            fontVariantNumeric: 'tabular-nums',
+            color: timeColor,
+            textShadow: isGlow
+              ? `0 0 10px ${timeColor}CC, 0 0 4px ${timeColor}99, 0 1px 2px rgba(0,0,0,0.98)`
+              : '0 1px 2px rgba(0,0,0,0.95)',
+            ...getTimeFontSizeStyle()
+          }}
+          className={`${getTimeFontSizeClass()} ${getFontWeightClass()} tracking-wider whitespace-nowrap flex items-center leading-none`}
+        >
+          <span className="inline-block text-center min-w-[1.2em]">{hoursStr}</span>
+          <span className="mbd-clock-colon mx-[1px] sm:mx-0.5 text-white/90">:</span>
+          <span className="inline-block text-center min-w-[1.2em]">{minStr}</span>
+
           {showSec && (
             <>
+              <span className="mbd-clock-colon mx-[1px] sm:mx-0.5 text-white/80">:</span>
               <span
                 style={{
                   color: timeColor,
-                  textShadow: isGlow ? `0 0 8px ${timeColor}` : undefined
+                  textShadow: isGlow
+                    ? `0 0 8px ${timeColor}, 0 1px 2px rgba(0,0,0,0.95)`
+                    : undefined
                 }}
-                className="mx-0.5 animate-pulse font-black opacity-95"
-              >
-                :
-              </span>
-              <span
-                style={{
-                  color: timeColor,
-                  textShadow: isGlow ? `0 0 12px ${timeColor}, 0 0 6px ${timeColor}` : undefined
-                }}
-                className="inline-block w-[1.3em] text-center font-black"
+                className="inline-flex items-center justify-center px-1 py-[0.5px] rounded-[4px] bg-white/[0.08] border border-white/15 min-w-[1.45em] text-center leading-none"
               >
                 {secStr}
               </span>
             </>
           )}
+
           <span
             style={{
-              color: timeColor,
-              filter: 'brightness(1.15)',
-              textShadow: isGlow ? `0 0 8px ${timeColor}99` : undefined
+              fontFamily: "'Montserrat', system-ui, sans-serif",
+              color: '#FFFFFF',
+              textShadow: isGlow ? `0 0 6px ${BRAND_RED}AA` : undefined
             }}
-            className="ml-1 text-[8.5px] sm:text-[9.5px] font-black uppercase tracking-wider"
+            className="ml-1 text-[8px] sm:text-[9px] font-black uppercase tracking-[0.12em] text-white/95"
           >
             {ampmStr}
           </span>

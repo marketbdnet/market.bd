@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMarket } from '../../context/MarketContext';
+import { getApiAuthHeaders } from '../../utils/authOwnership';
 import {
   Users,
   Shield,
@@ -92,15 +93,17 @@ export const StaffRolesAdminPanel: React.FC = () => {
       localStorage.setItem('marketbd_enterprise_staff_accounts', JSON.stringify(staffList));
       fetch('/api/sync/state', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiAuthHeaders(currentUser),
         body: JSON.stringify({ adminStaffAccounts: staffList })
       }).catch(() => {});
     } catch (e) {}
-  }, [staffList]);
+  }, [staffList, currentUser]);
 
   // Load from backend if available
   useEffect(() => {
-    fetch('/api/admin/staff')
+    fetch('/api/admin/staff', {
+      headers: getApiAuthHeaders(currentUser, false)
+    })
       .then(res => res.json())
       .then(res => {
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
@@ -108,7 +111,7 @@ export const StaffRolesAdminPanel: React.FC = () => {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [currentUser]);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);

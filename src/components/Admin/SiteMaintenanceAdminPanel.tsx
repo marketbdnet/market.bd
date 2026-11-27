@@ -49,7 +49,7 @@ export const SiteMaintenanceAdminPanel: React.FC = () => {
     siteMaintenance.masterLockdownMessage || 'সার্ভার রক্ষণাবেক্ষণ ও আপগ্রেডের জন্য সম্পূর্ণ ওয়েবসাইট সাময়িকভাবে বন্ধ রাখা হয়েছে। এই মুহূর্তে এডমিন এবং ভিজিটর কারও জন্যই সাইট উন্মুক্ত নয়।'
   );
   const [masterUnlockPin, setMasterUnlockPin] = useState<string>(
-    siteMaintenance.masterUnlockPin || '7860'
+    siteMaintenance.masterUnlockPin || ''
   );
   const [contactEmail, setContactEmail] = useState<string>(
     siteMaintenance.contactEmail || 'official.marketbd@gmail.com'
@@ -111,8 +111,13 @@ export const SiteMaintenanceAdminPanel: React.FC = () => {
 
   const handleTestMasterPin = (e: React.FormEvent) => {
     e.preventDefault();
-    const currentPin = masterUnlockPin.trim() || '7860';
-    if (testPin.trim() === currentPin || testPin.trim() === '7860' || testPin.trim() === 'marketbdadmin') {
+    const currentPin = masterUnlockPin.trim();
+    if (!currentPin) {
+      setTestResult({
+        success: false,
+        msg: language === 'bn' ? '⚠️ আগে নিচে একটি মাস্টার আনলক পিন সেট ও সেভ করুন।' : '⚠️ Set and save a Master Unlock PIN first.'
+      });
+    } else if (testPin.trim() === currentPin) {
       setTestResult({
         success: true,
         msg: language === 'bn' ? '✅ মাস্টার পিন সঠিক! এই পিন দিয়ে সাইট আনলক করা যাবে।' : '✅ Master PIN is valid and verified!'
@@ -138,7 +143,7 @@ export const SiteMaintenanceAdminPanel: React.FC = () => {
       noticeMessage: noticeMessage.trim(),
       masterLockdownTitle: masterLockdownTitle.trim(),
       masterLockdownMessage: masterLockdownMessage.trim(),
-      masterUnlockPin: masterUnlockPin.trim() || '7860',
+      masterUnlockPin: masterUnlockPin.trim(),
       contactEmail: contactEmail.trim(),
       emergencyPhone: emergencyPhone.trim(),
       updatedAt: new Date().toISOString()
@@ -164,7 +169,7 @@ export const SiteMaintenanceAdminPanel: React.FC = () => {
       noticeMessage: 'We’ll be back shortly. Thank you for your patience!',
       masterLockdownTitle: '🔒 MarketBD.Net মাস্টার সিস্টেম লকডাউন (Master Lockdown)',
       masterLockdownMessage: 'সার্ভার রক্ষণাবেক্ষণ ও আপগ্রেডের জন্য সম্পূর্ণ ওয়েবসাইট সাময়িকভাবে বন্ধ রাখা হয়েছে। এই মুহূর্তে এডমিন এবং ভিজিটর কারও জন্যই সাইট উন্মুক্ত নয়।',
-      masterUnlockPin: '7860',
+      masterUnlockPin: masterUnlockPin.trim(),
       contactEmail: 'official.marketbd@gmail.com',
       emergencyPhone: '01533830784'
     };
@@ -378,7 +383,7 @@ export const SiteMaintenanceAdminPanel: React.FC = () => {
               <div className="flex items-center justify-between text-slate-300 pt-1 border-t border-red-900/30">
                 <span>মাস্টার রিকভারি পিন:</span>
                 <span className="font-mono font-black text-amber-300 bg-red-950/80 px-2 py-0.5 rounded border border-red-800">
-                  {masterUnlockPin || '7860'}
+                  {masterUnlockPin ? '••••••' : (language === 'bn' ? 'সেট করা নেই' : 'Not set')}
                 </span>
               </div>
             </div>
@@ -434,7 +439,7 @@ export const SiteMaintenanceAdminPanel: React.FC = () => {
             type="text"
             value={testPin}
             onChange={e => setTestPin(e.target.value)}
-            placeholder={language === 'bn' ? 'টেস্ট পিন লিখুন (যেমন: 7860)...' : 'Enter test PIN (e.g. 7860)...'}
+            placeholder={language === 'bn' ? 'আপনার সেট করা মাস্টার পিন লিখুন...' : 'Enter your configured Master PIN...'}
             className="w-full sm:w-64 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-mono text-sm focus:border-amber-500 focus:outline-none"
           />
           <button
@@ -483,16 +488,16 @@ export const SiteMaintenanceAdminPanel: React.FC = () => {
               🔐 {language === 'bn' ? 'মাস্টার আনলক পিন / কোড (Master Unlock PIN):' : 'Master Unlock PIN:'}
             </label>
             <input
-              type="text"
+              type="password"
               value={masterUnlockPin}
               onChange={e => setMasterUnlockPin(e.target.value)}
-              placeholder="7860"
+              placeholder={language === 'bn' ? 'নতুন গোপন পিন সেট করুন' : 'Set a secret Master PIN'}
               className="w-full sm:w-72 px-4 py-2.5 bg-white dark:bg-slate-900 border-2 border-amber-400 dark:border-amber-600 rounded-xl text-slate-900 dark:text-white font-mono font-black text-base tracking-widest focus:outline-none"
             />
             <p className="text-[11px] text-amber-800 dark:text-amber-400">
               {language === 'bn'
-                ? 'মাস্টার লকডাউন চালু থাকলে এই পিন দিয়ে সাইট আনলক করতে পারবেন। (ডিফল্ট: 7860)'
-                : 'Secret PIN to unlock the master lockdown screen. (Default: 7860)'}
+                ? 'মাস্টার লকডাউন চালু থাকলে এই গোপন পিন দিয়ে সাইট আনলক করতে পারবেন।'
+                : 'Secret PIN required to unlock the master lockdown screen.'}
             </p>
           </div>
 

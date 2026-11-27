@@ -3,8 +3,8 @@ import { useMarket } from '../context/MarketContext';
 import { getRemainingAutoApproveTime } from '../utils/autoApprovalTimer';
 import { ProductCard } from '../components/Product/ProductCard';
 import { isProductPublicActive, isProductPending, isProductRejected, isProductSold, isProductExpired } from '../utils/productStatus';
+import { isEffectiveLoggedIn, isAdOwner } from '../utils/authOwnership';
 import {
-  User,
   Package,
   Heart,
   Bell,
@@ -12,22 +12,22 @@ import {
   CheckCircle2,
   Clock,
   PlusCircle,
-  Settings,
-  ShoppingBag,
   Trash2,
   AlertCircle,
   Lock,
-  ArrowLeft,
   Edit3,
   Check,
   LogOut,
+  LogIn,
   MessageSquare
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
   const {
     language,
+    isLoggedIn,
     currentUser,
+    openAuthModal,
     logout,
     products,
     wishlist,
@@ -37,37 +37,58 @@ export const DashboardPage: React.FC = () => {
     updateProductStatus,
     openDeleteModal,
     setEditingAd,
-    goBack,
     renewAd,
     chatThreads
   } = useMarket();
 
-  const unreadChatCount = (chatThreads || []).reduce((sum, t) => sum + Number(t?.unreadCount || 0), 0);
-
   const [dashboardTab, setDashboardTab] = useState<'my-ads' | 'wishlist' | 'notifs' | 'verification'>('my-ads');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending' | 'rejected' | 'sold' | 'expired'>('all');
 
-  // Filter user's products comprehensively
-  const myAds = (products || []).filter(p => {
-    if (!p) return false;
-    if (!currentUser) {
-      return (
-        p.seller?.id === 'user-me' ||
-        (p.seller?.name && p.seller.name.includes('Rahim Tech')) ||
-        p.seller?.email === 'official.marketbd@gmail.com' ||
-        p.seller?.phone === '01634025151' ||
-        p.seller?.phone === '+8801634025151'
-      );
-    }
+  const isAuthenticated = isEffectiveLoggedIn(isLoggedIn, currentUser);
+
+  if (!isAuthenticated) {
     return (
-      (currentUser.id && p.seller?.id === currentUser.id) ||
-      (currentUser.email && p.seller?.email && p.seller.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-      (currentUser.phone && p.seller?.phone === currentUser.phone) ||
-      (currentUser.id && p.sellerId === currentUser.id) ||
-      p.seller?.id === 'user-me' ||
-      (currentUser.email === 'official.marketbd@gmail.com' && (p.seller?.id === 'user-me' || (p.seller?.name && p.seller.name.includes('Rahim Tech'))))
+      <div className="max-w-xl mx-auto py-12 px-4 text-center animate-in fade-in duration-300">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl space-y-5">
+          <div className="w-16 h-16 bg-pink-50 dark:bg-pink-950/80 text-pink-600 dark:text-pink-400 rounded-full flex items-center justify-center mx-auto border border-pink-100 dark:border-pink-800 shadow-sm">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white">
+              {language === 'bn' ? 'ড্যাশবোর্ড ও পছন্দের তালিকা দেখতে লগইন করুন' : 'Log in to access your dashboard'}
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
+              {language === 'bn'
+                ? 'আপনার পোস্ট করা বিজ্ঞাপন নিয়ন্ত্রণ, সেভ করা পছন্দ তালিকা ও নোটিফিকেশন দেখতে অনুগ্রহ করে অ্যাকাউন্টে সাইন ইন করুন।'
+                : 'Please sign in to manage your posted listings, view your saved wishlist, and check account notifications.'}
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => openAuthModal('general')}
+              className="w-full sm:w-auto px-8 py-3 bg-pink-600 hover:bg-pink-700 text-white font-extrabold rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm cursor-pointer"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>{language === 'bn' ? 'লগইন / সাইনআপ করুন' : 'Log In / Register'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('home')}
+              className="w-full sm:w-auto px-6 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition text-sm cursor-pointer"
+            >
+              {language === 'bn' ? 'হোমে ফিরে যান' : 'Back to Home'}
+            </button>
+          </div>
+        </div>
+      </div>
     );
-  });
+  }
+
+  const unreadChatCount = (chatThreads || []).reduce((sum, t) => sum + Number(t?.unreadCount || 0), 0);
+
+  // Strict user-owned products filter
+  const myAds = (products || []).filter(p => isAdOwner(p, currentUser, isLoggedIn));
 
   const filteredMyAds = myAds.filter(ad => {
     if (statusFilter === 'all') return true;
@@ -87,23 +108,23 @@ export const DashboardPage: React.FC = () => {
       <div className="bg-gradient-to-r from-pink-800 via-rose-700 to-pink-900 text-white rounded-3xl p-6 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-6 relative">
         <div className="flex items-center gap-4 w-full sm:w-auto">
           <img
-            src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80"
-            alt=""
+            src={currentUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}
+            alt={currentUser.name || 'User'}
             className="w-16 h-16 rounded-2xl object-cover border-2 border-yellow-400 shadow shrink-0"
           />
           <div>
             <h2 className="text-xl font-bold flex items-center gap-1.5">
-              <span>{currentUser?.name || currentUser?.email || 'MarketBD User'}</span>
-              <CheckCircle2 className="w-5 h-5 text-yellow-300" />
+              <span>{currentUser.name || currentUser.email || 'MarketBD User'}</span>
+              {currentUser.isVerified && <CheckCircle2 className="w-5 h-5 text-yellow-300" />}
             </h2>
             <p className="text-xs text-emerald-200">
-              📱 {currentUser?.phone || currentUser?.email || 'Verified Seller'} • 📍 {currentUser?.location?.district ? `${currentUser.location.district}, ${currentUser.location.division}` : 'Dhaka, Bangladesh'}
+              📱 {currentUser.phone || currentUser.email || ''} • 📍 {currentUser.location?.district ? `${currentUser.location.district}, ${currentUser.location.division}` : 'Bangladesh'}
             </p>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-[10px] bg-yellow-400 text-emerald-950 font-extrabold px-2 py-0.5 rounded">
-                Gold Verified Seller
+                {currentUser.isVerified ? 'Verified Seller' : 'Member'}
               </span>
-              <span className="text-xs text-emerald-100 font-semibold">★ 5.0 Verified</span>
+              <span className="text-xs text-emerald-100 font-semibold">★ 5.0</span>
             </div>
           </div>
         </div>

@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { useMarket } from '../../context/MarketContext';
+import { OFFICIAL_SLOGAN } from '../../constants/branding';
 import { UserProfileModal } from '../Auth/UserProfileModal';
 import { LiveClockWidget } from '../Common/LiveClockWidget';
+import { isEffectiveLoggedIn, isEffectiveAdmin } from '../../utils/authOwnership';
 import officialMarketLogoImg from '../../assets/images/marketbd_official_logo.jpg';
 import {
   MapPin,
@@ -67,6 +69,7 @@ export const Navbar: React.FC = () => {
     isDarkMode,
     toggleDarkMode,
     openCustomerCare,
+    openInstallAppModal,
     customLogoUrl,
     siteMaintenance,
     toggleSiteMaintenance
@@ -86,8 +89,10 @@ export const Navbar: React.FC = () => {
     }
   }, [isFloatingSearchOpen]);
 
-  const unreadChats = chatThreads.reduce((acc, t) => acc + Number(t?.unreadCount || 0), 0);
-  const isAdmin = Boolean(isLoggedIn && (userRole === 'admin' || currentUser?.role === 'admin'));
+  const isAuthenticated = isEffectiveLoggedIn(isLoggedIn, currentUser);
+  const unreadChats = isAuthenticated ? chatThreads.reduce((acc, t) => acc + Number(t?.unreadCount || 0), 0) : 0;
+  const visibleWishlistCount = isAuthenticated ? wishlist.length : 0;
+  const isAdmin = isEffectiveAdmin(isLoggedIn, currentUser, userRole);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,8 +144,8 @@ export const Navbar: React.FC = () => {
                 <span className="text-sm sm:text-base md:text-lg font-black tracking-tight drop-shadow-sm whitespace-nowrap">
                   <span className="text-[#FFE600]">M</span><span className="text-white">arketBD.</span><span className="text-[#FFE600]">Net</span>
                 </span>
-                <span className="text-[8px] sm:text-[9px] text-amber-100 font-bold whitespace-nowrap">
-                  {language === 'bn' ? 'বিশ্বস্ত মার্কেটপ্লেস' : 'Trusted Marketplace'}
+                <span className="text-[7.5px] sm:text-[9px] text-amber-100 font-bold whitespace-nowrap max-w-[148px] sm:max-w-none truncate">
+                  {OFFICIAL_SLOGAN}
                 </span>
               </div>
             </button>
@@ -173,7 +178,7 @@ export const Navbar: React.FC = () => {
               </button>
 
               {/* Log In/Out Button */}
-              {isLoggedIn ? (
+              {isAuthenticated ? (
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => setIsProfileModalOpen(true)}
@@ -198,10 +203,10 @@ export const Navbar: React.FC = () => {
                 <button
                   onClick={() => openAuthModal('general')}
                   className="liquid-btn h-8 sm:h-8.5 flex items-center justify-center gap-1.5 px-3.5 cursor-pointer text-xs font-black shrink-0"
-                  title="Log In/Out"
+                  title="Log In / Register"
                 >
                   <User className="w-4 h-4 text-emerald-600 shrink-0 drop-shadow-sm" />
-                  <span className="whitespace-nowrap">{language === 'bn' ? 'লগ ইন/আউট' : 'Log In/Out'}</span>
+                  <span className="whitespace-nowrap">{language === 'bn' ? 'লগ ইন / সাইন আপ' : 'Log In / Sign Up'}</span>
                 </button>
               )}
 
@@ -277,7 +282,13 @@ export const Navbar: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveTab('chat')}
+              onClick={() => {
+                if (!isAuthenticated) {
+                  openAuthModal('chat');
+                  return;
+                }
+                setActiveTab('chat');
+              }}
               className={`liquid-btn flex items-center justify-center gap-1 h-6 sm:h-6.5 px-2 cursor-pointer text-[10px] sm:text-[11px] font-black shrink-0 whitespace-nowrap relative ${
                 activeTab === 'chat' ? 'liquid-btn-active-sky' : ''
               }`}
@@ -293,7 +304,13 @@ export const Navbar: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveTab('dashboard')}
+              onClick={() => {
+                if (!isAuthenticated) {
+                  openAuthModal('general');
+                  return;
+                }
+                setActiveTab('dashboard');
+              }}
               className={`liquid-btn flex items-center justify-center gap-1 h-6 sm:h-6.5 px-2 cursor-pointer text-[10px] sm:text-[11px] font-black shrink-0 whitespace-nowrap relative ${
                 activeTab === 'dashboard' ? 'liquid-btn-active-pink' : ''
               }`}
@@ -301,11 +318,20 @@ export const Navbar: React.FC = () => {
             >
               <Heart className="w-3.5 h-3.5 text-red-500 shrink-0" />
               <span className="hidden xl:inline">{language === 'bn' ? 'পছন্দ' : 'Saved'}</span>
-              {wishlist.length > 0 && (
+              {visibleWishlistCount > 0 && (
                 <span className="bg-pink-600 text-white font-bold text-[8px] px-1 py-0.2 rounded-full leading-none shrink-0">
-                  {wishlist.length}
+                  {visibleWishlistCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={openInstallAppModal}
+              className="liquid-btn h-6 sm:h-6.5 flex items-center justify-center gap-1 px-2 cursor-pointer text-[10px] sm:text-[11px] font-black shrink-0 whitespace-nowrap text-emerald-700 dark:text-emerald-300"
+              title={language === 'bn' ? 'অ্যান্ড্রয়েড ও আইফোন অ্যাপ ডাউনলোড' : 'Download Android & iPhone App'}
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span className="hidden xl:inline">{language === 'bn' ? 'ডাউনলোড' : 'Download'}</span>
             </button>
 
             {isAdmin && (
@@ -409,8 +435,8 @@ export const Navbar: React.FC = () => {
               <span className="text-sm font-black tracking-tight drop-shadow-sm whitespace-nowrap">
                 <span className="text-[#FFE600]">M</span><span className="text-white">arketBD.</span><span className="text-[#FFE600]">Net</span>
               </span>
-              <span className="text-[7.5px] text-amber-100 font-bold whitespace-nowrap mt-0.5">
-                {language === 'bn' ? 'বিশ্বস্ত মার্কেটপ্লেস' : 'Trusted Market'}
+              <span className="text-[7px] text-amber-100 font-bold whitespace-nowrap max-w-[140px] truncate mt-0.5">
+                {OFFICIAL_SLOGAN}
               </span>
             </div>
           </button>
@@ -443,8 +469,8 @@ export const Navbar: React.FC = () => {
             <span className="text-amber-700 dark:text-amber-400 font-black whitespace-nowrap">{language === 'bn' ? 'EN' : 'বাংলা'}</span>
           </button>
 
-          {/* 3. Log In/Out */}
-          {isLoggedIn ? (
+          {/* 3. Log In/Profile */}
+          {isAuthenticated ? (
             <button
               onClick={() => setIsProfileModalOpen(true)}
               className="liquid-btn h-8 flex items-center justify-center gap-1 px-1.5 cursor-pointer text-[11px] font-black shrink-0"
@@ -459,7 +485,7 @@ export const Navbar: React.FC = () => {
             <button
               onClick={() => openAuthModal('general')}
               className="liquid-btn h-8 flex items-center justify-center gap-1 px-1.5 cursor-pointer text-[11px] font-black shrink-0"
-              title="Log In/Out"
+              title="Login / Sign Up"
             >
               <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span className="whitespace-nowrap">{language === 'bn' ? 'লগইন' : 'Login'}</span>
@@ -586,7 +612,13 @@ export const Navbar: React.FC = () => {
 
           {/* 5. Chat */}
           <button
-            onClick={() => setActiveTab('chat')}
+            onClick={() => {
+              if (!isAuthenticated) {
+                openAuthModal('chat');
+                return;
+              }
+              setActiveTab('chat');
+            }}
             className={`liquid-btn flex items-center justify-center gap-1 h-8 cursor-pointer text-[11px] font-black shrink-0 whitespace-nowrap px-1.5 relative ${
               activeTab === 'chat'
                 ? 'liquid-btn-active-sky'
@@ -605,7 +637,13 @@ export const Navbar: React.FC = () => {
 
           {/* 6. Saved Wishlist */}
           <button
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => {
+              if (!isAuthenticated) {
+                openAuthModal('general');
+                return;
+              }
+              setActiveTab('dashboard');
+            }}
             className={`liquid-btn flex items-center justify-center gap-1 h-8 cursor-pointer text-[11px] font-black shrink-0 whitespace-nowrap px-1.5 relative ${
               activeTab === 'dashboard'
                 ? 'liquid-btn-active-pink'
@@ -615,9 +653,9 @@ export const Navbar: React.FC = () => {
           >
             <Heart className="w-3.5 h-3.5 text-red-500 shrink-0 drop-shadow-xs" />
             <span>{language === 'bn' ? 'পছন্দ' : 'Saved'}</span>
-            {wishlist.length > 0 && (
+            {visibleWishlistCount > 0 && (
               <span className="bg-pink-600 text-white font-bold text-[7.5px] px-1 py-0.2 rounded-full leading-none shrink-0 shadow-xs">
-                {wishlist.length}
+                {visibleWishlistCount}
               </span>
             )}
           </button>
@@ -691,7 +729,7 @@ export const Navbar: React.FC = () => {
                       </span>
                     </span>
                     <p className="text-[9px] text-slate-400">
-                      {language === 'bn' ? 'বাংলাদেশের বিশ্বস্ত ক্রয়-বিক্রয় মাধ্যম' : "Bangladesh's Trusted Marketplace"}
+                      {OFFICIAL_SLOGAN}
                     </p>
                   </div>
                 </div>
@@ -712,15 +750,15 @@ export const Navbar: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="font-black text-xs text-white truncate max-w-[140px]">
-                      {isLoggedIn ? (currentUser?.name || (userRole === 'admin' ? 'Admin' : 'User')) : (language === 'bn' ? 'গেস্ট ইউজার' : 'Guest User')}
+                      {isAuthenticated ? (currentUser?.name || (userRole === 'admin' ? 'Admin' : 'User')) : (language === 'bn' ? 'গেস্ট ইউজার' : 'Guest User')}
                     </h4>
                     <p className="text-[10px] text-slate-400 truncate max-w-[140px]">
-                      {isLoggedIn ? (currentUser?.email || currentUser?.phone || 'Verified User') : (language === 'bn' ? 'লগইন করে সব সুবিধা নিন' : 'Login to explore')}
+                      {isAuthenticated ? (currentUser?.email || currentUser?.phone || 'Verified User') : (language === 'bn' ? 'লগইন করে সব সুবিধা নিন' : 'Login to explore')}
                     </p>
                   </div>
                 </div>
 
-                {isLoggedIn ? (
+                {isAuthenticated ? (
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => {
@@ -771,6 +809,23 @@ export const Navbar: React.FC = () => {
                 </span>
                 <span className="bg-white/20 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
                   {language === 'bn' ? 'ফ্রি' : 'Free'}
+                </span>
+              </button>
+
+              {/* 2B. Mobile App Download Chooser (Android APK / iOS) */}
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  openInstallAppModal();
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs border border-emerald-400/70 shadow-md transition cursor-pointer active:scale-98"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Download className="w-4 h-4 text-white shrink-0" />
+                  <span>{language === 'bn' ? 'অ্যাপ ডাউনলোড (Android / iPhone)' : 'Download App (Android / iOS)'}</span>
+                </span>
+                <span className="bg-slate-950/35 text-emerald-100 text-[10px] font-black px-2 py-0.5 rounded-full">
+                  APK / iOS
                 </span>
               </button>
 
@@ -845,6 +900,10 @@ export const Navbar: React.FC = () => {
                 <button
                   onClick={() => {
                     setIsMobileMenuOpen(false);
+                    if (!isAuthenticated) {
+                      openAuthModal('chat');
+                      return;
+                    }
                     setActiveTab('chat');
                   }}
                   className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 transition cursor-pointer group"
@@ -865,7 +924,7 @@ export const Navbar: React.FC = () => {
                 <button
                   onClick={() => {
                     setIsMobileMenuOpen(false);
-                    if (isLoggedIn) {
+                    if (isAuthenticated) {
                       setIsProfileModalOpen(true);
                     } else {
                       openAuthModal('general');
@@ -883,6 +942,10 @@ export const Navbar: React.FC = () => {
                 <button
                   onClick={() => {
                     setIsMobileMenuOpen(false);
+                    if (!isAuthenticated) {
+                      openAuthModal('general');
+                      return;
+                    }
                     setActiveTab('dashboard');
                   }}
                   className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 transition cursor-pointer group"
@@ -891,9 +954,9 @@ export const Navbar: React.FC = () => {
                     <Heart className="w-4 h-4 text-red-400 group-hover:scale-110 transition" />
                     <span>{language === 'bn' ? 'পছন্দের তালিকা (Wishlist)' : 'Saved Ads / Wishlist'}</span>
                   </span>
-                  {wishlist.length > 0 ? (
+                  {visibleWishlistCount > 0 ? (
                     <span className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
-                      {wishlist.length}
+                      {visibleWishlistCount}
                     </span>
                   ) : (
                     <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
@@ -1179,6 +1242,10 @@ export const Navbar: React.FC = () => {
           badge: unreadChats,
           onClick: () => {
             setIsFloatingSearchOpen(false);
+            if (!isAuthenticated) {
+              openAuthModal('chat');
+              return;
+            }
             setActiveTab('chat');
           },
         },
@@ -1197,7 +1264,7 @@ export const Navbar: React.FC = () => {
           : []),
         {
           key: 'profile',
-          label: isLoggedIn
+          label: isAuthenticated
             ? language === 'bn'
               ? 'প্রোফাইল'
               : 'Profile'
@@ -1207,7 +1274,7 @@ export const Navbar: React.FC = () => {
           icon: 'profile',
           onClick: () => {
             setIsFloatingSearchOpen(false);
-            if (isLoggedIn) {
+            if (isAuthenticated) {
               setIsProfileModalOpen(true);
             } else {
               openAuthModal('general');

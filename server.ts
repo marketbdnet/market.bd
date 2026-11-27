@@ -5,7 +5,7 @@ import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { CANONICAL_400_PRODUCTS } from './src/data/canonicalCatalog400';
+import { INITIAL_PRODUCTS } from './src/data/mockProducts';
 import { KNOWN_JUNK_PRODUCT_IDS } from './src/utils/knownJunkProductIds';
 import { getPageMetadata, injectSeoIntoHtml } from './server_seo';
 import { isDummyChatThread } from './src/utils/chatUtils';
@@ -124,9 +124,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     console.error('Notice reading server_sync_state.json:', e);
   }
 
-  // Build authoritative product catalog for server sync state
+  // Build authoritative product catalog for server sync state (full 416 canonical + supplemental items)
   const canonicalMap = new Map<string, any>();
-  CANONICAL_400_PRODUCTS.forEach(p => {
+  INITIAL_PRODUCTS.forEach(p => {
     if (p && p.id) canonicalMap.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true });
   });
 
@@ -158,7 +158,7 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       noticeMessage: 'We’ll be back shortly. Thank you for your patience!',
       masterLockdownTitle: '🔒 MarketBD.Net মাস্টার সিস্টেম লকডাউন (Master Lockdown)',
       masterLockdownMessage: 'সার্ভার রক্ষণাবেক্ষণ ও আপগ্রেডের জন্য সম্পূর্ণ ওয়েবসাইট সাময়িকভাবে বন্ধ রাখা হয়েছে। এই মুহূর্তে এডমিন এবং ভিজিটর কারও জন্যই সাইট উন্মুক্ত নয়।',
-      masterUnlockPin: '7860',
+      masterUnlockPin: (process.env.MASTER_UNLOCK_PIN || '').trim(),
       contactEmail: 'official.marketbd@gmail.com',
       emergencyPhone: '01533830784',
       updatedAt: new Date().toISOString()
@@ -201,9 +201,19 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     ...(savedFileState || {})
   };
 
-  // Re-verify after spread that marketplace_products is non-empty and valid
-  sharedSyncState.marketplace_products = initialAuthoritativeProducts;
-  sharedSyncState.products = initialAuthoritativeProducts;
+  const deletedSet = new Set<string>(
+    Array.isArray(sharedSyncState.deletedProductIds)
+      ? sharedSyncState.deletedProductIds.filter((id: any) => typeof id === 'string' && id.trim())
+      : []
+  );
+  sharedSyncState.deletedProductIds = Array.from(deletedSet);
+
+  // Re-verify after spread that marketplace_products is non-empty, valid, and excludes deleted IDs
+  const filteredBootProducts = initialAuthoritativeProducts.filter(
+    (p: any) => p && p.id && !deletedSet.has(p.id) && p.isDeleted !== true && p.status !== 'deleted'
+  );
+  sharedSyncState.marketplace_products = filteredBootProducts;
+  sharedSyncState.products = filteredBootProducts;
   sharedSyncState.chatThreads = Array.isArray(sharedSyncState.chatThreads)
     ? sharedSyncState.chatThreads.filter((t: any) => !isDummyChatThread(t))
     : [];
@@ -215,6 +225,156 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       console.error('Notice persisting sync state:', e);
     }
   }
+
+  let needsCleanPersist = false;
+  const envMasterPin = (process.env.MASTER_UNLOCK_PIN || '').trim();
+  if (sharedSyncState.siteMaintenance?.masterUnlockPin === '7860') {
+    sharedSyncState.siteMaintenance = {
+      ...sharedSyncState.siteMaintenance,
+      masterUnlockPin: envMasterPin,
+    };
+    needsCleanPersist = true;
+  }
+  if (sharedSyncState.site_maintenance?.masterUnlockPin === '7860') {
+    sharedSyncState.site_maintenance = {
+      ...sharedSyncState.site_maintenance,
+      masterUnlockPin: envMasterPin,
+    };
+    needsCleanPersist = true;
+  }
+  const legacyClock = sharedSyncState.clockSettings || sharedSyncState.clock_settings;
+  if (legacyClock && Number(legacyClock.clockVersion || 0) < 2) {
+    sharedSyncState.clockSettings = null;
+    sharedSyncState.clock_settings = null;
+    needsCleanPersist = true;
+  }
+  if (needsCleanPersist) {
+    persistSyncState();
+  }
+
+  function normPhoneDigits(p?: string): string {
+    const d = String(p || '').replace(/\D/g, '');
+    return d ? d.replace(/^880?/, '').replace(/^0+/, '') : '';
+  }
+
+  interface CallerIdentity {
+    userId: string;
+    email: string;
+    phone: string;
+  }
+
+  function extractCallerIdentity(req: express.Request): CallerIdentity {
+    const rawId = String(req.headers['x-user-id'] || '').trim();
+    const invalidIds = new Set(['user-me', 'guest', 'anonymous', 'null', 'undefined']);
+    const userId = rawId && !invalidIds.has(rawId.toLowerCase()) ? rawId : '';
+    const email = String(req.headers['x-user-email'] || '').trim().toLowerCase();
+    const phone = normPhoneDigits(String(req.headers['x-user-phone'] || ''));
+    return { userId, email, phone };
+  }
+
+  function isBackendAdOwner(product: any, caller: CallerIdentity): boolean {
+    if (!product) return false;
+    if (caller.userId) {
+      const sellerId = String(product.seller?.id || '').trim();
+      const topSellerId = String(product.sellerId || '').trim();
+      if ((sellerId && sellerId !== 'user-me' && sellerId === caller.userId) ||
+          (topSellerId && topSellerId !== 'user-me' && topSellerId === caller.userId)) {
+        return true;
+      }
+    }
+    if (caller.email && product.seller?.email && String(product.seller.email).trim().toLowerCase() === caller.email) {
+      return true;
+    }
+    if (caller.phone.length >= 10 && product.seller?.phone && normPhoneDigits(product.seller.phone) === caller.phone) {
+      return true;
+    }
+    return false;
+  }
+
+  function isBackendChatParticipant(thread: any, caller: CallerIdentity): boolean {
+    if (!thread) return false;
+    if (caller.userId && (thread.buyerId === caller.userId || thread.seller?.id === caller.userId)) return true;
+    if (caller.email) {
+      if (thread.seller?.email && String(thread.seller.email).trim().toLowerCase() === caller.email) return true;
+      if (thread.buyerEmail && String(thread.buyerEmail).trim().toLowerCase() === caller.email) return true;
+    }
+    if (caller.phone.length >= 10) {
+      if (thread.seller?.phone && normPhoneDigits(thread.seller.phone) === caller.phone) return true;
+      if (thread.buyerPhone && normPhoneDigits(thread.buyerPhone) === caller.phone) return true;
+    }
+    return false;
+  }
+
+  // Helper: verify claimed local admin passcode hash when ADMIN_PASSWORD env var is unset
+  const verifyClaimedPassword = (password: string): boolean => {
+    const saved = sharedSyncState.adminPasswordHash;
+    if (!saved || !saved.salt || !saved.hash || !password) return false;
+    try {
+      const derived = scryptSync(password, saved.salt, 64).toString('hex');
+      return safeCompareStrings(derived, saved.hash);
+    } catch {
+      return false;
+    }
+  };
+
+  const isAuthorizedAdminRequest = (req: express.Request): boolean => {
+    if (verifyAdminRequest(req)) return true;
+    const headerPass = String(
+      req.headers['x-admin-password'] || req.headers['x-admin-secret'] || ''
+    ).trim();
+    if (!process.env.ADMIN_PASSWORD && headerPass && verifyClaimedPassword(headerPass)) {
+      return true;
+    }
+    return false;
+  };
+
+  const stripUsersPasswords = (users: any) => {
+    if (!Array.isArray(users)) return users;
+    return users.map((u: any) => {
+      if (!u || typeof u !== 'object') return u;
+      const { password: _pw, ...safeU } = u;
+      return safeU;
+    });
+  };
+
+  const sanitizeStateForCaller = (state: Record<string, any>, isAdmin: boolean) => {
+    const {
+      adminPasswordHash: _hiddenHash,
+      adminStaffAccounts,
+      securityEvents,
+      adminActiveSession,
+      admin_logs,
+      registered_users,
+      registeredUsers,
+      chatThreads,
+      ...rest
+    } = state;
+
+    const cleanMaintenance = (m: any) => {
+      if (!m || typeof m !== 'object') return m;
+      if (isAdmin) return m;
+      const { masterUnlockPin: _pin, ...publicMaintenance } = m;
+      return publicMaintenance;
+    };
+
+    const sanitized: Record<string, any> = {
+      ...rest,
+      ...(rest.siteMaintenance ? { siteMaintenance: cleanMaintenance(rest.siteMaintenance) } : {}),
+      ...(rest.site_maintenance ? { site_maintenance: cleanMaintenance(rest.site_maintenance) } : {}),
+    };
+
+    if (isAdmin) {
+      sanitized.adminStaffAccounts = adminStaffAccounts;
+      sanitized.securityEvents = securityEvents;
+      sanitized.adminActiveSession = adminActiveSession;
+      sanitized.admin_logs = admin_logs;
+      sanitized.registered_users = stripUsersPasswords(registered_users);
+      sanitized.registeredUsers = stripUsersPasswords(registeredUsers);
+      sanitized.chatThreads = chatThreads;
+    }
+
+    return sanitized;
+  };
 
   // Initialize Firestore on Server for unified Web & Android synchronization
   let serverDb: any = null;
@@ -263,7 +423,8 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
   // Synchronized state endpoints for live syncing between Android App and Website
   app.get('/api/sync/state', (req, res) => {
-    const { adminPasswordHash: _hiddenHash, ...safeState } = sharedSyncState;
+    const isAdmin = isAuthorizedAdminRequest(req);
+    const safeState = sanitizeStateForCaller(sharedSyncState, isAdmin);
     if (req.query.lite === '1') {
       const { products: _dupProducts, marketplace_products: _heavyProducts, ...rest } = safeState;
       return res.json({
@@ -275,7 +436,10 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   });
 
   // Admin Single-Device Session Management Endpoint
-  app.get('/api/admin/session', (_req, res) => {
+  app.get('/api/admin/session', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     res.json({
       success: true,
       data: sharedSyncState.adminActiveSession || null,
@@ -284,6 +448,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   });
 
   app.post('/api/admin/session', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     try {
       const { sessionToken, userEmail, deviceName, ip } = req.body || {};
       if (!sessionToken) {
@@ -313,14 +480,20 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     }
   });
 
-  app.delete('/api/admin/session', (_req, res) => {
+  app.delete('/api/admin/session', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     sharedSyncState.adminActiveSession = null;
     sharedSyncState.updatedAt = new Date().toISOString();
     res.json({ success: true, message: 'Admin session cleared' });
   });
 
   // Enterprise RBAC & Security Center Endpoints
-  app.get('/api/admin/roles', (_req, res) => {
+  app.get('/api/admin/roles', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     res.json({
       success: true,
       roles: [
@@ -337,7 +510,10 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     });
   });
 
-  app.get('/api/admin/staff', (_req, res) => {
+  app.get('/api/admin/staff', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     res.json({
       success: true,
       data: sharedSyncState.adminStaffAccounts || []
@@ -345,6 +521,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   });
 
   app.post('/api/admin/staff', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     try {
       const { name, email, phone, role, customPermissions } = req.body || {};
       if (!name || !email || !role) {
@@ -378,6 +557,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   });
 
   app.put('/api/admin/staff/:id', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     try {
       const { id } = req.params;
       const updates = req.body || {};
@@ -404,6 +586,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   });
 
   app.delete('/api/admin/staff/:id', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     try {
       const { id } = req.params;
       if (!Array.isArray(sharedSyncState.adminStaffAccounts)) {
@@ -420,7 +605,10 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     }
   });
 
-  app.get('/api/admin/security/events', (_req, res) => {
+  app.get('/api/admin/security/events', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     res.json({
       success: true,
       data: sharedSyncState.securityEvents || []
@@ -428,6 +616,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   });
 
   app.post('/api/admin/security/events', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     try {
       const newEvent = req.body;
       if (!Array.isArray(sharedSyncState.securityEvents)) {
@@ -450,8 +641,12 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
   app.post('/api/admin/verify-sensitive', (req, res) => {
     try {
-      const { pin, action, targetId } = req.body || {};
-      const isValid = !!process.env.ADMIN_PASSWORD && String(pin || '').trim() === process.env.ADMIN_PASSWORD;
+      const { pin } = req.body || {};
+      const cleanPin = String(pin || '').trim();
+      const isValid =
+        isAuthorizedAdminRequest(req) ||
+        (Boolean(process.env.ADMIN_PASSWORD) && safeCompareStrings(cleanPin, String(process.env.ADMIN_PASSWORD))) ||
+        verifyClaimedPassword(cleanPin);
 
       if (!isValid) {
         return res.status(403).json({ success: false, message: 'Invalid 2FA / Security PIN' });
@@ -463,13 +658,65 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     }
   });
 
+  app.post('/api/admin/unlock-lockdown', (req, res) => {
+    try {
+      const enteredPin = String(req.body?.pin || '').trim();
+      const configuredPins = [
+        process.env.MASTER_UNLOCK_PIN,
+        sharedSyncState.siteMaintenance?.masterUnlockPin,
+        sharedSyncState.site_maintenance?.masterUnlockPin,
+        process.env.ADMIN_PASSWORD,
+      ]
+        .map(v => String(v || '').trim())
+        .filter(Boolean);
+
+      const isAuthorized =
+        isAuthorizedAdminRequest(req) ||
+        (enteredPin.length > 0 && (
+          configuredPins.some(expected => safeCompareStrings(enteredPin, expected)) ||
+          verifyClaimedPassword(enteredPin)
+        ));
+
+      if (!isAuthorized) {
+        return res.status(401).json({ success: false, message: 'Invalid Master Unlock PIN' });
+      }
+
+      const nextMaint = {
+        ...(sharedSyncState.siteMaintenance || {}),
+        isMasterLockdown: false,
+        updatedAt: new Date().toISOString(),
+      };
+      sharedSyncState.siteMaintenance = nextMaint;
+      sharedSyncState.site_maintenance = nextMaint;
+      sharedSyncState.updatedAt = nextMaint.updatedAt;
+      persistSyncState();
+
+      const { masterUnlockPin: _omitted, ...publicMaint } = nextMaint;
+      res.json({ success: true, data: publicMaint });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || 'Unlock failed' });
+    }
+  });
+
   app.post('/api/sync/state', (req, res) => {
     try {
       const updates = req.body || {};
-      Object.keys(updates).forEach(key => {
+      const keys = Object.keys(updates);
+      const isAdmin = isAuthorizedAdminRequest(req);
+      const caller = extractCallerIdentity(req);
+      const isReactionOnly = keys.length > 0 && keys.every(k => k === 'product_reactions');
+
+      if (!isAdmin && !(isReactionOnly && Boolean(caller.userId))) {
+        return res.status(401).json({ success: false, message: 'Admin authorization required' });
+      }
+
+      keys.forEach(key => {
         if (key === 'adminPasswordHash') return;
         if (updates[key] !== undefined) {
           let value = updates[key];
+          if (key === 'registered_users' || key === 'registeredUsers') {
+            value = stripUsersPasswords(value);
+          }
           if ((key === 'app_release' || key === 'appRelease') && value && typeof value === 'object') {
             const url = String(value.apkDownloadUrl || '').trim();
             if (!url || url.startsWith('blob:') || url.includes('.run.app') || url.includes('marketbd-release-v')) {
@@ -478,12 +725,27 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
           }
           sharedSyncState[key] = value;
           if (key === 'site_maintenance' || key === 'siteMaintenance') {
+            if (value && typeof value === 'object' && value.masterUnlockPin === '7860') {
+              value = { ...value, masterUnlockPin: (process.env.MASTER_UNLOCK_PIN || '').trim() };
+            }
             sharedSyncState.siteMaintenance = value;
             sharedSyncState.site_maintenance = value;
           }
           if (key === 'app_release' || key === 'appRelease') {
             sharedSyncState.appRelease = value;
             sharedSyncState.app_release = value;
+          }
+          if (key === 'deletedProductIds' && Array.isArray(value)) {
+            const merged = new Set<string>(Array.isArray(sharedSyncState.deletedProductIds) ? sharedSyncState.deletedProductIds : []);
+            value.forEach((id: any) => {
+              if (typeof id === 'string' && id.trim()) merged.add(id.trim());
+            });
+            sharedSyncState.deletedProductIds = Array.from(merged);
+            if (Array.isArray(sharedSyncState.marketplace_products)) {
+              const filtered = sharedSyncState.marketplace_products.filter((p: any) => p && !merged.has(p.id));
+              sharedSyncState.marketplace_products = filtered;
+              sharedSyncState.products = filtered;
+            }
           }
           if (key === 'marketplace_products' || key === 'products') {
             sharedSyncState.marketplace_products = value;
@@ -493,8 +755,7 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       });
       sharedSyncState.updatedAt = new Date().toISOString();
       persistSyncState();
-      const { adminPasswordHash: _hiddenHash, ...safeState } = sharedSyncState;
-      res.json({ success: true, message: 'Sync state updated successfully', data: safeState });
+      res.json({ success: true, message: 'Sync state updated successfully', data: sanitizeStateForCaller(sharedSyncState, isAdmin) });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e?.message || 'Sync failed' });
     }
@@ -541,13 +802,21 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   // REST API Endpoints for Products / Classified Ads (Compatible with Android Retrofit/Volley/Ktor & Web Fetch)
   app.get('/api/products', (req, res) => {
     try {
+      const deletedIdSet = new Set<string>(Array.isArray(sharedSyncState.deletedProductIds) ? sharedSyncState.deletedProductIds : []);
       let rawList: any[] = sharedSyncState.marketplace_products || sharedSyncState.products || [];
-      // Clean invalid stubs
-      let productList = rawList.filter(p => p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id));
+      // Clean invalid stubs and deleted ads
+      let productList = rawList.filter(
+        p => p && p.id && p.title && p.title.trim() !== '' &&
+          !KNOWN_JUNK_PRODUCT_IDS.includes(p.id) &&
+          !deletedIdSet.has(p.id) &&
+          p.isDeleted !== true &&
+          String(p.status || '').toLowerCase() !== 'deleted'
+      );
 
-      const { category, sellerId, status, query, userId, role } = req.query;
-      const isAdmin = role === 'admin';
-      const callerUserId = typeof userId === 'string' ? userId : undefined;
+      const { category, sellerId, status, query } = req.query;
+      const isAdmin = isAuthorizedAdminRequest(req);
+      const caller = extractCallerIdentity(req);
+      const callerUserId = caller.userId || undefined;
 
       if (category && typeof category === 'string') {
         productList = productList.filter(p => p.category === category);
@@ -555,9 +824,28 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       if (sellerId && typeof sellerId === 'string') {
         productList = productList.filter(p => p.seller?.id === sellerId || p.sellerId === sellerId);
       }
+
+      if (!isAdmin) {
+        productList = productList.filter(p => {
+          const rawStatus = (p.status || '').toLowerCase();
+          const rawMod = (p.moderationStatus || '').toLowerCase();
+          const isUnlisted =
+            rawStatus === 'pending' ||
+            rawStatus === 'under_review' ||
+            rawStatus === 'in_review' ||
+            rawMod === 'pending' ||
+            rawStatus === 'rejected' ||
+            rawMod === 'rejected';
+          if (isUnlisted) {
+            return isBackendAdOwner(p, caller);
+          }
+          return true;
+        });
+      }
+
       if (status && typeof status === 'string') {
         if (status === 'all') {
-          // Return all products if specifically requested or admin
+          // Non-admins already filtered to owned unlisted + active above
         } else if (status === 'active' || status === 'approved') {
           productList = productList.filter(p => p.status === 'active' || p.status === 'approved' || (!p.status && !p.moderationStatus));
         } else if (status === 'pending') {
@@ -566,8 +854,6 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
           productList = productList.filter(p => p.status === status);
         }
       } else if (!isAdmin && !sellerId) {
-        // Public feed on Website & Android App: only show active/approved ads.
-        // Pending ads remain in Admin Pending queue until Admin Approves.
         productList = productList.filter(p => {
           const rawStatus = (p.status || '').toLowerCase();
           const rawMod = (p.moderationStatus || '').toLowerCase();
@@ -587,13 +873,14 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       }
 
       // Apply phone privacy filtering
-      const sanitizedList = productList.map(p => sanitizeProductForPublic(p, callerUserId, isAdmin));
+      const sanitizedList = productList.map(p => sanitizeProductForPublic(p, callerUserId, isAdmin || isBackendAdOwner(p, caller)));
 
       res.json({
         success: true,
         count: sanitizedList.length,
         data: sanitizedList,
         products: sanitizedList,
+        deletedIds: Array.isArray(sharedSyncState.deletedProductIds) ? sharedSyncState.deletedProductIds : [],
         updatedAt: sharedSyncState.updatedAt
       });
     } catch (e: any) {
@@ -602,13 +889,18 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   });
 
   app.get('/api/products/:id', (req, res) => {
+    const deletedIdSet = new Set<string>(Array.isArray(sharedSyncState.deletedProductIds) ? sharedSyncState.deletedProductIds : []);
     const productList: any[] = sharedSyncState.marketplace_products || sharedSyncState.products || [];
     const found = productList.find(p => p.id === req.params.id || p.slug === req.params.id);
-    if (found) {
-      const { userId, role } = req.query;
-      const isAdmin = role === 'admin';
-      const callerUserId = typeof userId === 'string' ? userId : undefined;
-      res.json({ success: true, data: sanitizeProductForPublic(found, callerUserId, isAdmin) });
+    if (found && !deletedIdSet.has(found.id) && found.isDeleted !== true && String(found.status || '').toLowerCase() !== 'deleted') {
+      const isAdmin = isAuthorizedAdminRequest(req);
+      const caller = extractCallerIdentity(req);
+      const rawStatus = String(found.status || '').toLowerCase();
+      if (!isAdmin && !isBackendAdOwner(found, caller) && (rawStatus === 'pending' || rawStatus === 'rejected' || rawStatus === 'under_review' || rawStatus === 'in_review')) {
+        return res.status(404).json({ success: false, message: 'Product not found' });
+      }
+      const callerUserId = caller.userId || undefined;
+      res.json({ success: true, data: sanitizeProductForPublic(found, callerUserId, isAdmin || isBackendAdOwner(found, caller)) });
     } else {
       res.status(404).json({ success: false, message: 'Product not found' });
     }
@@ -617,7 +909,13 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   // Post new Ad from Android App or Web
   app.post('/api/products', async (req, res) => {
     try {
-      const newAd = req.body;
+      const isAdmin = isAuthorizedAdminRequest(req);
+      const caller = extractCallerIdentity(req);
+      if (!isAdmin && !caller.userId) {
+        return res.status(401).json({ success: false, message: 'Authentication required to post an ad.' });
+      }
+
+      const newAd = { ...(req.body || {}) };
       if (!newAd || !newAd.title) {
         return res.status(400).json({ success: false, message: 'Title is required for product' });
       }
@@ -628,19 +926,32 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       if (!newAd.postedAt) {
         newAd.postedAt = new Date().toISOString();
       }
-      if (!newAd.status) {
+
+      let currentList: any[] = sharedSyncState.marketplace_products || sharedSyncState.products || [];
+      const existingIdx = currentList.findIndex(p => p.id === newAd.id);
+      if (existingIdx >= 0 && !isAdmin && !isBackendAdOwner(currentList[existingIdx], caller)) {
+        return res.status(403).json({ success: false, message: 'Forbidden: you do not own this ad.' });
+      }
+
+      if (!isAdmin) {
+        newAd.status = 'pending';
+        newAd.isApproved = false;
+        newAd.isActive = false;
+        newAd.sellerId = caller.userId;
+        newAd.seller = { ...(newAd.seller || {}), id: caller.userId };
+      } else if (!newAd.status) {
         newAd.status = 'pending';
       }
 
-      let currentList: any[] = sharedSyncState.marketplace_products || sharedSyncState.products || [];
-      // If already exists, update; otherwise prepend
-      const existingIdx = currentList.findIndex(p => p.id === newAd.id);
       if (existingIdx >= 0) {
         currentList[existingIdx] = { ...currentList[existingIdx], ...newAd };
       } else {
         currentList = [newAd, ...currentList];
       }
 
+      if (Array.isArray(sharedSyncState.deletedProductIds)) {
+        sharedSyncState.deletedProductIds = sharedSyncState.deletedProductIds.filter((dId: string) => dId !== newAd.id);
+      }
       sharedSyncState.marketplace_products = currentList;
       sharedSyncState.products = currentList;
       sharedSyncState.updatedAt = new Date().toISOString();
@@ -672,20 +983,56 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   app.put('/api/products/:id', async (req, res) => {
     try {
       const id = req.params.id;
-      const updateData = req.body;
+      const isAdmin = isAuthorizedAdminRequest(req);
+      const caller = extractCallerIdentity(req);
+      if (!isAdmin && !caller.userId && !caller.email && !caller.phone) {
+        return res.status(401).json({ success: false, message: 'Authentication required to update an ad.' });
+      }
+
+      const updateData = { ...(req.body || {}) };
       let currentList: any[] = sharedSyncState.marketplace_products || sharedSyncState.products || [];
       const idx = currentList.findIndex(p => p.id === id);
       let targetProduct: any;
 
       if (idx >= 0) {
-        currentList[idx] = { ...currentList[idx], ...updateData };
+        const existing = currentList[idx];
+        if (!isAdmin && !isBackendAdOwner(existing, caller)) {
+          return res.status(403).json({ success: false, message: 'Forbidden: you do not own this ad.' });
+        }
+        if (!isAdmin) {
+          const wasApproved = existing.status === 'active' || existing.status === 'approved' || existing.isApproved === true;
+          if (!wasApproved && (updateData.status === 'active' || updateData.status === 'approved' || updateData.isApproved === true)) {
+            updateData.status = existing.status || 'pending';
+            updateData.isApproved = existing.isApproved ?? false;
+            updateData.isActive = existing.isActive ?? false;
+          }
+          if (updateData.status === 'rejected') {
+            updateData.status = existing.status;
+          }
+          if (caller.userId) {
+            updateData.sellerId = existing.sellerId || caller.userId;
+            if (updateData.seller) {
+              updateData.seller = { ...updateData.seller, id: existing.seller?.id || caller.userId };
+            }
+          }
+        }
+        currentList[idx] = { ...existing, ...updateData };
         targetProduct = currentList[idx];
         sharedSyncState.marketplace_products = currentList;
         sharedSyncState.products = currentList;
         sharedSyncState.updatedAt = new Date().toISOString();
         persistSyncState();
       } else {
-        // Create if not found
+        if (!isAdmin && !caller.userId) {
+          return res.status(401).json({ success: false, message: 'Authentication required to create an ad.' });
+        }
+        if (!isAdmin) {
+          updateData.status = 'pending';
+          updateData.isApproved = false;
+          updateData.isActive = false;
+          updateData.sellerId = caller.userId;
+          updateData.seller = { ...(updateData.seller || {}), id: caller.userId };
+        }
         targetProduct = { id, ...updateData, postedAt: new Date().toISOString() };
         currentList = [targetProduct, ...currentList];
         sharedSyncState.marketplace_products = currentList;
@@ -716,8 +1063,27 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   app.delete('/api/products/:id', async (req, res) => {
     try {
       const id = req.params.id;
+      const isAdmin = isAuthorizedAdminRequest(req);
+      const caller = extractCallerIdentity(req);
+      if (!isAdmin && !caller.userId && !caller.email && !caller.phone) {
+        return res.status(401).json({ success: false, message: 'Authentication required to delete an ad.' });
+      }
+
       let currentList: any[] = sharedSyncState.marketplace_products || sharedSyncState.products || [];
+      const target = currentList.find(p => p.id === id);
+      if (!isAdmin) {
+        if (!target) {
+          return res.status(404).json({ success: false, message: 'Product not found' });
+        }
+        if (!isBackendAdOwner(target, caller)) {
+          return res.status(403).json({ success: false, message: 'Forbidden: you do not own this ad.' });
+        }
+      }
+
       const filtered = currentList.filter(p => p.id !== id);
+      const deletedIds = new Set<string>(Array.isArray(sharedSyncState.deletedProductIds) ? sharedSyncState.deletedProductIds : []);
+      deletedIds.add(id);
+      sharedSyncState.deletedProductIds = Array.from(deletedIds);
       sharedSyncState.marketplace_products = filtered;
       sharedSyncState.products = filtered;
       sharedSyncState.updatedAt = new Date().toISOString();
@@ -728,12 +1094,16 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
           deleteDoc(doc(serverDb, 'products', id)).catch((fErr: any) => {
             console.error('[Server] Error deleting product from Firestore:', fErr);
           });
+          setDoc(doc(serverDb, 'settings', 'deleted_products'), {
+            ids: sharedSyncState.deletedProductIds,
+            updatedAt: sharedSyncState.updatedAt
+          }, { merge: true }).catch(() => {});
         } catch (fErr) {
           console.error('[Server] Error deleting product from Firestore:', fErr);
         }
       }
 
-      res.json({ success: true, message: 'Product deleted and synced successfully', id });
+      res.json({ success: true, message: 'Product deleted and synced successfully', id, deletedProductIds: sharedSyncState.deletedProductIds });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e?.message || 'Failed to delete product' });
     }
@@ -741,6 +1111,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
   // Bulk Product Sync endpoint
   app.post('/api/products/sync', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     try {
       const { products } = req.body;
       if (Array.isArray(products) && products.length > 0) {
@@ -757,6 +1130,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
   // Admin Activity Logging API
   app.get('/api/admin/logs', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     try {
       const logs = sharedSyncState.admin_logs || [];
       res.json({ success: true, count: logs.length, data: logs });
@@ -766,6 +1142,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   });
 
   app.post('/api/admin/logs', (req, res) => {
+    if (!isAuthorizedAdminRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Admin authorization required' });
+    }
     try {
       const newLog = req.body;
       if (newLog && newLog.id) {
@@ -820,22 +1199,19 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
   app.get('/api/chats', (req, res) => {
     try {
+      const isAdmin = isAuthorizedAdminRequest(req);
+      const caller = extractCallerIdentity(req);
+      if (!isAdmin && !caller.userId && !caller.email && !caller.phone) {
+        return res.status(401).json({ success: false, message: 'Authentication required to load chats.' });
+      }
+
       const threads: any[] = Array.isArray(sharedSyncState.chatThreads)
         ? sharedSyncState.chatThreads.filter((t: any) => !isDummyChatThread(t))
         : [];
-      const { userId, phone, email } = req.query;
-      const uid = typeof userId === 'string' ? userId.trim() : '';
-      const uEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-      const normP = (p?: string) => String(p || '').replace(/\D/g, '').replace(/^880?/, '').replace(/^0/, '');
-      const uPhone = typeof phone === 'string' ? normP(phone) : '';
 
-      const filtered = (uid || uEmail || uPhone)
-        ? threads.filter(t =>
-            (uid && (t.buyerId === uid || t.seller?.id === uid)) ||
-            (uEmail && t.seller?.email && String(t.seller.email).toLowerCase() === uEmail) ||
-            (uPhone && t.seller?.phone && normP(t.seller.phone) === uPhone)
-          )
-        : threads;
+      const filtered = isAdmin
+        ? threads
+        : threads.filter(t => isBackendChatParticipant(t, caller));
 
       res.json({ success: true, data: filtered });
     } catch (e: any) {
@@ -845,10 +1221,20 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
   app.post('/api/chats/thread', (req, res) => {
     try {
+      const isAdmin = isAuthorizedAdminRequest(req);
+      const caller = extractCallerIdentity(req);
+      if (!isAdmin && !caller.userId) {
+        return res.status(401).json({ success: false, message: 'Authentication required to start a chat.' });
+      }
+
       const incoming = req.body?.thread;
       if (!incoming || !incoming.id || !incoming.productId) {
         return res.status(400).json({ success: false, message: 'Valid thread object required' });
       }
+      if (!isAdmin && incoming.buyerId !== caller.userId) {
+        return res.status(403).json({ success: false, message: 'Forbidden: thread buyer does not match caller.' });
+      }
+
       if (!Array.isArray(sharedSyncState.chatThreads)) {
         sharedSyncState.chatThreads = [];
       }
@@ -872,6 +1258,12 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
   app.post('/api/chats/message', (req, res) => {
     try {
+      const isAdmin = isAuthorizedAdminRequest(req);
+      const caller = extractCallerIdentity(req);
+      if (!isAdmin && !caller.userId && !caller.email && !caller.phone) {
+        return res.status(401).json({ success: false, message: 'Authentication required to send messages.' });
+      }
+
       const { threadId, message, threadSnapshot } = req.body || {};
       if (!threadId || !message || !message.id) {
         return res.status(400).json({ success: false, message: 'threadId and message are required' });
@@ -882,6 +1274,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
       let idx = sharedSyncState.chatThreads.findIndex((t: any) => t.id === threadId);
       if (idx === -1 && threadSnapshot) {
+        if (!isAdmin && !isBackendChatParticipant(threadSnapshot, caller)) {
+          return res.status(403).json({ success: false, message: 'Forbidden: caller is not a chat participant.' });
+        }
         sharedSyncState.chatThreads.unshift({ ...threadSnapshot, messages: [] });
         idx = 0;
       }
@@ -890,10 +1285,18 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       }
 
       const target = sharedSyncState.chatThreads[idx];
+      if (!isAdmin && !isBackendChatParticipant(target, caller)) {
+        return res.status(403).json({ success: false, message: 'Forbidden: caller is not a chat participant.' });
+      }
+
       const existingMsgs: any[] = Array.isArray(target.messages) ? target.messages : [];
       // Idempotent duplicate check
       if (!existingMsgs.some((m: any) => m.id === message.id)) {
-        const deliveredMsg = { ...message, status: message.status || 'delivered' };
+        const deliveredMsg = {
+          ...message,
+          senderId: !isAdmin && caller.userId ? caller.userId : message.senderId,
+          status: message.status || 'delivered'
+        };
         const updatedThread = {
           ...target,
           lastMessage: deliveredMsg.text,
@@ -916,6 +1319,12 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
   app.post('/api/chats/read', (req, res) => {
     try {
+      const isAdmin = isAuthorizedAdminRequest(req);
+      const caller = extractCallerIdentity(req);
+      if (!isAdmin && !caller.userId && !caller.email && !caller.phone) {
+        return res.status(401).json({ success: false, message: 'Authentication required.' });
+      }
+
       const { threadId, readerId } = req.body || {};
       if (!threadId || !Array.isArray(sharedSyncState.chatThreads)) {
         return res.json({ success: true });
@@ -923,8 +1332,12 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       const idx = sharedSyncState.chatThreads.findIndex((t: any) => t.id === threadId);
       if (idx >= 0) {
         const t = sharedSyncState.chatThreads[idx];
+        if (!isAdmin && !isBackendChatParticipant(t, caller)) {
+          return res.status(403).json({ success: false, message: 'Forbidden: caller is not a chat participant.' });
+        }
+        const effectiveReaderId = caller.userId || readerId;
         const updatedMsgs = (t.messages || []).map((m: any) =>
-          readerId && m.senderId !== readerId ? { ...m, status: 'seen' } : m
+          effectiveReaderId && m.senderId !== effectiveReaderId ? { ...m, status: 'seen' } : m
         );
         const updatedThread = { ...t, unreadCount: 0, messages: updatedMsgs };
         sharedSyncState.chatThreads[idx] = updatedThread;
@@ -940,8 +1353,18 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
   app.delete('/api/chats/:threadId', (req, res) => {
     try {
+      const isAdmin = isAuthorizedAdminRequest(req);
+      const caller = extractCallerIdentity(req);
+      if (!isAdmin && !caller.userId && !caller.email && !caller.phone) {
+        return res.status(401).json({ success: false, message: 'Authentication required to delete chat.' });
+      }
+
       const { threadId } = req.params;
       if (Array.isArray(sharedSyncState.chatThreads)) {
+        const target = sharedSyncState.chatThreads.find((t: any) => t.id === threadId);
+        if (!isAdmin && target && !isBackendChatParticipant(target, caller)) {
+          return res.status(403).json({ success: false, message: 'Forbidden: caller is not a chat participant.' });
+        }
         sharedSyncState.chatThreads = sharedSyncState.chatThreads.filter((t: any) => t.id !== threadId);
         persistSyncState();
       }
@@ -951,29 +1374,6 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
       res.status(500).json({ success: false, error: e?.message || 'Failed to delete chat thread' });
     }
   });
-
-  // Helper: verify claimed local admin passcode hash when ADMIN_PASSWORD env var is unset
-  const verifyClaimedPassword = (password: string): boolean => {
-    const saved = sharedSyncState.adminPasswordHash;
-    if (!saved || !saved.salt || !saved.hash || !password) return false;
-    try {
-      const derived = scryptSync(password, saved.salt, 64).toString('hex');
-      return safeCompareStrings(derived, saved.hash);
-    } catch {
-      return false;
-    }
-  };
-
-  const isAuthorizedAdminRequest = (req: express.Request): boolean => {
-    if (verifyAdminRequest(req)) return true;
-    const headerPass = String(
-      req.headers['x-admin-password'] || req.headers['x-admin-secret'] || ''
-    ).trim();
-    if (!process.env.ADMIN_PASSWORD && headerPass && verifyClaimedPassword(headerPass)) {
-      return true;
-    }
-    return false;
-  };
 
   // Mount Vercel-compatible API routes in Express so they work identically in AI Studio / Node.js
   app.all('/api/admin-auth', (req, res) => {

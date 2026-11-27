@@ -296,4 +296,56 @@
   animation: mbdWelcomeFade 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* ========================================================
+   MARKETBD SIGNATURE DIGITAL CLOCK STYLES
+   ======================================================== */
+@keyframes mbdClockOrbitCw {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes mbdClockOrbitCcw {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes mbdClockColonPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.mbd-clock-orbit-cw {
+  transform-origin: center;
+  animation: mbdClockOrbitCw 10s linear infinite;
+}
+
+.mbd-clock-orbit-ccw {
+  transform-origin: center;
+  animation: mbdClockOrbitCcw 14s linear infinite;
+}
+
+.mbd-clock-colon {
+  animation: mbdClockColonPulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mbd-clock-orbit-cw,
+  .mbd-clock-orbit-ccw,
+  .mbd-clock-colon,
+  .mbd-welcome-text {
+    animation: none !important;
+  }
+}
 

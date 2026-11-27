@@ -9,6 +9,7 @@ import { storage as safeStorage, safeParseJSON } from '../../utils/storage';
 import { validateBangladeshiPhone, formatPhoneDisplay } from '../../utils/phoneUtils';
 import { checkMonthlyFreeAdQuota, validateTransactionId } from '../../utils/adLimitHelper';
 import { getLiveCategoryCount } from '../../utils/categoryCounts';
+import { isEffectiveLoggedIn } from '../../utils/authOwnership';
 import { LiveCameraModal } from './LiveCameraModal';
 import { DirectPaymentModal } from './DirectPaymentModal';
 import {
@@ -952,6 +953,11 @@ export const CategoryForms: React.FC = () => {
   const handleSubmitAd = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
+      openAuthModal('post-ad');
+      return;
+    }
+
     // 1. Check Monthly Free Ad Quota (5 free ads total/month across 5 categories, max 1 per category)
     if (!editingAd && adType === 'regular') {
       const quota = checkMonthlyFreeAdQuota(products || [], currentUser?.id, currentUser?.phone, category, language);
@@ -1074,16 +1080,16 @@ export const CategoryForms: React.FC = () => {
       specifications: specs,
       showPhoneNumber: showPhoneToBuyers,
       seller: {
-        id: currentUser?.id || 'user-me',
-        name: currentUser?.name || 'My Store BD',
-        avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+        id: currentUser.id,
+        name: currentUser.name || 'MarketBD Seller',
+        avatar: currentUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
         phone: finalPhone,
         hidePhone: !showPhoneToBuyers,
         showPhoneNumber: showPhoneToBuyers,
-        email: currentUser?.email || 'official.marketbd@gmail.com',
-        memberSince: currentUser?.memberSince || '2026',
+        email: currentUser.email || '',
+        memberSince: currentUser.memberSince || '2026',
         location: { division, district, thana },
-        isVerified: currentUser?.isVerified ?? true,
+        isVerified: currentUser.isVerified ?? true,
         rating: 5.0,
         totalReviews: 1,
         badge: 'Verified Merchant'
@@ -1100,7 +1106,7 @@ export const CategoryForms: React.FC = () => {
     setStep(4);
   };
 
-  if (!isLoggedIn) {
+  if (!isEffectiveLoggedIn(isLoggedIn, currentUser)) {
     return (
       <div className="max-w-2xl mx-auto py-12 px-4 text-center animate-in fade-in duration-300">
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl space-y-5">

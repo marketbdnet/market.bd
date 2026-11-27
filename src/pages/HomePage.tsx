@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMarket } from '../context/MarketContext';
+import { OFFICIAL_SLOGAN } from '../constants/branding';
 import { isProductPublicActive } from '../utils/productStatus';
 import { CategoryGrid, MobileCategoryGrid } from '../components/Home/CategoryGrid';
 import { FlashSale } from '../components/Home/FlashSale';
@@ -160,9 +161,7 @@ export const HomePage: React.FC = () => {
       <section className="bg-[#FF0000] dark:bg-[#B91C1C] text-white rounded-xl px-4 py-3 sm:px-5 sm:py-3.5 border border-[#CC0000] dark:border-red-900 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-base sm:text-lg font-black tracking-tight text-white">
-            {language === 'bn'
-              ? 'সারা বাংলাদেশে সহজ ও নিরাপদ কেনাবেচা'
-              : 'Buy & Sell Everything Across Bangladesh'}
+            {OFFICIAL_SLOGAN}
           </h1>
           <p className="text-xs sm:text-[13px] font-semibold text-amber-100 mt-0.5">
             {language === 'bn'

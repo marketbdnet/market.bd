@@ -27,33 +27,38 @@ export const MasterLockdownScreen: React.FC = () => {
   const [pin, setPin] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [showPinHelp, setShowPinHelp] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
 
   const contactEmail = siteMaintenance.contactEmail || 'official.marketbd@gmail.com';
   const emergencyPhone = siteMaintenance.emergencyPhone || '01533830784';
 
-  const handleUnlock = (e: React.FormEvent) => {
+  const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pin.trim()) {
       setErrorMsg(language === 'bn' ? '⚠️ অনুগ্রহ করে মাস্টার আনলক পিন দিন!' : '⚠️ Please enter master unlock PIN!');
       return;
     }
 
-    const success = unlockMasterLockdown(pin.trim());
-    if (success) {
-      setErrorMsg('');
-      setSuccessMsg(language === 'bn' ? '🎉 মাস্টার লক সফলভাবে আনলক করা হয়েছে! ওয়েবসাইট লাইভ হচ্ছে...' : '🎉 Master Lockdown removed! Website restored...');
-      setTimeout(() => {
-        window.location.reload();
-      }, 800);
-    } else {
-      setErrorMsg(
-        language === 'bn'
-          ? '❌ ভুল মাস্টার পিন! সঠিক সিকিউরিটি পিন (ডিফল্ট: 7860) দিয়ে চেষ্টা করুন।'
-          : '❌ Invalid Master PIN! Please use the correct emergency PIN (Default: 7860).'
-      );
+    setIsUnlocking(true);
+    try {
+      const success = await unlockMasterLockdown(pin.trim());
+      if (success) {
+        setErrorMsg('');
+        setSuccessMsg(language === 'bn' ? '🎉 মাস্টার লক সফলভাবে আনলক করা হয়েছে! ওয়েবসাইট লাইভ হচ্ছে...' : '🎉 Master Lockdown removed! Website restored...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 800);
+      } else {
+        setErrorMsg(
+          language === 'bn'
+            ? '❌ ভুল মাস্টার পিন! অনুগ্রহ করে সঠিক সিকিউরিটি পিন দিয়ে চেষ্টা করুন।'
+            : '❌ Invalid Master PIN! Please enter your configured emergency PIN.'
+        );
+      }
+    } finally {
+      setIsUnlocking(false);
     }
   };
 
@@ -169,20 +174,10 @@ export const MasterLockdownScreen: React.FC = () => {
                 {language === 'bn' ? '🔐 এমার্জেন্সি মাস্টার আনলক' : '🔐 Emergency Master Unlock'}
               </h3>
             </div>
-            <button
-              onClick={() => setShowPinHelp(!showPinHelp)}
-              className="text-[11px] text-red-400 hover:text-red-300 underline font-semibold cursor-pointer"
-            >
-              {language === 'bn' ? 'পিন সাহায্য' : 'PIN Help'}
-            </button>
+            <span className="text-[11px] text-red-400 font-semibold">
+              {language === 'bn' ? 'অ্যাডমিন পিন' : 'Admin PIN Required'}
+            </span>
           </div>
-
-          {showPinHelp && (
-            <div className="p-3 bg-red-950/60 border border-red-800/80 rounded-xl text-xs text-red-200 space-y-1">
-              <p>💡 <strong>ডিফল্ট মাস্টার আনলক পিন:</strong> <code className="bg-black px-1.5 py-0.5 rounded text-amber-300 font-mono font-bold">7860</code></p>
-              <p className="text-[11px] text-slate-400">এডমিন এই পিন দিয়ে যেকোনো সময় তাৎক্ষণিক মাস্টার লক তুলে দিয়ে ওয়েবসাইট লাইভ করতে পারবেন।</p>
-            </div>
-          )}
 
           {errorMsg && (
             <div className="p-3 bg-red-950 border border-red-600 rounded-xl text-xs text-red-200 font-bold flex items-center gap-2">
@@ -207,7 +202,7 @@ export const MasterLockdownScreen: React.FC = () => {
                 type="password"
                 value={pin}
                 onChange={e => setPin(e.target.value)}
-                placeholder={language === 'bn' ? 'পিন লিখুন (যেমন: 7860)...' : 'Enter PIN (e.g. 7860)...'}
+                placeholder={language === 'bn' ? 'সিকিউরিটি পিন লিখুন...' : 'Enter security PIN...'}
                 className="w-full px-4 py-3 bg-black border border-red-800 focus:border-red-500 rounded-xl text-white font-mono text-sm tracking-widest text-center focus:outline-none transition shadow-inner"
                 autoComplete="off"
               />
@@ -215,7 +210,8 @@ export const MasterLockdownScreen: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+              disabled={isUnlocking}
+              className="w-full py-3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-60 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition duration-200 cursor-pointer flex items-center justify-center gap-2 active:scale-95"
             >
               <Unlock className="w-4 h-4" />
               <span>{language === 'bn' ? 'আনলক করে সাইট লাইভ করুন' : 'Unlock & Restore Website'}</span>

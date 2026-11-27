@@ -57,21 +57,26 @@ export const BillingInvoicesAdminPanel: React.FC = () => {
         source: 'manual_payment',
       }));
 
+      const seenOrderIds = new Set(paymentRows.map(r => r.adTitle).filter(Boolean));
+      const seenTrxIds = new Set(
+        paymentRows.map(r => String(r.trxId || '').trim().toUpperCase()).filter(Boolean)
+      );
+
       const boostedAdRows: TransactionRecord[] = products
-        .filter(
-          p =>
-            (p.adType !== 'regular' || p.isFeatured || p.isUrgent || Boolean(p.paymentInfo?.amount)) &&
-            !paymentRows.some(r => r.adTitle === p.id)
-        )
+        .filter(p => {
+          const paidAmt = Number(p.paymentInfo?.amount) || 0;
+          const trx = String(p.paymentInfo?.trxId || '').trim().toUpperCase();
+          if (paidAmt <= 0 || !trx) return false;
+          if (seenOrderIds.has(p.id) || seenTrxIds.has(trx)) return false;
+          return true;
+        })
         .map(p => ({
           id: `boost-${p.id}`,
-          trxId: p.paymentInfo?.trxId || `BOOST-${p.id.slice(-8).toUpperCase()}`,
+          trxId: String(p.paymentInfo?.trxId || '').trim(),
           userPhone: p.paymentInfo?.senderNumber || p.seller?.phone || 'N/A',
           customerName: p.seller?.name || 'Seller',
           adTitle: p.title,
-          amount:
-            Number(p.paymentInfo?.amount) ||
-            (p.adType === 'featured' ? 599 : p.adType === 'top_ad' ? 299 : p.adType === 'urgent' ? 199 : 0),
+          amount: Number(p.paymentInfo?.amount) || 0,
           method: p.paymentInfo?.method || 'bKash',
           purpose:
             p.adType === 'featured'
@@ -81,7 +86,12 @@ export const BillingInvoicesAdminPanel: React.FC = () => {
               : p.adType === 'urgent'
               ? 'Urgent Ad'
               : 'Ad Boost',
-          status: 'Completed',
+          status:
+            p.status === 'active'
+              ? 'Completed'
+              : p.status === 'rejected'
+              ? 'Failed'
+              : 'Pending',
           date: p.postedAt ? new Date(p.postedAt).toLocaleString() : new Date().toLocaleString(),
           source: 'ad_boost',
         }));

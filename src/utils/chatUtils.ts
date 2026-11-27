@@ -53,9 +53,6 @@ export function isUserParticipantInThread(
   if (isAdminUser && (thread.isCustomerCare || thread.seller?.id === 'admin-master' || thread.id?.startsWith('thread-customer-'))) {
     return true;
   }
-  if (thread.buyerId === 'user-me' && thread.buyerName && currentUser.name && thread.buyerName === currentUser.name) {
-    return true;
-  }
   if (uEmail && thread.seller?.email && thread.seller.email.trim().toLowerCase() === uEmail) return true;
   if (uEmail && thread.buyerEmail && thread.buyerEmail.trim().toLowerCase() === uEmail) return true;
   if (uPhone && thread.seller?.phone && normPhone(thread.seller.phone) === uPhone) return true;
@@ -87,23 +84,13 @@ export function isOwnChatMessage(
   thread: ChatThread,
   currentUser: UserProfile | null | undefined
 ): boolean {
-  if (!msg) return false;
-  if (currentUser?.id && msg.senderId === currentUser.id) return true;
+  if (!msg || !currentUser || !currentUser.id) return false;
+  if (msg.senderId === currentUser.id) return true;
   if (
-    (currentUser?.role === 'admin' || currentUser?.id === 'admin-master') &&
+    (currentUser.role === 'admin' || currentUser.id === 'admin-master') &&
     msg.senderId === 'admin-master'
   ) {
     return true;
-  }
-  if (msg.senderId === 'user-me') {
-    if (!currentUser) return true;
-    // Viewer is the buyer if they match buyerId or do not match the seller
-    const uPhone = normPhone(currentUser.phone);
-    const sPhone = normPhone(thread.seller?.phone);
-    const isSeller =
-      thread.seller?.id === currentUser.id ||
-      (Boolean(uPhone) && Boolean(sPhone) && uPhone === sPhone);
-    return !isSeller;
   }
   return false;
 }

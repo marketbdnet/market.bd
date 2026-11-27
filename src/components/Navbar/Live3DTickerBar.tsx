@@ -189,7 +189,7 @@ export const Live3DTickerBar: React.FC = () => {
             title={language === 'bn' ? 'অ্যান্ড্রয়েড APK ও আইফোন অ্যাপ ডাউনলোড' : 'Download Android APK & iPhone App'}
           >
             <Download className="w-3.5 h-3.5 shrink-0" />
-            <span>{language === 'bn' ? 'APK • আইফোন' : 'APK • iPhone'}</span>
+            <span>{language === 'bn' ? 'ডাউনলোড' : 'Download'}</span>
           </button>
         )}
 

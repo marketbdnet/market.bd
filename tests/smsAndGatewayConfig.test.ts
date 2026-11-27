@@ -4,6 +4,7 @@ import os from 'os';
 import path from 'path';
 import smsHandler, { SMS_PROVIDER_PRESETS } from '../api/sms';
 import paymentGatewayHandler from '../api/payment-gateway';
+import { signAdminToken } from '../api/admin-auth';
 
 const SECRETS_FILE = path.join(process.cwd(), '.gateway_secrets.json');
 const TMP_SECRETS_FILE = path.join(os.tmpdir(), '.marketbd_gateway_secrets.json');
@@ -57,12 +58,22 @@ describe('Unified SMS Provider & Payment Gateway Config APIs', () => {
     expect(SMS_PROVIDER_PRESETS.custom.id).toBe('custom');
   });
 
+  it('rejects unauthenticated save_config calls on SMS and Payment Gateway endpoints', async () => {
+    const unauthSms = createMockRes();
+    await smsHandler({ method: 'POST', headers: {}, body: { action: 'save_config' } }, unauthSms.res);
+    expect(unauthSms.statusCode).toBe(401);
+
+    const unauthPay = createMockRes();
+    await paymentGatewayHandler({ method: 'POST', headers: {}, body: { action: 'save_config' } }, unauthPay.res);
+    expect(unauthPay.statusCode).toBe(401);
+  });
+
   it('saves SMS provider company name, API URL, and masks the saved SMS API Key', async () => {
     const mockSave = createMockRes();
     await smsHandler(
       {
         method: 'POST',
-        headers: {},
+        headers: { authorization: `Bearer ${signAdminToken()}` },
         body: {
           action: 'save_config',
           providerId: 'custom',
@@ -97,7 +108,7 @@ describe('Unified SMS Provider & Payment Gateway Config APIs', () => {
     await paymentGatewayHandler(
       {
         method: 'POST',
-        headers: {},
+        headers: { authorization: `Bearer ${signAdminToken()}` },
         body: {
           action: 'save_config',
           isLiveMode: true,
@@ -199,7 +210,7 @@ describe('Unified SMS Provider & Payment Gateway Config APIs', () => {
     await smsHandler(
       {
         method: 'POST',
-        headers: {},
+        headers: { authorization: `Bearer ${signAdminToken()}` },
         body: {
           action: 'save_config',
           providerId: 'bulksmsdhaka',
@@ -254,7 +265,7 @@ describe('Unified SMS Provider & Payment Gateway Config APIs', () => {
       await smsHandler(
         {
           method: 'POST',
-          headers: {},
+          headers: { authorization: `Bearer ${signAdminToken()}` },
           body: {
             action: 'admin_test_otp',
             phone: '01711223344',
@@ -280,5 +291,107 @@ describe('Unified SMS Provider & Payment Gateway Config APIs', () => {
       else process.env.SMS_CALLER_ID = prevCaller;
       if (prevSecrets !== null) fs.writeFileSync(SECRETS_FILE, prevSecrets, 'utf-8');
     }
+  });
+
+  it('blocks personal mobile numbers as Sender ID in No-Reply mode and appends Do not reply to text/OTP SMS', async () => {
+    const blockedSave = createMockRes();
+    await smsHandler(
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${signAdminToken()}` },
+        body: {
+          action: 'save_config',
+          providerId: 'bulksmsdhaka',
+          senderId: '01711223344',
+          maskingEnabled: false,
+          noReplyMode: true,
+        },
+      },
+      blockedSave.res
+    );
+    expect(blockedSave.statusCode).toBe(400);
+    expect(blockedSave.body.ok).toBe(false);
+
+    const prevFetch = globalThis.fetch;
+    const prevKey = process.env.SMS_API_KEY;
+    process.env.SMS_API_KEY = 'no-reply-test-key';
+    const sentUrls: string[] = [];
+    (globalThis as any).fetch = async (url: string) => {
+      const s = String(url);
+      if (s.includes('settings/sms_config')) {
+        return { ok: true, status: 200, json: async () => ({ fields: {} }) };
+      }
+      sentUrls.push(s);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ Status: '1000', Success: 'true', Message: 'Sent' }),
+      };
+    };
+
+    try {
+      const textRes = createMockRes();
+      await smsHandler(
+        {
+          method: 'POST',
+          headers: { authorization: `Bearer ${signAdminToken()}` },
+          body: {
+            action: 'send_text',
+            phone: '01711223344',
+            message: 'Welcome offer active on MarketBD',
+          },
+        },
+        textRes.res
+      );
+      expect(textRes.statusCode).toBe(200);
+      expect(sentUrls.some(u => decodeURIComponent(u).replace(/\+/g, ' ').includes('Do not reply to this SMS'))).toBe(true);
+    } finally {
+      (globalThis as any).fetch = prevFetch;
+      if (prevKey === undefined) delete process.env.SMS_API_KEY;
+      else process.env.SMS_API_KEY = prevKey;
+    }
+  });
+
+  it('calculates real verified revenue without fabricating amounts from demo/catalog featured ads', async () => {
+    const { calculateRealVerifiedRevenue } = await import('../src/utils/revenueHelper');
+    const demoCatalogProducts: any[] = [
+      { id: 'cat-1', status: 'active', adType: 'featured', isFeatured: true },
+      { id: 'cat-2', status: 'active', adType: 'top_ad' },
+      { id: 'cat-3', status: 'active', adType: 'urgent', isUrgent: true },
+    ];
+    expect(calculateRealVerifiedRevenue(demoCatalogProducts, [])).toBe(0);
+
+    const withRealPayments = calculateRealVerifiedRevenue(
+      [
+        ...demoCatalogProducts,
+        {
+          id: 'real-ad-1',
+          status: 'active',
+          adType: 'featured',
+          paymentInfo: { method: 'bkash', senderNumber: '01711223344', trxId: 'TRXREAL01', amount: 599 },
+        },
+      ],
+      [
+        {
+          paymentId: 'PAY-1',
+          orderId: 'ORD-100',
+          userId: 'u1',
+          customerName: 'Hasan',
+          customerMobile: '01711223344',
+          paymentMethod: 'bKash',
+          marketbdAccountNumber: '01723230230',
+          senderMobileNumber: '01711223344',
+          transactionId: 'TRXPAID99',
+          expectedAmount: 299,
+          submittedAmount: 299,
+          amountMatched: true,
+          paymentDate: new Date().toISOString(),
+          status: 'paid',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]
+    );
+    expect(withRealPayments).toBe(898);
   });
 });

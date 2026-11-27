@@ -3,6 +3,7 @@ import { createHmac, randomInt, timingSafeEqual } from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { verifyAdminRequest } from './admin-auth';
 
 /**
  * MarketBD.Net Unified SMS & OTP Endpoint (runs on the server, never exposes raw API keys to browser).
@@ -97,6 +98,7 @@ export interface StoredGatewaySecrets {
     senderId?: string;
     sid?: string;
     maskingEnabled?: boolean;
+    noReplyMode?: boolean;
     isLiveMode?: boolean;
     otpTemplate?: string;
     adminSecret?: string;
@@ -109,7 +111,7 @@ const SECRETS_FILE = path.join(process.cwd(), '.gateway_secrets.json');
 const TMP_SECRETS_FILE = path.join(os.tmpdir(), '.marketbd_gateway_secrets.json');
 const FIRESTORE_CFG_URL =
   'https://firestore.googleapis.com/v1/projects/quantum-heading-1mbw7/databases/ai-studio-marketbd-58cc526e-10d5-498a-b77b-be2f1e9c76d1/documents/settings/sms_config';
-const DEFAULT_TEMPLATE = 'Your MarketBD.Net OTP is {otp}';
+const DEFAULT_TEMPLATE = 'Your MarketBD.Net OTP is {otp}. Do not reply.';
 const OTP_TTL_MS = 5 * 60 * 1000;
 
 function readJsonSafe(filePath: string): StoredGatewaySecrets {
@@ -201,9 +203,52 @@ function sanitizeCallerId(raw?: string): string {
   return /^[\x20-\x7E]+$/.test(cleaned) ? cleaned : (cleaned.match(/\d{4,15}/)?.[0] || '');
 }
 
+export function isReplyablePhoneNumber(sender?: string): boolean {
+  const cleaned = String(sender || '').replace(/[\s\-+]/g, '');
+  return /^(?:88)?01[3-9]\d{8}$/.test(cleaned);
+}
+
+function enforceOneWaySenderId(sender: string, masking: boolean, noReplyMode: boolean): string {
+  const cleaned = sanitizeCallerId(sender);
+  if (!noReplyMode) return cleaned || (masking ? 'MarketBD.Net' : '1234');
+  if (!cleaned || isReplyablePhoneNumber(cleaned)) {
+    return masking ? 'MarketBD.Net' : '1234';
+  }
+  return cleaned;
+}
+
+function formatOtpMessage(template: string, code: string, noReplyMode: boolean): string {
+  let message = String(template || DEFAULT_TEMPLATE).replace(/\{otp\}/gi, code).trim();
+  if (noReplyMode && !/do not reply|no[\s-]*reply|উত্তর দিবেন না|রিপ্লাই/i.test(message)) {
+    const candidate = `${message.replace(/[.\s]+$/, '')}. Do not reply.`;
+    if (candidate.length <= 70) {
+      message = candidate;
+    }
+  }
+  if (message.length > 70) {
+    message = noReplyMode
+      ? `Your MarketBD.Net OTP is ${code}. Do not reply.`
+      : `Your MarketBD.Net OTP is ${code}`;
+  }
+  return message;
+}
+
+function formatNoReplyTextSms(rawMessage: string, noReplyMode: boolean): string {
+  const clean = String(rawMessage || '').trim();
+  if (!noReplyMode || !clean) return clean;
+  if (/do not reply|no[\s-]*reply|উত্তর দিবেন না|রিপ্লাই/i.test(clean)) {
+    return clean;
+  }
+  const isBengali = /[\u0980-\u09FF]/.test(clean);
+  return isBengali
+    ? `${clean}\n(রিপ্লাই অপশন বন্ধ — উত্তর দিবেন না)`
+    : `${clean}\n(Do not reply to this SMS)`;
+}
+
 async function readRemoteConfig(): Promise<{
   template?: string;
   masking?: boolean;
+  noReplyMode?: boolean;
   providerId?: SmsProviderId;
   providerName?: string;
   apiUrl?: string;
@@ -218,6 +263,7 @@ async function readRemoteConfig(): Promise<{
     return {
       template: f.otpTemplate?.stringValue,
       masking: f.maskingEnabled?.booleanValue,
+      noReplyMode: f.noReplyMode?.booleanValue,
       providerId: f.providerId?.stringValue as SmsProviderId | undefined,
       providerName: f.providerName?.stringValue,
       apiUrl: f.apiUrl?.stringValue,
@@ -307,8 +353,9 @@ async function dispatchSmsByProvider(params: {
   message: string;
   isOtp: boolean;
   otpCode?: string;
+  noReplyMode?: boolean;
 }) {
-  const { providerId, apiUrl, apiKey, senderId, sid, phone, message, isOtp, otpCode } = params;
+  const { providerId, apiUrl, apiKey, senderId, sid, phone, message, isOtp, otpCode, noReplyMode = true } = params;
   const cleanBase = apiUrl.replace(/\/+$/, '');
   const intlPhone = phone.startsWith('88') ? phone : `88${phone}`;
 
@@ -332,7 +379,9 @@ async function dispatchSmsByProvider(params: {
 
     // 2) For OTP: if multiline/custom template is rejected by otpsend, retry clean single-line standard format
     const cleanOtpCode = otpCode || (message.match(/\b(\d{4,8})\b/)?.[1] ?? '');
-    const cleanSingleLineOtp = cleanOtpCode ? `Your MarketBD.Net OTP is ${cleanOtpCode}` : message.replace(/\s+/g, ' ').trim();
+    const cleanSingleLineOtp = cleanOtpCode
+      ? (noReplyMode ? `Your MarketBD.Net OTP is ${cleanOtpCode}. Do not reply.` : `Your MarketBD.Net OTP is ${cleanOtpCode}`)
+      : message.replace(/\s+/g, ' ').trim();
     if (
       isOtp &&
       !isOk(g.json, g.raw, g.httpStatus) &&
@@ -484,8 +533,9 @@ async function fetchBalanceByProvider(providerId: SmsProviderId, apiUrl: string,
 }
 
 function isAdminAuthorized(req: any, configuredSecret: string | undefined): boolean {
+  if (verifyAdminRequest(req)) return true;
+  if (!configuredSecret) return false;
   const given = String(req.headers['x-admin-secret'] || '');
-  if (!configuredSecret) return true; // Allows first-time setup before an admin secret is configured
   if (!given) return false;
   const a = Buffer.from(given);
   const b = Buffer.from(configuredSecret);
@@ -538,13 +588,22 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       remote.masking ??
       false;
 
+    const envNoReply =
+      process.env.SMS_NO_REPLY === 'false'
+        ? false
+        : process.env.SMS_NO_REPLY === 'true'
+        ? true
+        : undefined;
+    const noReplyMode = smsStored.noReplyMode ?? envNoReply ?? remote.noReplyMode ?? true;
+
     const nonMaskingSender =
       (storedSenderId && storedSenderId !== 'MarketBD.Net' ? storedSenderId : '') ||
       (envSenderId && envSenderId !== 'MarketBD.Net' ? envSenderId : '') ||
       '1234';
-    const senderId = masking
+    const rawSenderId = masking
       ? (storedSenderId || envSenderId || remoteSenderId || 'MarketBD.Net')
       : nonMaskingSender;
+    const senderId = enforceOneWaySenderId(rawSenderId, masking, noReplyMode);
 
     const envLive =
       process.env.SMS_LIVE_MODE === 'false'
@@ -566,6 +625,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       senderId,
       sid,
       masking,
+      noReplyMode,
       isLive,
       otpTemplate,
     };
@@ -585,6 +645,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
           senderId: cfg.senderId,
           sid: cfg.sid,
           maskingEnabled: cfg.masking,
+          noReplyMode: cfg.noReplyMode,
           isLiveMode: cfg.isLive,
           otpTemplate: cfg.otpTemplate,
           hasApiKey: effectiveApiKey.length > 0,
@@ -617,14 +678,28 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
           ? body.newAdminSecret.trim()
           : smsStored.adminSecret || '';
 
+      const nextNoReplyMode =
+        typeof body.noReplyMode === 'boolean' ? body.noReplyMode : (smsStored.noReplyMode ?? true);
+      const nextMaskingEnabled =
+        typeof body.maskingEnabled === 'boolean' ? body.maskingEnabled : (smsStored.maskingEnabled ?? true);
+      const rawSavedSender = sanitizeCallerId(body.senderId ?? smsStored.senderId ?? '1234') || '1234';
+      if (nextNoReplyMode && isReplyablePhoneNumber(rawSavedSender)) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            'No-Reply মোড চালু থাকায় ব্যক্তিগত মোবাইল নম্বর Sender ID হিসেবে দেওয়া যাবে না। Alphanumeric ব্র্যান্ড নাম (MarketBD.Net) অথবা 1234 ব্যবহার করুন।',
+        });
+      }
+
       const nextSms = {
         providerId,
         providerName: String(body.providerName || preset.companyName).trim(),
         apiUrl: String(body.apiUrl || preset.defaultApiUrl).trim(),
         apiKey: nextApiKey,
-        senderId: sanitizeCallerId(body.senderId ?? smsStored.senderId ?? '1234') || '1234',
+        senderId: enforceOneWaySenderId(rawSavedSender, nextMaskingEnabled, nextNoReplyMode),
         sid: String(body.sid ?? smsStored.sid ?? '').trim(),
-        maskingEnabled: typeof body.maskingEnabled === 'boolean' ? body.maskingEnabled : (smsStored.maskingEnabled ?? true),
+        maskingEnabled: nextMaskingEnabled,
+        noReplyMode: nextNoReplyMode,
         isLiveMode: typeof body.isLiveMode === 'boolean' ? body.isLiveMode : (smsStored.isLiveMode ?? true),
         otpTemplate: String(body.otpTemplate || smsStored.otpTemplate || DEFAULT_TEMPLATE).trim(),
         adminSecret: nextAdminSecret,
@@ -655,6 +730,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
           senderId: nextSms.senderId,
           sid: nextSms.sid,
           maskingEnabled: nextSms.maskingEnabled,
+          noReplyMode: nextSms.noReplyMode,
           isLiveMode: nextSms.isLiveMode,
           otpTemplate: nextSms.otpTemplate,
           hasApiKey: activeKey.length > 0,
@@ -674,10 +750,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
 
       const cfg = await resolveActiveConfig();
       const code = String(randomInt(100000, 1000000));
-      let message = cfg.otpTemplate.replace(/\{otp\}/gi, code);
-      if (message.length > 70) {
-        message = `Your MarketBD.Net OTP is ${code}`;
-      }
+      const message = formatOtpMessage(cfg.otpTemplate, code, cfg.noReplyMode);
 
       if (cfg.isLive && !effectiveApiKey) {
         return res.status(503).json({
@@ -701,6 +774,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
           message,
           isOtp: true,
           otpCode: code,
+          noReplyMode: cfg.noReplyMode,
         });
         const g = dispatched.g;
         usedCaller = dispatched.usedCaller;
@@ -764,10 +838,12 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       const testPreset = SMS_PROVIDER_PRESETS[testProviderId] || SMS_PROVIDER_PRESETS.custom;
       const testApiUrl = String(body.apiUrl || cfg.apiUrl || testPreset.defaultApiUrl).trim();
       const testMasking = typeof body.maskingEnabled === 'boolean' ? body.maskingEnabled : cfg.masking;
+      const testNoReply = typeof body.noReplyMode === 'boolean' ? body.noReplyMode : cfg.noReplyMode;
       const rawTestSender = sanitizeCallerId(body.senderId) || cfg.senderId;
-      const testSender = testMasking
+      const resolvedTestSender = testMasking
         ? (rawTestSender || 'MarketBD.Net')
         : (rawTestSender && rawTestSender !== 'MarketBD.Net' ? rawTestSender : '1234');
+      const testSender = enforceOneWaySenderId(resolvedTestSender, testMasking, testNoReply);
       const testTemplate = String(body.otpTemplate || cfg.otpTemplate || DEFAULT_TEMPLATE).trim();
       const testIsLive = typeof body.isLiveMode === 'boolean' ? body.isLiveMode : cfg.isLive;
 
@@ -780,10 +856,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       }
 
       const code = String(randomInt(100000, 1000000));
-      let message = testTemplate.replace(/\{otp\}/gi, code);
-      if (message.length > 70) {
-        message = `Your MarketBD.Net OTP is ${code}`;
-      }
+      const message = formatOtpMessage(testTemplate, code, testNoReply);
 
       let usedCaller = testSender;
       let usedEndpoint = 'otpsend';
@@ -798,6 +871,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
           message,
           isOtp: true,
           otpCode: code,
+          noReplyMode: testNoReply,
         });
         const g = dispatched.g;
         usedCaller = dispatched.usedCaller;
@@ -850,8 +924,10 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       }
 
       const phone = normalizePhone(body.phone);
-      const message = String(body.message || '').trim();
-      if (!phone || !message) return res.status(400).json({ ok: false, error: 'নম্বর ও মেসেজ দিন।' });
+      const rawMessage = String(body.message || '').trim();
+      if (!phone || !rawMessage) return res.status(400).json({ ok: false, error: 'নম্বর ও মেসেজ দিন।' });
+
+      const message = formatNoReplyTextSms(rawMessage, cfg.noReplyMode);
 
       const { g, usedCaller } = await dispatchSmsByProvider({
         providerId: cfg.providerId,
@@ -862,6 +938,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         phone,
         message,
         isOtp: false,
+        noReplyMode: cfg.noReplyMode,
       });
       const success = isOk(g.json, g.raw, g.httpStatus);
       return res.status(success ? 200 : 502).json({

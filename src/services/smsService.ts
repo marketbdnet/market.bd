@@ -1,6 +1,7 @@
 import { auth, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from '../lib/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { storage } from '../utils/storage';
+import { getAdminAuthToken } from '../utils/adminAuth';
 
 export type SmsProviderId =
   | 'bulksmsdhaka'
@@ -44,6 +45,7 @@ export interface UnifiedSmsGatewayConfig {
   senderId: string;
   sid?: string;
   maskingEnabled: boolean;
+  noReplyMode?: boolean;
   isLiveMode: boolean;
   otpTemplate: string;
   hasApiKey: boolean;
@@ -88,10 +90,12 @@ async function postUnifiedSmsApi(
   body: Record<string, any>,
   adminSecret?: string
 ): Promise<{ status: number; ok: boolean; data: any }> {
+  const adminToken = getAdminAuthToken();
   const response = await fetch('/api/sms', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
       ...(adminSecret ? { 'x-admin-secret': adminSecret } : {}),
     },
     body: JSON.stringify(body),
@@ -131,6 +135,7 @@ export async function saveUnifiedSmsConfig(params: {
   senderId: string;
   sid?: string;
   maskingEnabled: boolean;
+  noReplyMode?: boolean;
   isLiveMode: boolean;
   otpTemplate: string;
   adminSecret?: string;
@@ -159,6 +164,7 @@ export async function saveUnifiedSmsConfig(params: {
         senderId: params.senderId,
         sid: params.sid || '',
         maskingEnabled: params.maskingEnabled,
+        noReplyMode: params.noReplyMode !== false,
         isLiveMode: params.isLiveMode,
         otpTemplate: params.otpTemplate,
         ...(params.newAdminSecret ? { newAdminSecret: params.newAdminSecret } : {}),
@@ -223,6 +229,7 @@ export async function testAdminSmsOtp(params: {
   senderId: string;
   sid?: string;
   maskingEnabled: boolean;
+  noReplyMode?: boolean;
   isLiveMode: boolean;
   otpTemplate: string;
   adminSecret?: string;
@@ -242,6 +249,7 @@ export async function testAdminSmsOtp(params: {
         senderId: params.senderId,
         sid: params.sid || '',
         maskingEnabled: params.maskingEnabled,
+        noReplyMode: params.noReplyMode !== false,
         isLiveMode: params.isLiveMode,
         otpTemplate: params.otpTemplate,
       },
@@ -394,7 +402,7 @@ export async function sendRealSmsOtp(
   if (adminSecret) {
     const res = await sendUnifiedSmsText({
       phone,
-      message: `Your MarketBD.Net OTP is ${otpCode}`,
+      message: `Your MarketBD.Net OTP is ${otpCode}. Do not reply.`,
       adminSecret,
     });
     if (res.ok) {

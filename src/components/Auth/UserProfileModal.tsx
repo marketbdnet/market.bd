@@ -4,6 +4,7 @@ import { getMarketBdTenure } from '../../utils/tenure';
 import { storage } from '../../utils/storage';
 import { BANGLADESH_DIVISIONS } from '../../data/bangladeshData';
 import { getRemainingAutoApproveTime } from '../../utils/autoApprovalTimer';
+import { isAdOwner, isEffectiveLoggedIn } from '../../utils/authOwnership';
 import { Product } from '../../types';
 import {
   X,
@@ -34,6 +35,7 @@ interface UserProfileModalProps {
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose }) => {
   const {
     currentUser,
+    isLoggedIn,
     logout,
     language,
     login,
@@ -67,20 +69,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
     }
   }, [currentUser, isOpen]);
 
-  if (!isOpen || !currentUser) return null;
+  if (!isOpen || !isEffectiveLoggedIn(isLoggedIn, currentUser)) return null;
 
-  // Filter ads posted by this user
-  const myAds = (products || []).filter(p => {
-    if (!p || !currentUser) return false;
-    return (
-      (currentUser.id && p.seller?.id === currentUser.id) ||
-      (currentUser.email && p.seller?.email && p.seller.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-      (currentUser.phone && p.seller?.phone === currentUser.phone) ||
-      (currentUser.id && p.sellerId === currentUser.id) ||
-      p.seller?.id === 'user-me' ||
-      (currentUser.email === 'official.marketbd@gmail.com' && (p.seller?.id === 'user-me' || (p.seller?.name && p.seller.name.includes('Rahim Tech'))))
-    );
-  });
+  // Filter ads posted strictly by this authenticated user
+  const myAds = (products || []).filter(p => isAdOwner(p, currentUser, isLoggedIn));
 
   const filteredMyAds = myAds.filter(ad => {
     if (statusFilter === 'all') return true;

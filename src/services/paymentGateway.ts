@@ -1,4 +1,5 @@
 import { storage } from '../utils/storage';
+import { getAdminAuthToken } from '../utils/adminAuth';
 
 /**
  * Live / Sandbox Payment Gateway Integration Service
@@ -61,9 +62,13 @@ export async function fetchPaymentGatewayConfig(): Promise<{
   error?: string;
 }> {
   try {
+    const adminToken = getAdminAuthToken();
     const res = await fetch('/api/payment-gateway', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+      },
       body: JSON.stringify({ action: 'get_config' }),
     });
     const data = await res.json().catch(() => ({}));
@@ -90,10 +95,12 @@ export async function savePaymentGatewayConfig(
       adminSecret !== undefined
         ? adminSecret
         : storage.getItem('marketbd_sms_admin_secret') || '';
+    const adminToken = getAdminAuthToken();
     const res = await fetch('/api/payment-gateway', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
         ...(secret ? { 'x-admin-secret': secret } : {}),
       },
       body: JSON.stringify({ action: 'save_config', ...params }),
