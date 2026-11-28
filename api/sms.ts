@@ -217,14 +217,24 @@ function enforceOneWaySenderId(sender: string, masking: boolean, noReplyMode: bo
   return cleaned;
 }
 
+export function normalizeOtpTemplateText(raw: string): string {
+  return String(raw || DEFAULT_TEMPLATE)
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export function formatOtpMessage(template: string, code: string, noReplyMode: boolean): string {
-  const normalizedRaw = String(template || DEFAULT_TEMPLATE).replace(/\s+/g, ' ').trim();
+  const normalizedRaw = normalizeOtpTemplateText(template || DEFAULT_TEMPLATE);
   const hasOtpPlaceholder = /\{otp\}/i.test(normalizedRaw);
   let message = hasOtpPlaceholder
     ? normalizedRaw.replace(/\{otp\}/gi, code).trim()
     : `${normalizedRaw} ${code}`.trim();
 
-  if (noReplyMode && !/do not reply|no[\s-]*reply|উত্তর দিবেন না|রিপ্লাই/i.test(message)) {
+  if (noReplyMode && !/do not reply|no[\s-]*reply|don'?t share|উত্তর দিবেন না|রিপ্লাই/i.test(message)) {
     const withDoNotReply = `${message.replace(/[.\s]+$/, '')}. Do not reply.`;
     if (withDoNotReply.length <= 70) {
       message = withDoNotReply;
@@ -395,16 +405,17 @@ export async function dispatchSmsByProvider(params: {
 
   if (providerId === 'bulksmsdhaka') {
     const base = cleanBase || SMS_PROVIDER_PRESETS.bulksmsdhaka.defaultApiUrl;
-    const singleLineCustom = message.replace(/\s+/g, ' ').trim();
+    const multilineCustom = normalizeOtpTemplateText(message);
+    const singleLineCustom = multilineCustom.replace(/\s+/g, ' ').trim();
     let usedEndpoint = isOtp ? 'otpsend' : 'sendtext';
     let usedCaller = senderId || '1234';
 
-    const qs1 = new URLSearchParams({ apikey: apiKey, number: phone, message: singleLineCustom, callerID: usedCaller }).toString();
+    const qs1 = new URLSearchParams({ apikey: apiKey, number: phone, message: multilineCustom, callerID: usedCaller }).toString();
     let g = await fetcher(`${base}/${usedEndpoint}?${qs1}`);
 
-    // 1) If masking/custom senderId fails on non-fatal error, retry Non-Masking callerID '1234' with SAME custom text
+    // 1) If masking/custom senderId fails on non-fatal error, retry Non-Masking callerID '1234' with SAME exact multiline custom text
     if (!isOk(g.json, g.raw, g.httpStatus) && !isFatalGatewayStop(g) && usedCaller !== '1234') {
-      const qs2 = new URLSearchParams({ apikey: apiKey, number: phone, message: singleLineCustom, callerID: '1234' }).toString();
+      const qs2 = new URLSearchParams({ apikey: apiKey, number: phone, message: multilineCustom, callerID: '1234' }).toString();
       const g2 = await fetcher(`${base}/${usedEndpoint}?${qs2}`);
       if (isOk(g2.json, g2.raw, g2.httpStatus) || !isFatalGatewayStop(g2)) {
         g = g2;
@@ -412,24 +423,24 @@ export async function dispatchSmsByProvider(params: {
       }
     }
 
-    const cleanOtpCode = otpCode || (singleLineCustom.match(/\b(\d{4,8})\b/)?.[1] ?? '');
+    const cleanOtpCode = otpCode || (multilineCustom.match(/\b(\d{4,8})\b/)?.[1] ?? '');
     const cleanSingleLineOtp = cleanOtpCode
       ? (noReplyMode ? `Your MarketBD.Net OTP is ${cleanOtpCode}. Do not reply.` : `Your MarketBD.Net OTP is ${cleanOtpCode}`)
       : singleLineCustom;
 
-    // 2) CRITICAL: If BulkSMS Dhaka otpsend rejects a custom template (e.g. code 1006 / Bengali text),
-    // try sendtext WITH THE USER'S EXACT CUSTOM MESSAGE before ever falling back to default text!
+    // 2) CRITICAL: If BulkSMS Dhaka otpsend rejects a custom template (e.g. code 1006 / multiline / Bengali text),
+    // try sendtext WITH THE USER'S EXACT CUSTOM MESSAGE (multiline preserved) before collapsing or falling back!
     if (
       isOtp &&
       !isOk(g.json, g.raw, g.httpStatus) &&
       !isFatalGatewayStop(g) &&
-      cleanSingleLineOtp !== singleLineCustom
+      cleanSingleLineOtp !== multilineCustom
     ) {
       const customCallerFirst = senderId || '1234';
       const qsCustomText = new URLSearchParams({
         apikey: apiKey,
         number: phone,
-        message: singleLineCustom,
+        message: multilineCustom,
         callerID: customCallerFirst,
       }).toString();
       let gCustom = await fetcher(`${base}/sendtext?${qsCustomText}`);
@@ -437,7 +448,7 @@ export async function dispatchSmsByProvider(params: {
         const qsCustomNonMask = new URLSearchParams({
           apikey: apiKey,
           number: phone,
-          message: singleLineCustom,
+          message: multilineCustom,
           callerID: '1234',
         }).toString();
         gCustom = await fetcher(`${base}/sendtext?${qsCustomNonMask}`);
@@ -449,6 +460,27 @@ export async function dispatchSmsByProvider(params: {
       }
       g = gCustom;
       usedEndpoint = 'sendtext';
+    }
+
+    // 2b) If multiline was rejected with code 1006 on both endpoints, try collapsed single-line custom message before default text
+    if (
+      isOtp &&
+      !isOk(g.json, g.raw, g.httpStatus) &&
+      !isFatalGatewayStop(g) &&
+      multilineCustom !== singleLineCustom &&
+      cleanSingleLineOtp !== singleLineCustom
+    ) {
+      const qsCollapsed = new URLSearchParams({
+        apikey: apiKey,
+        number: phone,
+        message: singleLineCustom,
+        callerID: usedCaller || '1234',
+      }).toString();
+      const gCollapsed = await fetcher(`${base}/sendtext?${qsCollapsed}`);
+      if (isOk(gCollapsed.json, gCollapsed.raw, gCollapsed.httpStatus) || !isFatalGatewayStop(gCollapsed)) {
+        g = gCollapsed;
+        usedEndpoint = 'sendtext';
+      }
     }
 
     // 3) Last-resort OTP fallback ONLY if custom text failed on both otpsend and sendtext
@@ -711,14 +743,14 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
       true;
 
     // Saved admin template in Firestore (remote.template) or runtime secrets ALWAYS outranks static envTemplate
-    const envTemplate = (process.env.SMS_OTP_TEMPLATE || '').replace(/\\n/g, '\n').trim();
-    const otpTemplate = (
+    const envTemplate = normalizeOtpTemplateText((process.env.SMS_OTP_TEMPLATE || '').replace(/\\n/g, '\n'));
+    const otpTemplate = normalizeOtpTemplateText(
       (preferRemote ? remote.template : smsStored.otpTemplate) ||
-      smsStored.otpTemplate ||
-      remote.template ||
-      envTemplate ||
-      DEFAULT_TEMPLATE
-    ).trim();
+        smsStored.otpTemplate ||
+        remote.template ||
+        envTemplate ||
+        DEFAULT_TEMPLATE
+    );
     const sid = (smsStored.sid || process.env.SMS_SID || '').trim();
     const updatedAt = (preferRemote ? remote.updatedAt : smsStored.updatedAt) || smsStored.updatedAt || remote.updatedAt || '';
 
@@ -808,7 +840,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         maskingEnabled: nextMaskingEnabled,
         noReplyMode: nextNoReplyMode,
         isLiveMode: typeof body.isLiveMode === 'boolean' ? body.isLiveMode : (smsStored.isLiveMode ?? true),
-        otpTemplate: String(body.otpTemplate || smsStored.otpTemplate || DEFAULT_TEMPLATE).trim(),
+        otpTemplate: normalizeOtpTemplateText(String(body.otpTemplate || smsStored.otpTemplate || DEFAULT_TEMPLATE)),
         adminSecret: nextAdminSecret,
         updatedAt: typeof body.updatedAt === 'string' && body.updatedAt.trim() ? body.updatedAt.trim() : new Date().toISOString(),
       };
@@ -852,7 +884,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
     if (action === 'send_otp') {
       const phone = normalizePhone(body.phone);
       if (!phone) return res.status(400).json({ ok: false, error: 'সঠিক মোবাইল নম্বর দিন।' });
-      if (tooMany(`ip:${ip}`, 8, 10 * 60 * 1000) || tooMany(`ph:${phone}`, 3, 10 * 60 * 1000)) {
+      if (tooMany(`ip:${ip}`, 15, 10 * 60 * 1000) || tooMany(`ph:${phone}`, 6, 10 * 60 * 1000)) {
         return res.status(429).json({ ok: false, error: 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।' });
       }
 
@@ -952,7 +984,7 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
         ? (rawTestSender || 'MarketBD.Net')
         : (rawTestSender && rawTestSender !== 'MarketBD.Net' ? rawTestSender : '1234');
       const testSender = enforceOneWaySenderId(resolvedTestSender, testMasking, testNoReply);
-      const testTemplate = String(body.otpTemplate || cfg.otpTemplate || DEFAULT_TEMPLATE).trim();
+      const testTemplate = normalizeOtpTemplateText(String(body.otpTemplate || cfg.otpTemplate || DEFAULT_TEMPLATE));
       const testIsLive = typeof body.isLiveMode === 'boolean' ? body.isLiveMode : cfg.isLive;
 
       if (testIsLive && !testKey) {

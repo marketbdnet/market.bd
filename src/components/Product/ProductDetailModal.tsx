@@ -85,9 +85,8 @@ export const ProductDetailModal: React.FC = () => {
   const [newRating, setNewRating] = useState(5);
   const [newReviewComment, setNewReviewComment] = useState('');
 
-  // Scroll window to top whenever a new product is loaded
+  // Reset gallery index and phone reveal state whenever a different product is opened
   React.useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setActiveImageIdx(0);
     setShowPhone(false);
   }, [selectedProduct?.id]);

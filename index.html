@@ -82,8 +82,8 @@
             localStorage.setItem('marketbd_logo_migrated_v3', '1');
             localStorage.removeItem('marketbd_custom_logo');
           }
-          if (localStorage.getItem('marketbd_sw_v9_flushed') !== '1') {
-            localStorage.setItem('marketbd_sw_v9_flushed', '1');
+          if (localStorage.getItem('marketbd_sw_v10_flushed') !== '1') {
+            localStorage.setItem('marketbd_sw_v10_flushed', '1');
             try {
               var rawClk = localStorage.getItem('marketbd_clock_settings_v1');
               if (rawClk) {
@@ -96,7 +96,7 @@
             if ('caches' in window) {
               caches.keys().then(function(names) {
                 names.forEach(function(n) {
-                  if (n !== 'marketbd-app-v9') caches.delete(n);
+                  if (n !== 'marketbd-app-v10') caches.delete(n);
                 });
               });
             }

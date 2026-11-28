@@ -6,6 +6,8 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { INITIAL_PRODUCTS } from './src/data/mockProducts';
+import { LIVE_SYNCED_ADS } from './src/data/liveSyncedAds';
+import { mergeAndDeduplicateProducts, filterPublicActiveProducts } from './src/utils/productSyncCatalog';
 import { KNOWN_JUNK_PRODUCT_IDS } from './src/utils/knownJunkProductIds';
 import { getPageMetadata, injectSeoIntoHtml } from './server_seo';
 import { isDummyChatThread } from './src/utils/chatUtils';
@@ -124,29 +126,25 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     console.error('Notice reading server_sync_state.json:', e);
   }
 
-  // Build authoritative product catalog for server sync state (full 416 canonical + supplemental items)
-  const canonicalMap = new Map<string, any>();
-  INITIAL_PRODUCTS.forEach(p => {
-    if (p && p.id) canonicalMap.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true });
+  // Build authoritative product catalog for server sync state (full 416 canonical + 23 live synced + saved file items)
+  const savedRawList = savedFileState
+    ? (Array.isArray(savedFileState.marketplace_products)
+        ? savedFileState.marketplace_products
+        : Array.isArray(savedFileState.products)
+        ? savedFileState.products
+        : [])
+    : [];
+  const savedDeletedIds: string[] = Array.isArray(savedFileState?.deletedProductIds)
+    ? savedFileState.deletedProductIds
+    : [];
+
+  const initialAuthoritativeProducts = mergeAndDeduplicateProducts({
+    canonicalProducts: INITIAL_PRODUCTS,
+    supplementalProducts: LIVE_SYNCED_ADS,
+    syncProducts: savedRawList,
+    deletedIds: savedDeletedIds,
+    junkIds: KNOWN_JUNK_PRODUCT_IDS,
   });
-
-  if (savedFileState) {
-    const rawList = savedFileState.marketplace_products || savedFileState.products || [];
-    if (Array.isArray(rawList)) {
-      rawList.forEach((p: any) => {
-        if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
-          const existing = canonicalMap.get(p.id);
-          if (existing) {
-            canonicalMap.set(p.id, { ...existing, ...p });
-          } else {
-            canonicalMap.set(p.id, p);
-          }
-        }
-      });
-    }
-  }
-
-  const initialAuthoritativeProducts = Array.from(canonicalMap.values());
 
   // In-memory shared synchronized state store for Android App & Web synchronization
   const sharedSyncState: Record<string, any> = {
@@ -423,6 +421,9 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
 
   // Synchronized state endpoints for live syncing between Android App and Website
   app.get('/api/sync/state', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     const isAdmin = isAuthorizedAdminRequest(req);
     const safeState = sanitizeStateForCaller(sharedSyncState, isAdmin);
     if (req.query.lite === '1') {
@@ -802,16 +803,19 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   // REST API Endpoints for Products / Classified Ads (Compatible with Android Retrofit/Volley/Ktor & Web Fetch)
   app.get('/api/products', (req, res) => {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+
       const deletedIdSet = new Set<string>(Array.isArray(sharedSyncState.deletedProductIds) ? sharedSyncState.deletedProductIds : []);
-      let rawList: any[] = sharedSyncState.marketplace_products || sharedSyncState.products || [];
-      // Clean invalid stubs and deleted ads
-      let productList = rawList.filter(
-        p => p && p.id && p.title && p.title.trim() !== '' &&
-          !KNOWN_JUNK_PRODUCT_IDS.includes(p.id) &&
-          !deletedIdSet.has(p.id) &&
-          p.isDeleted !== true &&
-          String(p.status || '').toLowerCase() !== 'deleted'
-      );
+      const rawList: any[] = sharedSyncState.marketplace_products || sharedSyncState.products || [];
+      let productList = mergeAndDeduplicateProducts({
+        canonicalProducts: INITIAL_PRODUCTS,
+        supplementalProducts: LIVE_SYNCED_ADS,
+        syncProducts: rawList,
+        deletedIds: deletedIdSet,
+        junkIds: KNOWN_JUNK_PRODUCT_IDS,
+      });
 
       const { category, sellerId, status, query } = req.query;
       const isAdmin = isAuthorizedAdminRequest(req);
@@ -847,21 +851,17 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
         if (status === 'all') {
           // Non-admins already filtered to owned unlisted + active above
         } else if (status === 'active' || status === 'approved') {
-          productList = productList.filter(p => p.status === 'active' || p.status === 'approved' || (!p.status && !p.moderationStatus));
+          productList = filterPublicActiveProducts(productList);
         } else if (status === 'pending') {
-          productList = productList.filter(p => p.status === 'pending' || p.status === 'under_review' || p.status === 'in_review');
+          productList = productList.filter(p => {
+            const pStatus = String(p.status || '').toLowerCase();
+            return pStatus === 'pending' || pStatus === 'under_review' || pStatus === 'in_review';
+          });
         } else {
           productList = productList.filter(p => p.status === status);
         }
       } else if (!isAdmin && !sellerId) {
-        productList = productList.filter(p => {
-          const rawStatus = (p.status || '').toLowerCase();
-          const rawMod = (p.moderationStatus || '').toLowerCase();
-          if (rawStatus === 'pending' || rawStatus === 'under_review' || rawStatus === 'in_review' || rawMod === 'pending' || rawStatus === 'rejected' || rawMod === 'rejected') {
-            return false;
-          }
-          return p.status === 'active' || p.status === 'approved' || p.isActive === true || p.isApproved === true || (!p.status && !p.moderationStatus);
-        });
+        productList = filterPublicActiveProducts(productList);
       }
       if (query && typeof query === 'string') {
         const q = query.toLowerCase();
@@ -889,10 +889,20 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
   });
 
   app.get('/api/products/:id', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     const deletedIdSet = new Set<string>(Array.isArray(sharedSyncState.deletedProductIds) ? sharedSyncState.deletedProductIds : []);
-    const productList: any[] = sharedSyncState.marketplace_products || sharedSyncState.products || [];
+    const rawList: any[] = sharedSyncState.marketplace_products || sharedSyncState.products || [];
+    const productList = mergeAndDeduplicateProducts({
+      canonicalProducts: INITIAL_PRODUCTS,
+      supplementalProducts: LIVE_SYNCED_ADS,
+      syncProducts: rawList,
+      deletedIds: deletedIdSet,
+      junkIds: KNOWN_JUNK_PRODUCT_IDS,
+    });
     const found = productList.find(p => p.id === req.params.id || p.slug === req.params.id);
-    if (found && !deletedIdSet.has(found.id) && found.isDeleted !== true && String(found.status || '').toLowerCase() !== 'deleted') {
+    if (found && !deletedIdSet.has(found.id) && (found as any).isDeleted !== true && String(found.status || '').toLowerCase() !== 'deleted') {
       const isAdmin = isAuthorizedAdminRequest(req);
       const caller = extractCallerIdentity(req);
       const rawStatus = String(found.status || '').toLowerCase();
@@ -1660,12 +1670,12 @@ Respond in friendly, natural Bengali (বাংলা) or English as requested. 
     const SITE_URL = 'https://marketbd.net';
     const today = new Date().toISOString().split('T')[0];
 
-    // Popular marketplace categories (MarketBD 17)
+    // Popular marketplace categories (MarketBD 16)
     const categories = [
       'vehicles', 'property', 'mobiles', 'electronics', 'home_furniture',
       'fashion', 'health_beauty', 'services', 'repair_construction', 'business_equipment',
       'books_sports', 'baby_kids', 'agriculture', 'animal_pets', 'jobs',
-      'seeking_work', 'business_industry'
+      'business_industry'
     ];
 
     // Core static policy & contact pages

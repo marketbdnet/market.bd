@@ -1,10 +1,11 @@
 /**
  * MarketBD Comprehensive Category Image Catalog
  * High-resolution, authentic category-matched dual item photography
- * for all 17 MarketBD Categories, Subcategories, and Second-Level Categories.
+ * for all 16 MarketBD Categories, 95 Subcategories, and Second-Level Categories.
  */
 
 import { storage } from './storage';
+import { SUBCATEGORY_COMBO_IMAGES } from './subcategoryComboImages';
 
 import subThreeWheelersImg from '../assets/images/sub_three_wheelers_1794926944301.jpg';
 import subWaterTransportImg from '../assets/images/sub_water_transport_1794926943794.jpg';
@@ -189,154 +190,40 @@ export const MAIN_CATEGORY_IMAGES: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * 2. Level 2: Subcategory Images (Strict Category & Item Match)
+ * 2. Level 2: Subcategory Images (Unified Dual-Product Studio Composites for all 95 Subcategories)
  */
 export const SUBCATEGORY_IMAGES: Record<string, string> = {
-  // Phones & Tablets
-  smartphones: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=500&q=80',
-  feature_phones: subFeaturePhonesImg,
-  tablets: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=500&q=80',
-  smart_watches: 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=500&q=80',
-  earbuds_headphones: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=500&q=80',
-  earbuds: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=500&q=80',
-  headphones: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=500&q=80',
-  chargers_cables: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=500&q=80',
-  chargers: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=500&q=80',
-  power_banks: 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?auto=format&fit=crop&w=500&q=80',
-  mobile_cases_parts: subMobileCasesImg,
-  mobile_cases: subMobileCasesImg,
-  screen_protectors: 'https://images.unsplash.com/photo-1580910051074-3eb694886505?auto=format&fit=crop&w=500&q=80',
-  mobile_parts: 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=500&q=80',
+  ...SUBCATEGORY_COMBO_IMAGES,
 
-  // Electronics (includes Computers & IT)
-  laptops: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=500&q=80',
-  desktop_computers: 'https://images.unsplash.com/photo-1587831990711-23ca6441447b?auto=format&fit=crop&w=500&q=80',
-  computer_components: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?auto=format&fit=crop&w=500&q=80',
-  ram_storage: 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=500&q=80',
-  monitors: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=500&q=80',
-  routers_networking: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=500&q=80',
-  routers: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=500&q=80',
-  printers_peripherals: 'https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6?auto=format&fit=crop&w=500&q=80',
-  printers: 'https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6?auto=format&fit=crop&w=500&q=80',
-  keyboards: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=500&q=80',
-  mouse: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=500&q=80',
-  televisions: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=500&q=80',
-  audio_sound: 'https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=500&q=80',
-  speakers: 'https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=500&q=80',
-  cameras_drones: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=500&q=80',
-  cameras: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=500&q=80',
-  air_conditioners: subAirConditionerImg,
-  refrigerators: 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?auto=format&fit=crop&w=500&q=80',
-  gaming_consoles: 'https://images.unsplash.com/photo-1606813907291-d86efa9b94db?auto=format&fit=crop&w=500&q=80',
-  cctv_security: 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=500&q=80',
-  cctv: 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=500&q=80',
-  washing_machines: 'https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?auto=format&fit=crop&w=500&q=80',
-
-  // Vehicles
-  cars: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=500&q=80',
-  motorcycles_scooters: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=500&q=80',
-  vehicle_parts_accessories: subAutoPartsImg,
-  bicycles: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=500&q=80',
-  three_wheelers: subThreeWheelersImg,
-  tractors_agricultural_vehicles: 'https://images.unsplash.com/photo-1592878904946-b3cd8ae243d0?auto=format&fit=crop&w=500&q=80',
-  trucks_heavy_vehicles: 'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=500&q=80',
-  buses_microbuses: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=500&q=80',
-  water_transport: subWaterTransportImg,
-
-  // Property
-  apartments_sale: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=500&q=80',
-  apartments_rent: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=500&q=80',
-  houses: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80',
-  land: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=500&q=80',
-  commercial: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=500&q=80',
-
-  // Home, Furniture & Appliances
-  sofas: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=500&q=80',
-  beds: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=500&q=80',
-  wardrobes: 'https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=500&q=80',
-  dining_tables: 'https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf?auto=format&fit=crop&w=500&q=80',
-  office_furniture: subOfficeFurnitureImg,
-  chairs: subOfficeFurnitureImg,
-
-  // Fashion
-  mens_clothing: 'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&w=500&q=80',
-  womens_clothing: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=500&q=80',
-  shoes: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=500&q=80',
-  watches: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=500&q=80',
-  bags: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=500&q=80',
-
-  // Beauty & Personal Care
-  skin_care: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=500&q=80',
-  perfumes: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=500&q=80',
-  makeup: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=500&q=80',
-  hair_care: 'https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?auto=format&fit=crop&w=500&q=80',
-
-  // Babies & Kids
-  toys: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=500&q=80',
-  strollers: subBabyStrollerImg,
-  baby_clothing: 'https://images.unsplash.com/photo-1522771930-78848d9293e8?auto=format&fit=crop&w=500&q=80',
-
-  // Leisure & Activities (Books, Sports, Travel, Events)
-  books: 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=500&q=80',
-  sports_equipment: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=500&q=80',
-  gym_equipment: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=500&q=80',
-  musical_instruments: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=500&q=80',
-  domestic_tours: subDomesticToursImg,
-  international_tours: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=500&q=80',
-  hajj_umrah: subHajjUmrahImg,
-  concert_tickets: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=500&q=80',
-  wedding_services: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=500&q=80',
-  seminars_workshops: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?auto=format&fit=crop&w=500&q=80',
-
-  // Animals & Pets
-  cattle: 'https://images.unsplash.com/photo-1570042225831-d98fa7577f1e?auto=format&fit=crop&w=500&q=80',
-  goats: 'https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&w=500&q=80',
-  cats: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=500&q=80',
-  birds: subBirdsPetsImg,
-
-  // Food, Agriculture & Farming
-  seeds: 'https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?auto=format&fit=crop&w=500&q=80',
-  farm_machinery: 'https://images.unsplash.com/photo-1592878904946-b3cd8ae243d0?auto=format&fit=crop&w=500&q=80',
-  fertilizers: subFertilizersFeedImg,
-  restaurants: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=500&q=80',
-  fast_food: 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?auto=format&fit=crop&w=500&q=80',
-  cakes_bakery: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=500&q=80',
-
-  // Commercial Equipment & Tools
-  industrial_machines: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=500&q=80',
-  shop_equipment: subShopPosImg,
-  restaurant_equipment: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=500&q=80',
-
-  // Services (includes Education & Courses)
-  website_development: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=500&q=80',
-  delivery_services: 'https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=500&q=80',
-  online_courses: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=500&q=80',
-  language_learning: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=500&q=80',
-  admission_coaching: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=500&q=80',
-
-  // Repair & Construction
-  home_repair: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=500&q=80',
-  construction_materials: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=500&q=80',
-  sanitary_plumbing_hardware: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=500&q=80',
-  electrical_hardware_tools: 'https://images.unsplash.com/photo-1530124566582-a618bc2615dc?auto=format&fit=crop&w=500&q=80',
-
-  // Jobs
-  it_jobs: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=500&q=80',
-  sales_jobs: subSalesJobsImg,
-  office_jobs: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=500&q=80',
-
-  // Seeking Work - CVs
-  it_cv_profiles: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=500&q=80',
-  sales_marketing_cvs: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=500&q=80',
-  office_accounts_cvs: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=500&q=80',
-  technical_driver_cvs: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?auto=format&fit=crop&w=500&q=80',
-
-  // Business & Industry
-  wholesale_bulk_lots: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=500&q=80',
-  packaging_raw_materials: 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?auto=format&fit=crop&w=500&q=80',
-  gift_items: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=500&q=80',
-  antiques: subAntiquesImg,
-  miscellaneous: subSurplusMiscImg
+  // Legacy & shortcut aliases mapped to their canonical dual-product studio composite
+  earbuds: SUBCATEGORY_COMBO_IMAGES.earbuds_headphones,
+  headphones: SUBCATEGORY_COMBO_IMAGES.earbuds_headphones,
+  chargers: SUBCATEGORY_COMBO_IMAGES.chargers_cables,
+  power_banks: SUBCATEGORY_COMBO_IMAGES.chargers_cables,
+  mobile_cases: SUBCATEGORY_COMBO_IMAGES.mobile_cases_parts,
+  screen_protectors: SUBCATEGORY_COMBO_IMAGES.mobile_cases_parts,
+  mobile_parts: SUBCATEGORY_COMBO_IMAGES.mobile_cases_parts,
+  routers: SUBCATEGORY_COMBO_IMAGES.routers_networking,
+  printers: SUBCATEGORY_COMBO_IMAGES.printers_peripherals,
+  keyboards: SUBCATEGORY_COMBO_IMAGES.printers_peripherals,
+  mouse: SUBCATEGORY_COMBO_IMAGES.printers_peripherals,
+  speakers: SUBCATEGORY_COMBO_IMAGES.audio_sound,
+  cameras: SUBCATEGORY_COMBO_IMAGES.cameras_drones,
+  cctv: SUBCATEGORY_COMBO_IMAGES.cctv_security,
+  washing_machines: SUBCATEGORY_COMBO_IMAGES.cctv_security,
+  chairs: SUBCATEGORY_COMBO_IMAGES.office_furniture,
+  bags: SUBCATEGORY_COMBO_IMAGES.womens_clothing,
+  motorcycles: SUBCATEGORY_COMBO_IMAGES.motorcycles_scooters,
+  scooters: SUBCATEGORY_COMBO_IMAGES.motorcycles_scooters,
+  buses: SUBCATEGORY_COMBO_IMAGES.buses_microbuses,
+  microbuses: SUBCATEGORY_COMBO_IMAGES.buses_microbuses,
+  spare_parts: SUBCATEGORY_COMBO_IMAGES.vehicle_parts_accessories,
+  tyres_wheels: SUBCATEGORY_COMBO_IMAGES.vehicle_parts_accessories,
+  vehicle_acc: SUBCATEGORY_COMBO_IMAGES.vehicle_parts_accessories,
+  trucks: SUBCATEGORY_COMBO_IMAGES.trucks_heavy_vehicles,
+  auto_rickshaws: SUBCATEGORY_COMBO_IMAGES.three_wheelers,
+  boats: SUBCATEGORY_COMBO_IMAGES.water_transport,
+  baby_strollers_prams: SUBCATEGORY_COMBO_IMAGES.strollers,
 };
 
 /**
@@ -658,8 +545,18 @@ export function getSubcategoryImageUrl(
   if (activeImageOverrides[subKey]) {
     return activeImageOverrides[subKey];
   }
-  if (explicitImage && explicitImage.trim() !== '') return explicitImage;
-  if (SUBCATEGORY_IMAGES[subKey]) return SUBCATEGORY_IMAGES[subKey];
+  const canonicalCombo = SUBCATEGORY_IMAGES[subKey];
+  const trimmed = explicitImage ? explicitImage.trim() : '';
+  const isStaleLegacyImage =
+    !trimmed ||
+    trimmed.includes('images.unsplash.com') ||
+    trimmed.includes('179492') ||
+    trimmed.includes('_isolated_') ||
+    trimmed.startsWith('/assets/sub_');
+  if (trimmed && (!canonicalCombo || !isStaleLegacyImage)) {
+    return trimmed;
+  }
+  if (canonicalCombo) return canonicalCombo;
   return getCategoryImageUrl(categoryId);
 }
 

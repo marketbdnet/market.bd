@@ -547,6 +547,7 @@ export const AuthModal: React.FC = () => {
     if (mode === 'login') {
       if (loginMethod === 'otp') {
         if (adminIdMatch) {
+          setLoginMethod('password');
           setErrorMsg(
             language === 'bn'
               ? '🔐 এডমিন অ্যাকাউন্টের জন্য "পাসওয়ার্ড লগইন" বা এডমিন পোর্টাল ব্যবহার করুন।'

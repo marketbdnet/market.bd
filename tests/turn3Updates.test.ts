@@ -59,9 +59,9 @@ describe('Turn 3 Updates Verification', () => {
     vi.restoreAllMocks();
   });
 
-  describe('1. Real Live Ad Counts & 17-Category Structure Preservation', () => {
-    it('keeps all 17 categories and their subcategories with static count zeroed', () => {
-      expect(CATEGORIES.length).toBe(17);
+  describe('1. Real Live Ad Counts & 16-Category Structure Preservation', () => {
+    it('keeps all 16 categories and their subcategories with static count zeroed', () => {
+      expect(CATEGORIES.length).toBe(16);
       CATEGORIES.forEach((cat) => {
         expect(cat.count).toBe(0);
         expect(Array.isArray(cat.subcategories)).toBe(true);

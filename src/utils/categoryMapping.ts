@@ -29,8 +29,25 @@ export const LEGACY_CATEGORY_MAP: Record<string, string> = {
   bikes: 'vehicles',
   vehicle: 'vehicles',
   baby: 'baby_kids',
-  cv: 'seeking_work',
-  cvs: 'seeking_work'
+  seeking_work: 'jobs',
+  cv: 'jobs',
+  cvs: 'jobs',
+  'vehicles & auto': 'vehicles',
+  'property & land': 'property',
+  'phones & accessories': 'mobiles',
+  'computers & tech': 'electronics',
+  'home & living': 'home_furniture',
+  'fashion & style': 'fashion',
+  'beauty & care': 'health_beauty',
+  'services & training': 'services',
+  'construction & repair': 'repair_construction',
+  'tools & machinery': 'business_equipment',
+  'sports & hobbies': 'books_sports',
+  'kids & toys': 'baby_kids',
+  'food & farming': 'agriculture',
+  'pets & animals': 'animal_pets',
+  'jobs & careers': 'jobs',
+  'business & wholesale': 'business_industry'
 };
 
 export function normalizeCategoryId(category?: string, subCategory?: string): string {

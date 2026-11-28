@@ -1,33 +1,17 @@
 import { Category } from '../types';
-import { MAIN_CATEGORY_DUAL_IMAGES } from '../utils/categoryImages';
-import subThreeWheelersImg from '../assets/images/sub_three_wheelers_1794926944301.jpg';
-import subWaterTransportImg from '../assets/images/sub_water_transport_1794926943794.jpg';
-import subFeaturePhonesImg from '../assets/images/sub_feature_phones_1794926944480.jpg';
-import subAutoPartsImg from '../assets/images/sub_auto_parts_1794926945153.jpg';
-import subAirConditionerImg from '../assets/images/sub_air_conditioner_1794926945829.jpg';
-import subOfficeFurnitureImg from '../assets/images/sub_office_furniture_1794926946106.jpg';
-import subShopPosImg from '../assets/images/sub_shop_pos_1794926946004.jpg';
-import subDomesticToursImg from '../assets/images/sub_domestic_tours_1794926946621.jpg';
-import subHajjUmrahImg from '../assets/images/sub_hajj_umrah_1794926967162.jpg';
-import subBirdsPetsImg from '../assets/images/sub_birds_pets_1794926967942.jpg';
-import subFertilizersFeedImg from '../assets/images/sub_fertilizers_feed_1794926968218.jpg';
-import subBabyStrollerImg from '../assets/images/sub_baby_stroller_1794926968956.jpg';
-import subSalesJobsImg from '../assets/images/sub_sales_jobs_1794926968772.jpg';
-import subAntiquesImg from '../assets/images/sub_antiques_1794926968955.jpg';
-import subSurplusMiscImg from '../assets/images/sub_surplus_misc_1794926968901.jpg';
-import subMobileCasesImg from '../assets/images/sub_mobile_cases_1794926969537.jpg';
+import { MAIN_CATEGORY_DUAL_IMAGES, SUBCATEGORY_IMAGES } from '../utils/categoryImages';
 
 export const CATEGORIES: Category[] = [
-  // 1. Motors & Mobility
+  // 1. Vehicles & Auto
   {
     id: 'vehicles',
-    nameEn: 'Motors & Mobility',
-    nameBn: 'মোটর ও যানবাহন জগৎ',
+    nameEn: 'Vehicles & Auto',
+    nameBn: 'যানবাহন ও অটোমোবাইল',
     icon: 'Car',
     image: MAIN_CATEGORY_DUAL_IMAGES.vehicles[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.vehicles[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.vehicles,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     popularBrands: ['Toyota', 'Yamaha', 'Honda', 'Suzuki', 'Bajaj', 'TVS', 'Hero', 'Royal Enfield', 'Nissan', 'Hyundai', 'Mitsubishi', 'Mercedes-Benz', 'BMW', 'Kia', 'Ford', 'Chevrolet', 'Audi', 'Tesla', 'Runner', 'KTM', 'Kawasaki', 'Lifan', 'Walton', 'Vespa'],
     subcategories: [
@@ -36,7 +20,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Cars',
         nameBn: 'কার ও প্রাইভেট কার',
         icon: 'Car',
-        image: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.cars,
         count: 0,
         secondLevelCategories: [
           { id: 'toyota', nameEn: 'Toyota', nameBn: 'টোয়োটা', icon: 'Car', count: 0 },
@@ -61,7 +45,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Motorcycles & Scooters',
         nameBn: 'মোটরসাইকেল ও স্কুটার',
         icon: 'Bike',
-        image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.motorcycles_scooters,
         count: 0,
         secondLevelCategories: [
           { id: 'yamaha', nameEn: 'Yamaha', nameBn: 'ইয়ামাহা', icon: 'Bike', count: 0 },
@@ -86,7 +70,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Buses & Microbuses',
         nameBn: 'বাস ও মাইক্রোবাস',
         icon: 'Bus',
-        image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.buses_microbuses,
         count: 0,
         secondLevelCategories: [
           { id: 'buses', nameEn: 'Buses', nameBn: 'বাস', icon: 'Bus', count: 0 },
@@ -101,7 +85,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Auto Parts & Accessories',
         nameBn: 'গাড়ির পার্টস ও অ্যাক্সেসরিজ',
         icon: 'Wrench',
-        image: subAutoPartsImg,
+        image: SUBCATEGORY_IMAGES.vehicle_parts_accessories,
         count: 0,
         secondLevelCategories: [
           { id: 'engine_drivetrain', nameEn: 'Engine & Drivetrain', nameBn: 'ইঞ্জিন ও পার্টস', icon: 'Wrench', count: 0 },
@@ -118,7 +102,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Trucks & Heavy Vehicles',
         nameBn: 'ট্রাক ও হেভি ভেহিকেল',
         icon: 'Truck',
-        image: 'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.trucks_heavy_vehicles,
         count: 0,
         secondLevelCategories: [
           { id: 'pickup_trucks', nameEn: 'Pickup Trucks', nameBn: 'পিকআপ ট্রাক', icon: 'Truck', count: 0 },
@@ -133,7 +117,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Bicycles',
         nameBn: 'বাইসাইকেল',
         icon: 'Bike',
-        image: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.bicycles,
         count: 0,
         secondLevelCategories: [
           { id: 'mountain_bikes', nameEn: 'Mountain Bikes (MTB)', nameBn: 'মাউন্টেন বাইক (MTB)', icon: 'Bike', count: 0 },
@@ -149,7 +133,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Three Wheelers & Auto',
         nameBn: 'থ্রি হুইলার ও অটোরিকশা',
         icon: 'Car',
-        image: subThreeWheelersImg,
+        image: SUBCATEGORY_IMAGES.three_wheelers,
         count: 0,
         secondLevelCategories: [
           { id: 'cng_auto_rickshaw', nameEn: 'CNG Auto Rickshaw', nameBn: 'সিএনজি অটোরিকশা', icon: 'Car', count: 0 },
@@ -163,7 +147,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Tractors & Agri Vehicles',
         nameBn: 'ট্রাক্টর ও কৃষি যানবাহন',
         icon: 'Tractor',
-        image: 'https://images.unsplash.com/photo-1592878904946-b3cd8ae243d0?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.tractors_agricultural_vehicles,
         count: 0,
         secondLevelCategories: [
           { id: 'tractors', nameEn: 'Tractors', nameBn: 'ট্রাক্টর', icon: 'Tractor', count: 0 },
@@ -177,7 +161,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Water Transport',
         nameBn: 'নৌযান ও বোট',
         icon: 'Ship',
-        image: subWaterTransportImg,
+        image: SUBCATEGORY_IMAGES.water_transport,
         count: 0,
         secondLevelCategories: [
           { id: 'boats_trawlers', nameEn: 'Boats & Trawlers', nameBn: 'নৌকা ও ট্রলার', icon: 'Ship', count: 0 },
@@ -189,16 +173,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 2. Real Estate & Living
+  // 2. Property & Land
   {
     id: 'property',
-    nameEn: 'Real Estate & Living',
-    nameBn: 'রিয়েল এস্টেট ও বাসস্থান',
+    nameEn: 'Property & Land',
+    nameBn: 'প্রপার্টি ও জমি',
     icon: 'Home',
     image: MAIN_CATEGORY_DUAL_IMAGES.property[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.property[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.property,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -206,7 +190,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Apartments for Sale',
         nameBn: 'ফ্ল্যাট বিক্রয়',
         icon: 'Home',
-        image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.apartments_sale,
         count: 0,
         secondLevelCategories: [
           { id: 'ready_flats', nameEn: 'Ready Flats', nameBn: 'রেডি ফ্ল্যাট', icon: 'Home', count: 0 },
@@ -220,7 +204,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Apartments for Rent',
         nameBn: 'ফ্ল্যাট ভাড়া',
         icon: 'Home',
-        image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.apartments_rent,
         count: 0,
         secondLevelCategories: [
           { id: 'family_apartments', nameEn: 'Family Apartments', nameBn: 'ফ্যামিলি ফ্ল্যাট', icon: 'Home', count: 0 },
@@ -233,7 +217,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Land & Plots',
         nameBn: 'জমি ও প্লট',
         icon: 'Layers',
-        image: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.land,
         count: 0,
         secondLevelCategories: [
           { id: 'residential_plots', nameEn: 'Residential Plots', nameBn: 'আবাসিক প্লট', icon: 'Layers', count: 0 },
@@ -246,7 +230,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Commercial Property',
         nameBn: 'বাণিজ্যিক সম্পত্তি ও স্পেস',
         icon: 'Building2',
-        image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.commercial,
         count: 0,
         secondLevelCategories: [
           { id: 'office_space_comm', nameEn: 'Office Space', nameBn: 'অফিস স্পেস', icon: 'Building2', count: 0 },
@@ -259,7 +243,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Houses & Villas',
         nameBn: 'বাড়ি ও ভিলা',
         icon: 'Home',
-        image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.houses,
         count: 0,
         secondLevelCategories: [
           { id: 'duplex_houses', nameEn: 'Duplex Houses', nameBn: 'ডুপ্লেক্স বাড়ি', icon: 'Home', count: 0 },
@@ -270,16 +254,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 3. Smartphones & Wearables
+  // 3. Phones & Accessories
   {
     id: 'mobiles',
-    nameEn: 'Smartphones & Wearables',
-    nameBn: 'স্মার্টফোন ও গ্যাজেট',
+    nameEn: 'Phones & Accessories',
+    nameBn: 'ফোন ও অ্যাক্সেসরিজ',
     icon: 'Smartphone',
     image: MAIN_CATEGORY_DUAL_IMAGES.mobiles[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.mobiles[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.mobiles,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     popularBrands: ['Apple', 'Samsung', 'Xiaomi', 'Redmi', 'POCO', 'OnePlus', 'Realme', 'Vivo', 'iQOO', 'OPPO', 'Google Pixel', 'Motorola', 'Huawei', 'Honor', 'Infinix', 'TECNO', 'itel', 'Walton', 'Symphony', 'Nothing', 'Sony', 'Nokia', 'ASUS'],
     subcategories: [
@@ -288,7 +272,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Mobile Phones',
         nameBn: 'স্মার্টফোন',
         icon: 'Smartphone',
-        image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.smartphones,
         count: 0,
         secondLevelCategories: [
           { id: 'apple', nameEn: 'Apple iPhone', nameBn: 'অ্যাপল আইফোন', icon: 'Smartphone', count: 0 },
@@ -322,7 +306,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Feature Phones',
         nameBn: 'বাটন ফোন',
         icon: 'Smartphone',
-        image: subFeaturePhonesImg,
+        image: SUBCATEGORY_IMAGES.feature_phones,
         count: 0,
         secondLevelCategories: [
           { id: 'nokia_feature', nameEn: 'Nokia Classic 4G & 2G', nameBn: 'নোকিয়া বাটন ফোন', icon: 'Smartphone', count: 0 },
@@ -337,7 +321,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Tablets & iPads',
         nameBn: 'ট্যাবলেট ও আইপ্যাড',
         icon: 'Tablet',
-        image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.tablets,
         count: 0,
         secondLevelCategories: [
           { id: 'apple_ipad', nameEn: 'Apple iPad (Pro / Air / Mini / Gen)', nameBn: 'অ্যাপল আইপ্যাড', icon: 'Tablet', count: 0 },
@@ -354,7 +338,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Wearables & Smart Watches',
         nameBn: 'স্মার্ট ঘড়ি ও ফিটনেস ব্যান্ড',
         icon: 'Watch',
-        image: 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.smart_watches,
         count: 0,
         secondLevelCategories: [
           { id: 'apple_watch', nameEn: 'Apple Watch Ultra & Series', nameBn: 'অ্যাপল ওয়াচ আল্ট্রা ও সিরিজ', icon: 'Watch', count: 0 },
@@ -371,7 +355,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Earbuds & Headphones',
         nameBn: 'ইয়ারবাডস ও হেডফোন',
         icon: 'Headphones',
-        image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.earbuds_headphones,
         count: 0,
         secondLevelCategories: [
           { id: 'apple_airpods', nameEn: 'Apple AirPods Pro & Max', nameBn: 'অ্যাপল এয়ারপডস প্রো', icon: 'Headphones', count: 0 },
@@ -387,7 +371,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Chargers, Cables & Power Banks',
         nameBn: 'চার্জার, কেবল ও পাওয়ার ব্যাংক',
         icon: 'Zap',
-        image: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.chargers_cables,
         count: 0,
         secondLevelCategories: [
           { id: 'fast_chargers', nameEn: 'GaN & 65W-120W Fast Chargers', nameBn: 'ফাস্ট চার্জার ও জিএএন অ্যাডাপ্টার', icon: 'Zap', count: 0 },
@@ -401,7 +385,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Mobile Accessories & Parts',
         nameBn: 'মোবাইল কভার, পার্টস ও সার্ভিস',
         icon: 'Shield',
-        image: subMobileCasesImg,
+        image: SUBCATEGORY_IMAGES.mobile_cases_parts,
         count: 0,
         secondLevelCategories: [
           { id: 'phone_cases', nameEn: 'Original Cases, Silicone & Armor', nameBn: 'প্রিমিয়াম ব্যাক কভার ও গ্লাস', icon: 'Shield', count: 0 },
@@ -413,16 +397,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 4. Computing & Digital Tech (Laptops, Desktops, Monitors, Printers & Home Electronics)
+  // 4. Computers & Tech (Laptops, Desktops, Monitors, Printers & Home Electronics)
   {
     id: 'electronics',
-    nameEn: 'Computing & Digital Tech',
-    nameBn: 'কম্পিউটার ও ডিজিটাল টেক',
+    nameEn: 'Computers & Tech',
+    nameBn: 'কম্পিউটার ও টেক',
     icon: 'Tv',
     image: MAIN_CATEGORY_DUAL_IMAGES.electronics[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.electronics[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.electronics,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     popularBrands: ['Sony', 'Samsung', 'LG', 'TCL', 'Xiaomi', 'Apple MacBook', 'HP', 'Dell', 'Lenovo', 'ASUS', 'Acer', 'MSI', 'Gree', 'General', 'Daikin', 'Walton', 'Vision', 'JBL', 'Canon', 'DJI', 'PlayStation', 'Hikvision'],
     subcategories: [
@@ -431,7 +415,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Laptops & MacBooks',
         nameBn: 'ল্যাপটপ ও ম্যাকবুক',
         icon: 'Laptop',
-        image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.laptops,
         count: 0,
         secondLevelCategories: [
           { id: 'apple_macbook', nameEn: 'Apple MacBook (M4 / M3 / M2 / M1)', nameBn: 'অ্যাপল ম্যাকবুক', icon: 'Laptop', count: 0 },
@@ -449,7 +433,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Desktop Computers',
         nameBn: 'ডেস্কটপ কম্পিউটার',
         icon: 'Monitor',
-        image: 'https://images.unsplash.com/photo-1587831990711-23ca6441447b?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.desktop_computers,
         count: 0,
         secondLevelCategories: [
           { id: 'custom_gaming_pc', nameEn: 'Custom Gaming PC & Rigs', nameBn: 'কাস্টম গেমিং পিসি', icon: 'Monitor', count: 0 },
@@ -464,7 +448,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'TVs & Smart Displays',
         nameBn: 'স্মার্ট ও ফোরকে টিভি',
         icon: 'Tv',
-        image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.televisions,
         count: 0,
         secondLevelCategories: [
           { id: 'sony_bravia', nameEn: 'Sony BRAVIA (OLED, Mini LED, 4K)', nameBn: 'সনি ব্রাভিয়া ফোরকে ও ওলেড টিভি', icon: 'Tv', count: 0 },
@@ -481,7 +465,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Cameras, Camcorders & Drones',
         nameBn: 'ক্যামেরা, ড্রোন ও অ্যাকশন ক্যামেরা',
         icon: 'Camera',
-        image: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.cameras_drones,
         count: 0,
         secondLevelCategories: [
           { id: 'sony_alpha_cameras', nameEn: 'Sony Alpha Full-Frame & ZV Vlog Cams', nameBn: 'সনি আলফা ও ভ্লগ ক্যামেরা', icon: 'Camera', count: 0 },
@@ -496,7 +480,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Audio & Sound Systems',
         nameBn: 'অডিও, সাউন্ডবার ও স্পিকার',
         icon: 'Speaker',
-        image: 'https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.audio_sound,
         count: 0,
         secondLevelCategories: [
           { id: 'sony_soundbars', nameEn: 'Sony BRAVIA Soundbars & Party Speakers', nameBn: 'সনি সাউন্ডবার ও স্পিকার', icon: 'Speaker', count: 0 },
@@ -512,7 +496,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Computer & Laptop Accessories',
         nameBn: 'কম্পিউটার ও ল্যাপটপ পার্টস',
         icon: 'Cpu',
-        image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.computer_components,
         count: 0,
         secondLevelCategories: [
           { id: 'intel_cpus', nameEn: 'Intel Core Ultra & Core i9/i7/i5 CPUs', nameBn: 'ইন্টেল প্রসেসর', icon: 'Cpu', count: 0 },
@@ -528,7 +512,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'RAM, SSD & Storage',
         nameBn: 'র‍্যাম, এসএসডি ও হার্ডডিস্ক',
         icon: 'HardDrive',
-        image: 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.ram_storage,
         count: 0,
         secondLevelCategories: [
           { id: 'samsung_ssd', nameEn: 'Samsung 990 Pro / 980 Pro M.2 SSD', nameBn: 'স্যামসাং এনভিএমই এসএসডি', icon: 'HardDrive', count: 0 },
@@ -542,7 +526,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Monitors & Displays',
         nameBn: 'মনিটর ও ডিসপ্লে',
         icon: 'Tv',
-        image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.monitors,
         count: 0,
         secondLevelCategories: [
           { id: 'gaming_monitors', nameEn: '144Hz - 360Hz Fast IPS / OLED Gaming', nameBn: 'গেমিং মনিটর', icon: 'Tv', count: 0 },
@@ -556,7 +540,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Networking & Wi-Fi Routers',
         nameBn: 'রাউটার ও নেটওয়ার্কিং',
         icon: 'Wifi',
-        image: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.routers_networking,
         count: 0,
         secondLevelCategories: [
           { id: 'tplink_routers', nameEn: 'TP-Link Archer & Deco Mesh WiFi', nameBn: 'টিপি-লিঙ্ক আর্চার ও মেশ ওয়াইফাই', icon: 'Wifi', count: 0 },
@@ -570,7 +554,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Photocopiers, Printers & Keyboards',
         nameBn: 'প্রিন্টার, ফটোকপিয়ার ও কীবোর্ড',
         icon: 'Printer',
-        image: 'https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.printers_peripherals,
         count: 0,
         secondLevelCategories: [
           { id: 'ink_tank_laser_printers', nameEn: 'Epson, Canon & HP Ink Tank / Laser', nameBn: 'এপসন, ক্যানন ও এইচপি প্রিন্টার', icon: 'Printer', count: 0 },
@@ -584,7 +568,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Air Conditioners & Cooling',
         nameBn: 'এয়ার কন্ডিশনার (এসি)',
         icon: 'Wind',
-        image: subAirConditionerImg,
+        image: SUBCATEGORY_IMAGES.air_conditioners,
         count: 0,
         secondLevelCategories: [
           { id: 'gree_inverter_ac', nameEn: 'Gree Fairy & Pular Inverter AC', nameBn: 'গ্রী ইনভার্টার এসি', icon: 'Wind', count: 0 },
@@ -598,7 +582,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Refrigerators & Freezers',
         nameBn: 'রেফ্রিজারেটর ও ডিপ ফ্রিজ',
         icon: 'Layers',
-        image: 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.refrigerators,
         count: 0,
         secondLevelCategories: [
           { id: 'samsung_side_by_side', nameEn: 'Samsung Side-by-Side & Inverter Fridge', nameBn: 'স্যামসাং সাইড-বাই-সাইড ফ্রিজ', icon: 'Layers', count: 0 },
@@ -612,7 +596,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Video Games & Consoles',
         nameBn: 'গেমিং কনসোল ও ভিআর',
         icon: 'Gamepad2',
-        image: 'https://images.unsplash.com/photo-1606813907291-d86efa9b94db?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.gaming_consoles,
         count: 0,
         secondLevelCategories: [
           { id: 'playstation_5', nameEn: 'PlayStation 5 Pro & PS5 Slim Consoles', nameBn: 'প্লেস্টেশন ৫ প্রো ও স্লিম', icon: 'Gamepad2', count: 0 },
@@ -627,7 +611,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Security Cameras & Smart Home',
         nameBn: 'সিসিটিভি ও স্মার্ট হোম',
         icon: 'Shield',
-        image: 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.cctv_security,
         count: 0,
         secondLevelCategories: [
           { id: 'hikvision_cctv', nameEn: 'Hikvision ColorVu 4K IP / HD Cameras', nameBn: 'হিকভিশন কালারভিউ ক্যামেরা', icon: 'Shield', count: 0 },
@@ -639,16 +623,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 5. Home Living & Interiors
+  // 5. Home & Living
   {
     id: 'home_furniture',
-    nameEn: 'Home Living & Interiors',
-    nameBn: 'ঘর সাজানো ও ফার্নিচার',
+    nameEn: 'Home & Living',
+    nameBn: 'ঘর ও লিভিং',
     icon: 'Armchair',
     image: MAIN_CATEGORY_DUAL_IMAGES.home_furniture[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.home_furniture[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.home_furniture,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -656,7 +640,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Sofas & Living Room',
         nameBn: 'সোফা ও ডিভান',
         icon: 'Armchair',
-        image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.sofas,
         count: 0,
         secondLevelCategories: [
           { id: 'l_shaped_sofas', nameEn: 'L-Shaped Sectional Sofas', nameBn: 'এল-শেপ সোফা', icon: 'Armchair', count: 0 },
@@ -669,7 +653,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Beds & Mattresses',
         nameBn: 'খাট ও তোশক',
         icon: 'Bed',
-        image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.beds,
         count: 0,
         secondLevelCategories: [
           { id: 'king_queen_beds', nameEn: 'King & Queen Wooden Beds', nameBn: 'কাঠের কিং/কুইন খাট', icon: 'Bed', count: 0 },
@@ -682,7 +666,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Wardrobes & Cabinets',
         nameBn: 'আলমারি ও ওয়্যারড্রব',
         icon: 'Archive',
-        image: 'https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.wardrobes,
         count: 0,
         secondLevelCategories: [
           { id: '4_door_wardrobes', nameEn: '4-Door & 3-Door Wardrobes', nameBn: '৪/৩ পাল্লার ওয়্যারড্রব', icon: 'Archive', count: 0 },
@@ -695,7 +679,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Dining Tables & Chairs',
         nameBn: 'ডাইনিং টেবিল ও চেয়ার',
         icon: 'Utensils',
-        image: 'https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.dining_tables,
         count: 0,
         secondLevelCategories: [
           { id: '6_chair_dining', nameEn: '6-Chair Dining Sets', nameBn: '৬ চেয়ারের ডাইনিং সেট', icon: 'Utensils', count: 0 },
@@ -708,7 +692,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Office Furniture & Appliances',
         nameBn: 'অফিস ফার্নিচার ও চেয়ার',
         icon: 'Briefcase',
-        image: subOfficeFurnitureImg,
+        image: SUBCATEGORY_IMAGES.office_furniture,
         count: 0,
         secondLevelCategories: [
           { id: 'ergonomic_office_chairs', nameEn: 'Ergonomic Mesh Chairs', nameBn: 'এরগনোমিক অফিস চেয়ার', icon: 'Briefcase', count: 0 },
@@ -719,16 +703,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 6. Apparel & Lifestyle
+  // 6. Fashion & Style
   {
     id: 'fashion',
-    nameEn: 'Apparel & Lifestyle',
-    nameBn: 'পোশাক ও লাইফস্টাইল',
+    nameEn: 'Fashion & Style',
+    nameBn: 'ফ্যাশন ও স্টাইল',
     icon: 'Shirt',
     image: MAIN_CATEGORY_DUAL_IMAGES.fashion[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.fashion[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.fashion,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -736,7 +720,7 @@ export const CATEGORIES: Category[] = [
         nameEn: "Men's Clothing",
         nameBn: 'পুরুষদের পোশাক',
         icon: 'Shirt',
-        image: 'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.mens_clothing,
         count: 0,
         secondLevelCategories: [
           { id: 'panjabi_pajama', nameEn: 'Panjabi & Pajama', nameBn: 'পাঞ্জাবি ও পায়জামা', icon: 'Shirt', count: 0 },
@@ -750,7 +734,7 @@ export const CATEGORIES: Category[] = [
         nameEn: "Women's Clothing",
         nameBn: 'নারীদের পোশাক',
         icon: 'Sparkles',
-        image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.womens_clothing,
         count: 0,
         secondLevelCategories: [
           { id: 'sharees', nameEn: 'Sharees (Jamdani/Silk/Kathan)', nameBn: 'শাড়ি', icon: 'Sparkles', count: 0 },
@@ -764,7 +748,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Shoes & Footwear',
         nameBn: 'জুতা ও স্নিকার্স',
         icon: 'Footprints',
-        image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.shoes,
         count: 0,
         secondLevelCategories: [
           { id: 'sneakers_sports_shoes', nameEn: 'Sneakers & Running Shoes', nameBn: 'স্নিকার্স ও স্পোর্টস শু', icon: 'Footprints', count: 0 },
@@ -777,7 +761,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Watches & Jewellery',
         nameBn: 'ঘড়ি ও জুয়েলারি',
         icon: 'Watch',
-        image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.watches,
         count: 0,
         secondLevelCategories: [
           { id: 'luxury_watches', nameEn: "Men's & Women's Watches", nameBn: 'ব্র্যান্ডেড ঘড়ি', icon: 'Watch', count: 0 },
@@ -788,16 +772,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 7. Skincare & Grooming
+  // 7. Beauty & Care
   {
     id: 'health_beauty',
-    nameEn: 'Skincare & Grooming',
-    nameBn: 'রূপচর্চা ও গ্রুমিং',
+    nameEn: 'Beauty & Care',
+    nameBn: 'সৌন্দর্য ও যত্ন',
     icon: 'Sparkles',
     image: MAIN_CATEGORY_DUAL_IMAGES.health_beauty[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.health_beauty[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.health_beauty,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -805,7 +789,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Skin Care & Creams',
         nameBn: 'ত্বকের যত্ন ও সেরাম',
         icon: 'Sparkles',
-        image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.skin_care,
         count: 0,
         secondLevelCategories: [
           { id: 'serums_toners', nameEn: 'Face Serums & Toners', nameBn: 'ফেস সেরাম ও টোনার', icon: 'Sparkles', count: 0 },
@@ -818,7 +802,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Perfumes & Fragrances',
         nameBn: 'পারফিউম ও আতর',
         icon: 'Sparkles',
-        image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.perfumes,
         count: 0,
         secondLevelCategories: [
           { id: 'mens_edp_cologne', nameEn: "Men's Luxury Perfumes (EDP)", nameBn: 'পুরুষদের পারফিউম', icon: 'Sparkles', count: 0 },
@@ -831,7 +815,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Makeup & Cosmetics',
         nameBn: 'মেকআপ ও কসমেটিক্স',
         icon: 'Sparkles',
-        image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.makeup,
         count: 0,
         secondLevelCategories: [
           { id: 'foundations_concealers', nameEn: 'Foundations & Concealers', nameBn: 'ফাউন্ডেশন ও কনসিলার', icon: 'Sparkles', count: 0 },
@@ -844,7 +828,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Hair Care & Grooming',
         nameBn: 'চুলের যত্ন ও গ্রুমিং',
         icon: 'Scissors',
-        image: 'https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.hair_care,
         count: 0,
         secondLevelCategories: [
           { id: 'shampoos_hair_oils', nameEn: 'Shampoos, Conditioners & Oils', nameBn: 'শ্যাম্পু ও হেয়ার অয়েল', icon: 'Scissors', count: 0 },
@@ -854,16 +838,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 8. Pro Services & Learning
+  // 8. Services & Training
   {
     id: 'services',
-    nameEn: 'Pro Services & Learning',
-    nameBn: 'প্রফেশনাল সার্ভিস ও কোর্স',
+    nameEn: 'Services & Training',
+    nameBn: 'সার্ভিস ও প্রশিক্ষণ',
     icon: 'Wrench',
     image: MAIN_CATEGORY_DUAL_IMAGES.services[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.services[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.services,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -871,7 +855,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'IT, Web & App Services',
         nameBn: 'ওয়েব ও আইটি সার্ভিস',
         icon: 'Code',
-        image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.website_development,
         count: 0,
         secondLevelCategories: [
           { id: 'ecommerce_website_design', nameEn: 'E-commerce & Shopify Stores', nameBn: 'ই-কমার্স ওয়েবসাইট তৈরি', icon: 'Code', count: 0 },
@@ -884,7 +868,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Shifting & Transport Services',
         nameBn: 'বাসা বদল ও ট্রান্সপোর্ট',
         icon: 'Truck',
-        image: 'https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.delivery_services,
         count: 0,
         secondLevelCategories: [
           { id: 'home_shifting_trucks', nameEn: 'House & Office Shifting Movers', nameBn: 'বাসা ও অফিস বদল', icon: 'Truck', count: 0 },
@@ -897,7 +881,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'IT Training & Online Courses',
         nameBn: 'অনলাইন কোর্স ও ফ্রিল্যান্সিং',
         icon: 'GraduationCap',
-        image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.online_courses,
         count: 0,
         secondLevelCategories: [
           { id: 'fullstack_web_dev_course', nameEn: 'Full Stack Web & Python Bootcamp', nameBn: 'ওয়েব ডেভেলপমেন্ট কোর্স', icon: 'GraduationCap', count: 0 },
@@ -910,7 +894,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Language & IELTS Coaching',
         nameBn: 'ভাষা শিক্ষা ও আইইএলটিএস',
         icon: 'GraduationCap',
-        image: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.language_learning,
         count: 0,
         secondLevelCategories: [
           { id: 'ielts_pte_prep', nameEn: 'IELTS & PTE Academic Preparation', nameBn: 'আইইএলটিএস ও পিটিই প্রস্তুতি', icon: 'GraduationCap', count: 0 },
@@ -923,7 +907,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Tuition & Coaching Services',
         nameBn: 'ভর্তি কোচিং ও টিউটর',
         icon: 'GraduationCap',
-        image: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.admission_coaching,
         count: 0,
         secondLevelCategories: [
           { id: 'buet_medical_admission', nameEn: 'Medical & Engineering Admission', nameBn: 'মেডিকেল ও বুয়েট ভর্তি প্রস্তুতি', icon: 'GraduationCap', count: 0 },
@@ -934,16 +918,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 9. Builders & Maintenance
+  // 9. Construction & Repair
   {
     id: 'repair_construction',
-    nameEn: 'Builders & Maintenance',
-    nameBn: 'নির্মাণ সামগ্রী ও মেরামত',
+    nameEn: 'Construction & Repair',
+    nameBn: 'নির্মাণ ও মেরামত',
     icon: 'Wrench',
     image: MAIN_CATEGORY_DUAL_IMAGES.repair_construction[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.repair_construction[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.repair_construction,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -951,7 +935,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Home Repair & AC Servicing',
         nameBn: 'হোম মেরামত ও এসি সার্ভিসিং',
         icon: 'Wrench',
-        image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.home_repair,
         count: 0,
         secondLevelCategories: [
           { id: 'ac_servicing_gas_charge', nameEn: 'AC Master Wash & Gas Refill', nameBn: 'এসি সার্ভিসিং ও গ্যাস রিফিল', icon: 'Wrench', count: 0 },
@@ -964,7 +948,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Building & Construction Materials',
         nameBn: 'নির্মাণ সামগ্রী (রড, সিমেন্ট, ইট)',
         icon: 'Building2',
-        image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.construction_materials,
         count: 0,
         secondLevelCategories: [
           { id: 'steel_rod_cement', nameEn: 'Steel Rod, BSRM & Cement', nameBn: 'রড ও সিমেন্ট', icon: 'Building2', count: 0 },
@@ -976,7 +960,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Tiles, Sanitary & Paints',
         nameBn: 'টাইলস, স্যানিটারি ও রং',
         icon: 'Sparkles',
-        image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.sanitary_plumbing_hardware,
         count: 0,
         secondLevelCategories: [
           { id: 'tiles_sanitary_fittings', nameEn: 'Floor Tiles, Commode & Basins', nameBn: 'টাইলস ও স্যানিটারি ফিটিংস', icon: 'Building2', count: 0 },
@@ -988,7 +972,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Power Tools & Electrical Fittings',
         nameBn: 'পাওয়ার টুলস ও ইলেকট্রিক ফিটিংস',
         icon: 'Zap',
-        image: 'https://images.unsplash.com/photo-1530124566582-a618bc2615dc?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.electrical_hardware_tools,
         count: 0,
         secondLevelCategories: [
           { id: 'power_drills_tools', nameEn: 'Drill Machines, Grinders & Toolkits', nameBn: 'ড্রিল মেশিন ও টুলস', icon: 'Wrench', count: 0 },
@@ -998,16 +982,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 10. Machinery & Store Gear
+  // 10. Tools & Machinery
   {
     id: 'business_equipment',
-    nameEn: 'Machinery & Store Gear',
-    nameBn: 'মেশিনারি ও দোকান সরঞ্জাম',
+    nameEn: 'Tools & Machinery',
+    nameBn: 'টুলস ও মেশিনারি',
     icon: 'Building2',
     image: MAIN_CATEGORY_DUAL_IMAGES.business_equipment[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.business_equipment[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.business_equipment,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -1015,7 +999,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Industrial & Sewing Machines',
         nameBn: 'শিল্প ও সেলাই মেশিন',
         icon: 'Cpu',
-        image: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.industrial_machines,
         count: 0,
         secondLevelCategories: [
           { id: 'garments_sewing_machines', nameEn: 'Garments Sewing Machines (Juki)', nameBn: 'জুকি ও গার্মেন্টস মেশিন', icon: 'Cpu', count: 0 },
@@ -1028,7 +1012,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Shop, Office & POS Equipment',
         nameBn: 'দোকান ও পিওএস সরঞ্জাম',
         icon: 'ShoppingBag',
-        image: subShopPosImg,
+        image: SUBCATEGORY_IMAGES.shop_equipment,
         count: 0,
         secondLevelCategories: [
           { id: 'pos_terminals_scanners', nameEn: 'POS Touch Terminals & Scanners', nameBn: 'পিওএস ও বারকোড স্ক্যানার', icon: 'ShoppingBag', count: 0 },
@@ -1041,7 +1025,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Restaurant & Bakery Equipment',
         nameBn: 'রেস্টুরেন্ট কিচেন সরঞ্জাম',
         icon: 'Utensils',
-        image: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.restaurant_equipment,
         count: 0,
         secondLevelCategories: [
           { id: 'commercial_deep_fryers_ovens', nameEn: 'Commercial Ovens & Deep Fryers', nameBn: 'বাণিজ্যিক ওভেন ও ফ্রায়ার', icon: 'Utensils', count: 0 },
@@ -1052,16 +1036,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 11. Sports, Books & Travel
+  // 11. Sports & Hobbies
   {
     id: 'books_sports',
-    nameEn: 'Sports, Books & Travel',
-    nameBn: 'খেলাধুলা, বই ও ভ্রমণ',
+    nameEn: 'Sports & Hobbies',
+    nameBn: 'খেলাধুলা ও শখ',
     icon: 'BookOpen',
     image: MAIN_CATEGORY_DUAL_IMAGES.books_sports[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.books_sports[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.books_sports,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -1069,7 +1053,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Books & Magazines',
         nameBn: 'বই ও সাহিত্য',
         icon: 'BookOpen',
-        image: 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.books,
         count: 0,
         secondLevelCategories: [
           { id: 'fiction_novels', nameEn: 'Fiction, Novels & Literature', nameBn: 'উপন্যাস ও গল্প', icon: 'BookOpen', count: 0 },
@@ -1083,7 +1067,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Sports & Cricket Gear',
         nameBn: 'ক্রিকেট ও খেলার সরঞ্জাম',
         icon: 'Trophy',
-        image: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.sports_equipment,
         count: 0,
         secondLevelCategories: [
           { id: 'cricket_bats_kits', nameEn: 'Cricket Bats, Balls & Full Kits', nameBn: 'ক্রিকেট ব্যাট ও কিটস', icon: 'Trophy', count: 0 },
@@ -1096,7 +1080,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Gym & Fitness',
         nameBn: 'জিম ও ফিটনেস সরঞ্জাম',
         icon: 'Dumbbell',
-        image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.gym_equipment,
         count: 0,
         secondLevelCategories: [
           { id: 'treadmills_exercise_bikes', nameEn: 'Motorized Treadmills & Bikes', nameBn: 'ট্রেডমিল ও এক্সারসাইজ বাইক', icon: 'Dumbbell', count: 0 },
@@ -1109,7 +1093,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Musical Instruments',
         nameBn: 'বাদ্যযন্ত্র ও গিটার',
         icon: 'Music',
-        image: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.musical_instruments,
         count: 0,
         secondLevelCategories: [
           { id: 'acoustic_electric_guitars', nameEn: 'Acoustic & Electric Guitars', nameBn: 'অ্যাকোস্টিক ও ইলেকট্রিক গিটার', icon: 'Music', count: 0 },
@@ -1122,7 +1106,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Bangladesh Tour Packages',
         nameBn: 'দেশীয় ট্যুর প্যাকেজ',
         icon: 'Plane',
-        image: subDomesticToursImg,
+        image: SUBCATEGORY_IMAGES.domestic_tours,
         count: 0,
         secondLevelCategories: [
           { id: 'coxs_bazar_sajek', nameEn: "Cox's Bazar & Sajek Valley Tours", nameBn: 'কক্সবাজার ও সাজেক ভ্যালি', icon: 'Plane', count: 0 },
@@ -1135,7 +1119,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'International Travel & Tickets',
         nameBn: 'বিদেশ ভ্রমণ ও এয়ার টিকেট',
         icon: 'Plane',
-        image: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.international_tours,
         count: 0,
         secondLevelCategories: [
           { id: 'thailand_malaysia_tours', nameEn: 'Thailand, Malaysia & Singapore', nameBn: 'থাইল্যান্ড, মালয়েশিয়া ও সিঙ্গাপুর', icon: 'Plane', count: 0 },
@@ -1148,7 +1132,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Hajj, Umrah & Resorts',
         nameBn: 'হজ, ওমরাহ ও রিসোর্ট',
         icon: 'Building2',
-        image: subHajjUmrahImg,
+        image: SUBCATEGORY_IMAGES.hajj_umrah,
         count: 0,
         secondLevelCategories: [
           { id: 'executive_umrah_packages', nameEn: 'VIP Executive Umrah Groups', nameBn: 'ভিআইপি ওমরাহ প্যাকেজ', icon: 'Building2', count: 0 },
@@ -1161,7 +1145,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Events, Movies & Tickets',
         nameBn: 'কনসার্ট ও সিনেমা টিকেট',
         icon: 'Ticket',
-        image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.concert_tickets,
         count: 0,
         secondLevelCategories: [
           { id: 'live_concert_passes', nameEn: 'Rock & Live Music Concert Passes', nameBn: 'লাইভ মিউজিক কনসার্ট টিকেট', icon: 'Ticket', count: 0 },
@@ -1174,7 +1158,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Wedding Events & Photography',
         nameBn: 'বিয়ের আয়োজন ও ডেকোরেশন',
         icon: 'Heart',
-        image: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.wedding_services,
         count: 0,
         secondLevelCategories: [
           { id: 'wedding_convention_halls', nameEn: 'Convention Hall & Stage Decor', nameBn: 'কনভেনশন হল ও স্টেজ ডেকোরেশন', icon: 'Heart', count: 0 },
@@ -1187,7 +1171,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Seminars & Party Decor',
         nameBn: 'সেমিনার ও জন্মদিন অনুষ্ঠান',
         icon: 'Calendar',
-        image: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.seminars_workshops,
         count: 0,
         secondLevelCategories: [
           { id: 'tech_business_seminars', nameEn: 'Tech Summits & Business Expos', nameBn: 'টেক সামিট ও বিজনেস সেমিনার', icon: 'Calendar', count: 0 },
@@ -1197,16 +1181,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 12. Kids, Toys & Baby Care
+  // 12. Kids & Toys
   {
     id: 'baby_kids',
-    nameEn: 'Kids, Toys & Baby Care',
-    nameBn: 'শিশু, খেলনা ও বেবি কেয়ার',
+    nameEn: 'Kids & Toys',
+    nameBn: 'শিশু ও খেলনা',
     icon: 'Baby',
     image: MAIN_CATEGORY_DUAL_IMAGES.baby_kids[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.baby_kids[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.baby_kids,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -1214,7 +1198,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Toys & Games',
         nameBn: 'খেলনা ও গেমস',
         icon: 'Gamepad2',
-        image: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.toys,
         count: 0,
         secondLevelCategories: [
           { id: 'rc_cars_drones', nameEn: 'RC Cars, Drones & Robots', nameBn: 'রিমোট কন্ট্রোল গাড়ি', icon: 'Gamepad2', count: 0 },
@@ -1227,7 +1211,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Strollers, Walkers & Seats',
         nameBn: 'স্ট্রলার, ওয়াকার ও সিট',
         icon: 'Baby',
-        image: subBabyStrollerImg,
+        image: SUBCATEGORY_IMAGES.strollers,
         count: 0,
         secondLevelCategories: [
           { id: 'baby_strollers_prams', nameEn: 'Lightweight Strollers & Prams', nameBn: 'বেবি স্ট্রলার ও প্র্যাম', icon: 'Baby', count: 0 },
@@ -1240,7 +1224,7 @@ export const CATEGORIES: Category[] = [
         nameEn: "Kids' Clothing & Care",
         nameBn: 'শিশুর পোশাক ও যত্ন',
         icon: 'Shirt',
-        image: 'https://images.unsplash.com/photo-1522771930-78848d9293e8?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.baby_clothing,
         count: 0,
         secondLevelCategories: [
           { id: 'newborn_rompers_sets', nameEn: 'Newborn Gift Sets & Rompers', nameBn: 'নবজাতকের পোশাক সেট', icon: 'Shirt', count: 0 },
@@ -1251,16 +1235,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 13. Agro, Harvest & Dining
+  // 13. Food & Farming
   {
     id: 'agriculture',
-    nameEn: 'Agro, Harvest & Dining',
-    nameBn: 'কৃষি, খামার ও সুস্বাদু খাবার',
+    nameEn: 'Food & Farming',
+    nameBn: 'খাবার ও কৃষি',
     icon: 'Sprout',
     image: MAIN_CATEGORY_DUAL_IMAGES.agriculture[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.agriculture[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.agriculture,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -1268,7 +1252,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Seeds, Plants & Saplings',
         nameBn: 'বীজ ও চারাগাছ',
         icon: 'Sprout',
-        image: 'https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.seeds,
         count: 0,
         secondLevelCategories: [
           { id: 'hybrid_paddy_rice_seeds', nameEn: 'Hybrid Paddy & Rice Seeds', nameBn: 'উচ্চফলনশীল ধানের বীজ', icon: 'Sprout', count: 0 },
@@ -1281,7 +1265,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Farm Machinery & Pumps',
         nameBn: 'কৃষি যন্ত্রপাতি ও পাম্প',
         icon: 'Tractor',
-        image: 'https://images.unsplash.com/photo-1592878904946-b3cd8ae243d0?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.farm_machinery,
         count: 0,
         secondLevelCategories: [
           { id: 'power_tillers_harvesters', nameEn: 'Power Tillers & Harvesters', nameBn: 'পাওয়ার টিলার ও হারভেস্টার', icon: 'Tractor', count: 0 },
@@ -1294,7 +1278,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Fertilizers & Animal Feed',
         nameBn: 'সার ও পশুখাদ্য',
         icon: 'Sprout',
-        image: subFertilizersFeedImg,
+        image: SUBCATEGORY_IMAGES.fertilizers,
         count: 0,
         secondLevelCategories: [
           { id: 'organic_vermicompost', nameEn: 'Organic Vermicompost & Manure', nameBn: 'জৈব ও ভার্মি কম্পোস্ট সার', icon: 'Sprout', count: 0 },
@@ -1307,7 +1291,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Fresh Meals & Restaurants',
         nameBn: 'রেস্টুরেন্ট ও বিরিয়ানি',
         icon: 'Utensils',
-        image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.restaurants,
         count: 0,
         secondLevelCategories: [
           { id: 'dhaka_kacchi_biryani', nameEn: 'Dhaka Kacchi & Morog Polao', nameBn: 'ঢাকাই কাচ্চি ও মোরগ পোলাও', icon: 'Utensils', count: 0 },
@@ -1320,7 +1304,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Fast Food, Pizza & Burgers',
         nameBn: 'বার্গার, পিজ্জা ও ফাস্ট ফুড',
         icon: 'Utensils',
-        image: 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.fast_food,
         count: 0,
         secondLevelCategories: [
           { id: 'gourmet_beef_burgers', nameEn: 'Gourmet Beef & Crispy Burgers', nameBn: 'স্ম্যাশ বার্গার ও ফ্রাইজ', icon: 'Utensils', count: 0 },
@@ -1333,7 +1317,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Cakes, Honey & Organic Food',
         nameBn: 'কেক, মধু ও খাঁটি খাবার',
         icon: 'Cake',
-        image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.cakes_bakery,
         count: 0,
         secondLevelCategories: [
           { id: 'custom_birthday_cakes', nameEn: 'Custom Birthday & Wedding Cakes', nameBn: 'কাস্টম বার্থডে ও ওয়েডিং কেক', icon: 'Cake', count: 0 },
@@ -1344,16 +1328,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 14. Livestock & Pet World
+  // 14. Pets & Animals
   {
     id: 'animal_pets',
-    nameEn: 'Livestock & Pet World',
-    nameBn: 'গবাদিপশু ও পোষা প্রাণী',
+    nameEn: 'Pets & Animals',
+    nameBn: 'পোষা প্রাণী ও গবাদিপশু',
     icon: 'Dog',
     image: MAIN_CATEGORY_DUAL_IMAGES.animal_pets[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.animal_pets[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.animal_pets,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -1361,7 +1345,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Cattle & Farm Animals',
         nameBn: 'গরু ও ষাঁড়',
         icon: 'Beef',
-        image: 'https://images.unsplash.com/photo-1570042225831-d98fa7577f1e?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.cattle,
         count: 0,
         secondLevelCategories: [
           { id: 'qurbani_bulls', nameEn: 'Qurbani Bulls & Oxen', nameBn: 'কোরবানির ষাঁড়', icon: 'Beef', count: 0 },
@@ -1374,7 +1358,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Goats & Sheep',
         nameBn: 'ছাগল ও ভেড়া',
         icon: 'Dog',
-        image: 'https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.goats,
         count: 0,
         secondLevelCategories: [
           { id: 'black_bengal_goats', nameEn: 'Black Bengal Goats', nameBn: 'ব্ল্যাক বেঙ্গল ছাগল', icon: 'Dog', count: 0 },
@@ -1387,7 +1371,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Cats & Dogs',
         nameBn: 'বিড়াল ও কুকুর',
         icon: 'Cat',
-        image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.cats,
         count: 0,
         secondLevelCategories: [
           { id: 'persian_cats', nameEn: 'Persian Longhair Cats', nameBn: 'পার্শিয়ান বিড়াল', icon: 'Cat', count: 0 },
@@ -1400,7 +1384,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Birds, Pigeons & Pet Supplies',
         nameBn: 'পাখি, কবুতর ও খাদ্য',
         icon: 'Bird',
-        image: subBirdsPetsImg,
+        image: SUBCATEGORY_IMAGES.birds,
         count: 0,
         secondLevelCategories: [
           { id: 'parrots_macaws', nameEn: 'Parrots, Cockatiels & Bajrikor', nameBn: 'তোতা, বাজরিগার ও ককাটেল', icon: 'Bird', count: 0 },
@@ -1411,16 +1395,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 15. Careers & Hiring
+  // 15. Jobs & Careers (consolidated Careers & Talent Profiles/CVs)
   {
     id: 'jobs',
-    nameEn: 'Careers & Hiring',
-    nameBn: 'ক্যারিয়ার ও নিয়োগ বিজ্ঞপ্তি',
+    nameEn: 'Jobs & Careers',
+    nameBn: 'চাকরি ও ক্যারিয়ার',
     icon: 'Briefcase',
     image: MAIN_CATEGORY_DUAL_IMAGES.jobs[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.jobs[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.jobs,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -1428,7 +1412,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'IT & Software Jobs',
         nameBn: 'আইটি ও সফটওয়্যার চাকরি',
         icon: 'Code',
-        image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.it_jobs,
         count: 0,
         secondLevelCategories: [
           { id: 'software_developers', nameEn: 'Full Stack & App Developers', nameBn: 'সফটওয়্যার ডেভেলপার', icon: 'Code', count: 0 },
@@ -1441,7 +1425,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Sales & Marketing Jobs',
         nameBn: 'সেলস ও মার্কেটিং চাকরি',
         icon: 'Briefcase',
-        image: subSalesJobsImg,
+        image: SUBCATEGORY_IMAGES.sales_jobs,
         count: 0,
         secondLevelCategories: [
           { id: 'showroom_sales_executives', nameEn: 'Showroom & Retail Sales', nameBn: 'শোরুম সেলস এক্সিকিউটিভ', icon: 'Briefcase', count: 0 },
@@ -1454,35 +1438,20 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Office & Admin Jobs',
         nameBn: 'অফিস ও অ্যাকাউন্টস চাকরি',
         icon: 'FileText',
-        image: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.office_jobs,
         count: 0,
         secondLevelCategories: [
           { id: 'accounts_finance_officers', nameEn: 'Accountants & Finance Officers', nameBn: 'হিসাবরক্ষক ও ক্যাশিয়ার', icon: 'FileText', count: 0 },
           { id: 'admin_receptionists', nameEn: 'Admin Officers & Receptionists', nameBn: 'অ্যাডমিন ও রিসেপশনিস্ট', icon: 'FileText', count: 0 },
           { id: 'data_entry_operators', nameEn: 'Data Entry & Computer Operators', nameBn: 'ডাটা এন্ট্রি অপারেটর', icon: 'FileText', count: 0 }
         ]
-      }
-    ]
-  },
-
-  // 16. Talent Profiles & CVs
-  {
-    id: 'seeking_work',
-    nameEn: 'Talent Profiles & CVs',
-    nameBn: 'ট্যালেন্ট প্রোফাইল ও সিভি',
-    icon: 'FileText',
-    image: MAIN_CATEGORY_DUAL_IMAGES.seeking_work[0],
-    secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.seeking_work[1],
-    images: MAIN_CATEGORY_DUAL_IMAGES.seeking_work,
-    catVersion: 3,
-    count: 0,
-    subcategories: [
+      },
       {
         id: 'it_cv_profiles',
         nameEn: 'IT, Design & Tech CVs',
         nameBn: 'আইটি ও ডিজাইন সিভি',
         icon: 'Code',
-        image: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.it_cv_profiles,
         count: 0,
         secondLevelCategories: [
           { id: 'web_software_cv', nameEn: 'Web & Software Developer CVs', nameBn: 'ওয়েব ও সফটওয়্যার ডেভেলপার', icon: 'Code', count: 0 },
@@ -1494,7 +1463,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Sales, Delivery & Rider CVs',
         nameBn: 'সেলস ও ডেলিভারি রাইডার সিভি',
         icon: 'Briefcase',
-        image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.sales_marketing_cvs,
         count: 0,
         secondLevelCategories: [
           { id: 'sales_executive_cv', nameEn: 'Sales & Marketing Executive CVs', nameBn: 'সেলস ও মার্কেটিং সিভি', icon: 'Briefcase', count: 0 },
@@ -1506,7 +1475,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Office, Admin & Accounts CVs',
         nameBn: 'অফিস ও অ্যাকাউন্টস সিভি',
         icon: 'FileText',
-        image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.office_accounts_cvs,
         count: 0,
         secondLevelCategories: [
           { id: 'accounts_admin_cv', nameEn: 'Accountant, Admin & Operator CVs', nameBn: 'হিসাবরক্ষক ও কম্পিউটার অপারেটর', icon: 'FileText', count: 0 }
@@ -1517,7 +1486,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Driver & Technical Worker CVs',
         nameBn: 'ড্রাইভার ও টেকনিশিয়ান সিভি',
         icon: 'Wrench',
-        image: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.technical_driver_cvs,
         count: 0,
         secondLevelCategories: [
           { id: 'driver_technician_cv', nameEn: 'Professional Driver & Technician CVs', nameBn: 'প্রফেশনাল ড্রাইভার ও টেকনিশিয়ান', icon: 'Wrench', count: 0 }
@@ -1526,16 +1495,16 @@ export const CATEGORIES: Category[] = [
     ]
   },
 
-  // 17. Wholesale & B2B Trade
+  // 16. Business & Wholesale
   {
     id: 'business_industry',
-    nameEn: 'Wholesale & B2B Trade',
-    nameBn: 'পাইকারি বাণিজ্য ও শিল্প',
+    nameEn: 'Business & Wholesale',
+    nameBn: 'ব্যবসা ও পাইকারি',
     icon: 'Package',
     image: MAIN_CATEGORY_DUAL_IMAGES.business_industry[0],
     secondaryImage: MAIN_CATEGORY_DUAL_IMAGES.business_industry[1],
     images: MAIN_CATEGORY_DUAL_IMAGES.business_industry,
-    catVersion: 3,
+    catVersion: 4,
     count: 0,
     subcategories: [
       {
@@ -1543,7 +1512,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Wholesale & Stock Lots',
         nameBn: 'হোলসেল ও স্টক লট',
         icon: 'Package',
-        image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.wholesale_bulk_lots,
         count: 0,
         secondLevelCategories: [
           { id: 'garments_stock_lots', nameEn: 'Garments Export Stock Lots', nameBn: 'গার্মেন্টস স্টক লট', icon: 'Package', count: 0 },
@@ -1555,7 +1524,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Packaging & Raw Materials',
         nameBn: 'প্যাকেজিং ও কাঁচামাল',
         icon: 'Layers',
-        image: 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.packaging_raw_materials,
         count: 0,
         secondLevelCategories: [
           { id: 'carton_packaging_supplies', nameEn: 'Carton Boxes, Poly & Packaging', nameBn: 'কার্টন বক্স ও প্যাকেজিং', icon: 'Package', count: 0 },
@@ -1567,7 +1536,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Corporate Gifts & Crafts',
         nameBn: 'কর্পোরেট গিফট ও হস্তশিল্প',
         icon: 'Gift',
-        image: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=500&q=80',
+        image: SUBCATEGORY_IMAGES.gift_items,
         count: 0,
         secondLevelCategories: [
           { id: 'custom_gift_hampers', nameEn: 'Personalized Mugs & Gift Boxes', nameBn: 'কাস্টমাইজড উপহার বক্স', icon: 'Gift', count: 0 },
@@ -1580,7 +1549,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Antiques & Collectibles',
         nameBn: 'পুরাতন শখের জিনিস',
         icon: 'Archive',
-        image: subAntiquesImg,
+        image: SUBCATEGORY_IMAGES.antiques,
         count: 0,
         secondLevelCategories: [
           { id: 'vintage_coins_currency', nameEn: 'Vintage Coins & Old Banknotes', nameBn: 'পুরাতন মুদ্রা ও নোট', icon: 'Archive', count: 0 },
@@ -1593,7 +1562,7 @@ export const CATEGORIES: Category[] = [
         nameEn: 'Other Industrial & Surplus',
         nameBn: 'বিবিধ ব্যবসা ও সারপ্লাস',
         icon: 'Package',
-        image: subSurplusMiscImg,
+        image: SUBCATEGORY_IMAGES.miscellaneous,
         count: 0,
         secondLevelCategories: [
           { id: 'general_surplus_goods', nameEn: 'General Surplus & Lots', nameBn: 'সারপ্লাস ও লট আইটেম', icon: 'Package', count: 0 },

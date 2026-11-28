@@ -101,7 +101,19 @@ async function postUnifiedSmsApi(
     },
     body: JSON.stringify(body),
   });
-  const data = await response.json().catch(() => ({}));
+  let data: any = {};
+  if (typeof response.text === 'function') {
+    const rawText = await response.text().catch(() => '');
+    if (rawText) {
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        data = { error: rawText.replace(/<[^>]+>/g, ' ').trim().slice(0, 140) };
+      }
+    }
+  } else if (typeof response.json === 'function') {
+    data = await response.json().catch(() => ({}));
+  }
   return { status: response.status, ok: response.ok && !!data?.ok, data };
 }
 

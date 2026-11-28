@@ -299,7 +299,13 @@ export const GatewaysAdminPanel: React.FC = () => {
     }
 
     const savedAt = new Date().toISOString();
-    const cleanTemplate = otpTemplate.replace(/\s+/g, ' ').trim();
+    const cleanTemplate = otpTemplate
+      .replace(/\r\n?/g, '\n')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n[ \t]+/g, '\n')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
 
     setSmsSaving(true);
     const serverRes = await saveUnifiedSmsConfig({
@@ -404,7 +410,13 @@ export const GatewaysAdminPanel: React.FC = () => {
             ? nonMaskingSenderId.trim()
             : '1234');
       const savedAt = new Date().toISOString();
-      const cleanTemplate = otpTemplate.replace(/\s+/g, ' ').trim();
+      const cleanTemplate = otpTemplate
+        .replace(/\r\n?/g, '\n')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n[ \t]+/g, '\n')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
       const ok = await safeFirestoreSetDoc(
         doc(db, 'settings', 'sms_config'),
         {
@@ -519,7 +531,9 @@ export const GatewaysAdminPanel: React.FC = () => {
       : (nonMaskingSenderId.trim() && nonMaskingSenderId.trim() !== 'MarketBD.Net'
           ? nonMaskingSenderId.trim()
           : '1234');
-    const activeTemplate = /\{otp\}/i.test(otpTemplate) ? otpTemplate.trim() : DEFAULT_OTP_TEMPLATE;
+    const activeTemplate = /\{otp\}/i.test(otpTemplate)
+      ? otpTemplate.replace(/\r\n?/g, '\n').trim()
+      : DEFAULT_OTP_TEMPLATE;
 
     setSendMsg(
       bn
@@ -1083,27 +1097,27 @@ export const GatewaysAdminPanel: React.FC = () => {
                 </div>
               </div>
               <textarea
-                rows={2}
+                rows={3}
                 value={otpTemplate}
                 onChange={e => setOtpTemplate(e.target.value)}
                 className={inputCls}
               />
               <p className="text-[10px] text-slate-500 mt-0.5">
-                {bn ? '{otp} লিখলে ৬ ডিজিটের কোড বসবে (সর্বোচ্চ ৭০ অক্ষর)।' : 'Use {otp} placeholder. Keep max 70 chars.'}
+                {bn ? '{otp} লিখলে ৬ ডিজিটের কোড বসবে (৩-লাইন / সর্বোচ্চ ৭০ অক্ষর)।' : 'Use {otp} placeholder (supports multiline up to 70 chars).'}
               </p>
               <div className="mt-1.5 p-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[10px]">
                 <span className="font-bold text-slate-500 dark:text-slate-400">
                   {bn ? 'প্রিভিউ SMS: ' : 'SMS Preview: '}
                 </span>
-                <span className="font-mono font-bold text-slate-800 dark:text-slate-100 break-words">
-                  {otpTemplate.replace(/\s+/g, ' ').trim().replace(/\{otp\}/gi, '123456')}
-                </span>
+                <div className="font-mono font-bold text-slate-800 dark:text-slate-100 break-words whitespace-pre-line mt-1">
+                  {otpTemplate.replace(/\r\n?/g, '\n').trim().replace(/\{otp\}/gi, '123456')}
+                </div>
               </div>
-              {/[\n&]/.test(otpTemplate) && (
-                <p className="text-[10px] font-bold text-amber-700 dark:text-amber-300 mt-0.5">
+              {/[&]/.test(otpTemplate) && (
+                <p className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">
                   {bn
-                    ? '💡 পরামর্শ: একাধিক লাইন বা "&" চিহ্ন থাকলে কিছু গেটওয়ে OTP আটকে দেয়—১-লাইন টেমপ্লেট ব্যবহার করুন।'
-                    : '💡 Tip: Multiline text or "&" can be rejected by BulkSMS OTP endpoints—1-line template is safest.'}
+                    ? '💡 "&" ও একাধিক লাইন সহ কাস্টম টেমপ্লেট স্বয়ংক্রিয়ভাবে সঠিক গেটওয়ে রুটে পাঠানো হবে।'
+                    : '💡 Multiline templates & "&" are preserved and routed automatically via the compatible gateway endpoint.'}
                 </p>
               )}
             </div>

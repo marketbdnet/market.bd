@@ -64,6 +64,7 @@ const MainContent: React.FC = () => {
     canGoBack,
     goForward,
     canGoForward,
+    consumePendingRestoreScroll,
     language,
     siteMaintenance,
     toggleSiteMaintenance,
@@ -114,7 +115,7 @@ const MainContent: React.FC = () => {
     );
   }
 
-  // Sync URL pathname with activeTab on initial mount and browser navigation
+  // Sync URL pathname with activeTab on initial mount and non-in-app browser navigation
   React.useEffect(() => {
     const syncFromPath = () => {
       const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
@@ -128,15 +129,33 @@ const MainContent: React.FC = () => {
         setActiveTab('help');
       }
     };
+    const handlePathPopState = (e: PopStateEvent) => {
+      if (e.state?.marketbdNav) return;
+      syncFromPath();
+    };
     syncFromPath();
-    window.addEventListener('popstate', syncFromPath);
-    return () => window.removeEventListener('popstate', syncFromPath);
+    window.addEventListener('popstate', handlePathPopState);
+    return () => window.removeEventListener('popstate', handlePathPopState);
   }, [setActiveTab]);
 
-  // Scroll to top of window whenever activeTab or selectedProduct changes
+  // Smart Scroll Restoration: restore previous scrollY on Back, scroll to top on Forward
   React.useEffect(() => {
+    const restoreScrollY = consumePendingRestoreScroll();
+    if (restoreScrollY !== null) {
+      let raf2 = 0;
+      const raf1 = window.requestAnimationFrame(() => {
+        window.scrollTo({ top: restoreScrollY, left: 0, behavior: 'instant' });
+        raf2 = window.requestAnimationFrame(() => {
+          window.scrollTo({ top: restoreScrollY, left: 0, behavior: 'instant' });
+        });
+      });
+      return () => {
+        window.cancelAnimationFrame(raf1);
+        if (raf2) window.cancelAnimationFrame(raf2);
+      };
+    }
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-  }, [activeTab, selectedProduct?.id]);
+  }, [activeTab, selectedProduct?.id, consumePendingRestoreScroll]);
 
   const getPageTitle = () => {
     if (selectedProduct) {
@@ -246,7 +265,7 @@ const MainContent: React.FC = () => {
             <div className="flex items-center gap-2">
               {canGoBack && (
                 <button
-                  onClick={goBack}
+                  onClick={() => goBack(false)}
                   className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs sm:text-sm px-3.5 py-2 rounded-xl transition shadow-sm cursor-pointer shrink-0"
                   title={language === 'bn' ? 'পেছনে যান (Back)' : 'Go Back'}
                 >

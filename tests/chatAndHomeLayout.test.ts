@@ -156,9 +156,11 @@ describe('MarketBD Clean Chat Architecture & Dummy Purge', () => {
 describe('Structural Verification of HomePage 5+4x4 Layout & Clean Chat UI', () => {
   it('configures Featured & Urgent as 5-in-a-row and Recent Ads as 4-per-row with 16 items', () => {
     const homeSource = fs.readFileSync(path.join(process.cwd(), 'src/pages/HomePage.tsx'), 'utf-8');
+    const navSource = fs.readFileSync(path.join(process.cwd(), 'src/utils/navigationState.ts'), 'utf-8');
     expect(homeSource).toContain('lg:grid-cols-5');
     expect(homeSource).toContain('lg:grid-cols-4');
-    expect(homeSource).toContain('useState<number>(16)');
+    expect(homeSource).toContain('listingSnapshot.homeVisibleRecentCount');
+    expect(navSource).toContain('homeVisibleRecentCount: 16');
     expect(homeSource).toContain('formatPostDateTime');
   });
 

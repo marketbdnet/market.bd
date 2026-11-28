@@ -62,11 +62,11 @@ describe('Clock Migration & Cache Consistency', () => {
     expect(INITIAL_PRODUCTS.filter(isProductPublicActive).length).toBe(416);
   });
 
-  it('aligns Service Worker and index.html cache flush versions on v9', () => {
+  it('aligns Service Worker and index.html cache flush versions on v10', () => {
     const sw = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
     const html = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf8');
-    expect(sw).toContain("const CACHE_NAME = 'marketbd-app-v9';");
-    expect(html).toContain('marketbd_sw_v9_flushed');
-    expect(html).toContain("if (n !== 'marketbd-app-v9')");
+    expect(sw).toContain("const CACHE_NAME = 'marketbd-app-v10';");
+    expect(html).toContain('marketbd_sw_v10_flushed');
+    expect(html).toContain("if (n !== 'marketbd-app-v10')");
   });
 });

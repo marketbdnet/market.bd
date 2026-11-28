@@ -1,5 +1,5 @@
 // MarketBD Progressive Web App, Instant Asset Cache & Push Notification Service Worker
-const CACHE_NAME = 'marketbd-app-v9';
+const CACHE_NAME = 'marketbd-app-v10';
 const SHELL_PRECACHE = [
   '/logo.jpg',
   '/favicon.jpg',
@@ -34,6 +34,20 @@ self.addEventListener('activate', (event) => {
 function isBypassedRequest(url) {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return true;
   if (url.pathname.startsWith('/api/')) return true;
+  // Never cache Vite dev modules, source files, or pre-bundled dependency chunks
+  if (
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.startsWith('/@vite/') ||
+    url.pathname.startsWith('/@react-refresh') ||
+    url.pathname.startsWith('/@fs/') ||
+    url.pathname.startsWith('/@id/') ||
+    /\.(tsx?|jsx?|mjs)$/i.test(url.pathname) ||
+    url.searchParams.has('v') ||
+    url.searchParams.has('t')
+  ) {
+    return true;
+  }
   // Never intercept Firebase / Google APIs / OAuth traffic
   if (
     url.hostname.includes('firestore.googleapis.com') ||

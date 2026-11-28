@@ -243,41 +243,14 @@ export const MobileCategoryGrid: React.FC = () => {
     return language === 'bn' ? `${toBengaliNumber(val)}টি` : `${val} ads`;
   };
 
-  // Merge Business & Industry into Jobs on mobile so all 16 categories sit in a clean 4x4 grid
-  const businessCat = categories.find(c => c.id === 'business_industry');
-  const mobileCategories = categories
-    .filter(c => c.id !== 'business_industry')
-    .map(cat => {
-      if (cat.id === 'jobs' && businessCat) {
-        const mergedSubs = [
-          ...(Array.isArray(cat.subcategories) ? cat.subcategories : []).map(sub => ({
-            ...sub,
-            parentCatId: cat.id
-          })),
-          ...(Array.isArray(businessCat.subcategories) ? businessCat.subcategories : []).map(sub => ({
-            ...sub,
-            parentCatId: businessCat.id
-          }))
-        ];
-        const jobsImg = getCategoryImageUrl(cat.id, cat.image);
-        return {
-          ...cat,
-          nameBn: 'ক্যারিয়ার ও বাণিজ্য',
-          nameEn: 'Careers & Trade',
-          image: jobsImg,
-          mergedBusinessId: businessCat.id,
-          mergedSubcategories: mergedSubs
-        };
-      }
-      return {
-        ...cat,
-        mergedBusinessId: undefined as string | undefined,
-        mergedSubcategories: (Array.isArray(cat.subcategories) ? cat.subcategories : []).map(sub => ({
-          ...sub,
-          parentCatId: cat.id
-        }))
-      };
-    });
+  // All 16 categories sit cleanly in 4 full rows of 4 on Android/Mobile
+  const mobileCategories = categories.map(cat => ({
+    ...cat,
+    mergedSubcategories: (Array.isArray(cat.subcategories) ? cat.subcategories : []).map(sub => ({
+      ...sub,
+      parentCatId: cat.id
+    }))
+  }));
 
   // Chunk into rows of 4 (16 items = 4 full rows of 4)
   const categoryRows: Array<typeof mobileCategories> = [];
@@ -398,13 +371,7 @@ export const MobileCategoryGrid: React.FC = () => {
                         {language === 'bn' ? activeRowCat.nameBn : activeRowCat.nameEn}
                       </span>
                       <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums shrink-0">
-                        ·{' '}
-                        {formatAdCount(
-                          getLiveCategoryCount(products, activeRowCat.id) +
-                            (activeRowCat.mergedBusinessId
-                              ? getLiveCategoryCount(products, activeRowCat.mergedBusinessId)
-                              : 0)
-                        )}
+                        · {formatAdCount(getLiveCategoryCount(products, activeRowCat.id))}
                       </span>
                     </div>
 

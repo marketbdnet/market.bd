@@ -4,6 +4,7 @@ import { checkAndExpireAds, renewExpiredAd } from '../src/utils/adExpiryEngine';
 import { Product } from '../src/types';
 import { CATEGORIES } from '../src/data/categoriesData';
 import { INITIAL_PRODUCTS } from '../src/data/mockProducts';
+import { normalizeCategoryId } from '../src/utils/categoryMapping';
 import {
   EMPTY_REACTION,
   loadStoredReactions,
@@ -112,18 +113,19 @@ describe('Ad Status & Flow Logic Verification', () => {
   });
 });
 
-describe('Production Advertisement & 17-Category Coverage Verification', () => {
-  it('ensures all 17 main categories have at least 1 active advertisement', () => {
-    expect(CATEGORIES.length).toBe(17);
-    expect(INITIAL_PRODUCTS.length).toBeGreaterThanOrEqual(17);
+describe('Production Advertisement & 16-Category Coverage Verification', () => {
+  it('ensures all 16 main categories have at least 1 active advertisement', () => {
+    expect(CATEGORIES.length).toBe(16);
+    expect(INITIAL_PRODUCTS.length).toBeGreaterThanOrEqual(16);
 
     const categoryAdCounts = new Map<string, number>();
     CATEGORIES.forEach(c => categoryAdCounts.set(c.id, 0));
 
     INITIAL_PRODUCTS.forEach(p => {
       expect(p.status).toBe('active');
-      if (categoryAdCounts.has(p.category)) {
-        categoryAdCounts.set(p.category, (categoryAdCounts.get(p.category) || 0) + 1);
+      const normalizedCat = normalizeCategoryId(p.category);
+      if (categoryAdCounts.has(normalizedCat)) {
+        categoryAdCounts.set(normalizedCat, (categoryAdCounts.get(normalizedCat) || 0) + 1);
       }
     });
 
@@ -140,13 +142,14 @@ describe('Production Advertisement & 17-Category Coverage Verification', () => {
     });
 
     INITIAL_PRODUCTS.forEach(p => {
-      // 1. Valid category
-      expect(catMap.has(p.category), `Product ${p.id} has valid category`).toBe(true);
+      const normalizedCat = normalizeCategoryId(p.category);
+      // 1. Valid category (legacy seeking_work maps cleanly into jobs)
+      expect(catMap.has(normalizedCat), `Product ${p.id} has valid normalized category ${normalizedCat}`).toBe(true);
 
       // 2. Valid subcategory if present
       if (p.subCategory) {
-        const subSet = catMap.get(p.category);
-        expect(subSet.has(p.subCategory), `Product ${p.id} has valid subcategory ${p.subCategory} in category ${p.category}`).toBe(true);
+        const subSet = catMap.get(normalizedCat);
+        expect(subSet.has(p.subCategory), `Product ${p.id} has valid subcategory ${p.subCategory} in category ${normalizedCat}`).toBe(true);
       }
 
       // 3. No dummy / demo placeholders in title or description

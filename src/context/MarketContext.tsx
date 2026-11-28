@@ -31,9 +31,19 @@ import {
   sanitizeUserProfileForCloud,
   getApiAuthHeaders
 } from '../utils/authOwnership';
+import {
+  mergeAndDeduplicateProducts
+} from '../utils/productSyncCatalog';
+import {
+  NavHistoryEntry,
+  ListingViewSnapshot,
+  DEFAULT_LISTING_SNAPSHOT,
+  pushNavHistoryEntry,
+  popNavHistoryEntry
+} from '../utils/navigationState';
 import { clearAdminAuthToken } from '../utils/adminAuth';
 
-const CATEGORY_STORAGE_KEY = 'marketbd_categories_v4_signature17';
+const CATEGORY_STORAGE_KEY = 'marketbd_categories_v5_signature16';
 
 export const isMarketCategoryList = (list: unknown): list is Category[] => {
   if (!Array.isArray(list) || list.length < 15) return false;
@@ -45,14 +55,14 @@ export const isMarketCategoryList = (list: unknown): list is Category[] => {
     ids.has('food_restaurants') ||
     ids.has('events_tickets') ||
     ids.has('others');
-  return !hasLegacyRoot && ids.has('seeking_work') && ids.has('repair_construction') && ids.has('business_industry');
+  return !hasLegacyRoot && !ids.has('seeking_work') && ids.has('jobs') && ids.has('repair_construction') && ids.has('business_industry');
 };
 
 export const normalizeIncomingCategories = (list: unknown): Category[] => {
   if (!isMarketCategoryList(list)) return CATEGORIES;
   return list.map((rawCat: Category) => {
     const canonical = CATEGORIES.find(c => c.id === rawCat.id);
-    if (canonical && (!rawCat.catVersion || rawCat.catVersion < 3)) {
+    if (canonical && (!rawCat.catVersion || rawCat.catVersion < 4)) {
       return {
         ...rawCat,
         nameEn: canonical.nameEn,
@@ -60,10 +70,18 @@ export const normalizeIncomingCategories = (list: unknown): Category[] => {
         image: canonical.image,
         secondaryImage: canonical.secondaryImage,
         images: canonical.images,
-        catVersion: 3,
-        subcategories: Array.isArray(rawCat.subcategories) && rawCat.subcategories.length > 0
-          ? rawCat.subcategories
-          : canonical.subcategories,
+        catVersion: 4,
+        subcategories: rawCat.id === 'jobs'
+          ? canonical.subcategories
+          : (Array.isArray(rawCat.subcategories) && rawCat.subcategories.length > 0
+              ? rawCat.subcategories.map(sub => {
+                  const canonicalSub = canonical.subcategories?.find(cs => cs.id === sub.id);
+                  return {
+                    ...sub,
+                    image: getSubcategoryImageUrl(rawCat.id, sub.id, canonicalSub?.image || sub.image),
+                  };
+                })
+              : canonical.subcategories),
         popularBrands: Array.isArray(rawCat.popularBrands) && rawCat.popularBrands.length > 0
           ? rawCat.popularBrands
           : canonical.popularBrands
@@ -75,7 +93,13 @@ export const normalizeIncomingCategories = (list: unknown): Category[] => {
       image: img1,
       secondaryImage: img2,
       images: Array.isArray(rawCat.images) && rawCat.images.length >= 2 ? rawCat.images : [img1, img2],
-      catVersion: rawCat.catVersion || 3
+      subcategories: Array.isArray(rawCat.subcategories)
+        ? rawCat.subcategories.map(sub => ({
+            ...sub,
+            image: getSubcategoryImageUrl(rawCat.id, sub.id, sub.image),
+          }))
+        : [],
+      catVersion: rawCat.catVersion || 4
     };
   });
 };
@@ -346,12 +370,15 @@ interface MarketContextType {
   markNotificationRead: (id: string) => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  goBack: () => void;
+  goBack: (fromPopstate?: boolean) => void;
   canGoBack: boolean;
   goForward: () => void;
   canGoForward: boolean;
   selectedProduct: Product | null;
   setSelectedProduct: (product: Product | null) => void;
+  listingSnapshot: ListingViewSnapshot;
+  updateListingSnapshot: (patch: Partial<ListingViewSnapshot>) => void;
+  consumePendingRestoreScroll: () => number | null;
   isLocationModalOpen: boolean;
   setIsLocationModalOpen: (open: boolean) => void;
   isAISearchOpen: boolean;
@@ -690,16 +717,35 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const canonicalProductsCacheRef = React.useRef<Product[] | null>(null);
+  const mockProductsCacheRef = React.useRef<Product[]>([]);
+  const liveSyncedProductsCacheRef = React.useRef<Product[]>([]);
   const canonicalIdMapRef = React.useRef<Map<string, Product>>(new Map());
   const canonicalLoadPromiseRef = React.useRef<Promise<Product[]> | null>(null);
+
+  const apiProductsRef = React.useRef<Product[]>([]);
+  const firestoreProductsRef = React.useRef<Product[]>([]);
+  const syncProductsRef = React.useRef<Product[]>([]);
+  const localCustomProductsRef = React.useRef<Product[]>([]);
+  const removedSnapshotIdsRef = React.useRef<Set<string>>(new Set());
 
   const ensureCanonicalProducts = React.useCallback((): Promise<Product[]> => {
     if (canonicalProductsCacheRef.current) {
       return Promise.resolve(canonicalProductsCacheRef.current);
     }
     if (!canonicalLoadPromiseRef.current) {
-      canonicalLoadPromiseRef.current = import('../data/mockProducts').then((mod) => {
-        const list = Array.isArray(mod.INITIAL_PRODUCTS) ? mod.INITIAL_PRODUCTS : [];
+      canonicalLoadPromiseRef.current = Promise.all([
+        import('../data/mockProducts'),
+        import('../data/liveSyncedAds')
+      ]).then(([mockMod, liveMod]) => {
+        const mockList = Array.isArray(mockMod.INITIAL_PRODUCTS) ? mockMod.INITIAL_PRODUCTS : [];
+        const liveList = Array.isArray(liveMod.LIVE_SYNCED_ADS) ? liveMod.LIVE_SYNCED_ADS : [];
+        mockProductsCacheRef.current = mockList;
+        liveSyncedProductsCacheRef.current = liveList;
+        const list = mergeAndDeduplicateProducts({
+          canonicalProducts: mockList,
+          supplementalProducts: liveList,
+          junkIds: KNOWN_JUNK_PRODUCT_IDS,
+        });
         canonicalProductsCacheRef.current = list;
         const idMap = new Map<string, Product>();
         list.forEach((p) => {
@@ -865,66 +911,66 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return normalizeProductsList(Array.from(map.values()));
   });
 
-  // Load the canonical 400-item catalog right after initial paint so first screen appears instantly
+  const recomputeMergedProducts = React.useCallback(async () => {
+    try {
+      await ensureCanonicalProducts();
+      const combinedDeleted = new Set<string>([
+        ...Array.from(deletedProductIdsRef.current),
+        ...Array.from(removedSnapshotIdsRef.current),
+      ]);
+      const rawMerged = mergeAndDeduplicateProducts({
+        canonicalProducts: mockProductsCacheRef.current,
+        supplementalProducts: liveSyncedProductsCacheRef.current,
+        apiProducts: apiProductsRef.current,
+        syncProducts: syncProductsRef.current,
+        firestoreProducts: firestoreProductsRef.current,
+        localCustomProducts: localCustomProductsRef.current,
+        deletedIds: combinedDeleted,
+        junkIds: KNOWN_JUNK_PRODUCT_IDS,
+      });
+      const normalized = normalizeProductsList(rawMerged);
+      setProducts(prev => {
+        if (areProductListsEquivalent(prev, normalized)) return prev;
+        persistCompactProductsCache(normalized);
+        return normalized;
+      });
+    } catch {}
+  }, [ensureCanonicalProducts]);
+
+  // Load the canonical 439-item union catalog right after initial paint so first screen appears instantly
   useEffect(() => {
     let cancelled = false;
     const t = setTimeout(() => {
-      ensureCanonicalProducts().then((baseList) => {
-        if (cancelled || !Array.isArray(baseList) || baseList.length === 0) return;
-        const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-        setProducts((prev) => {
-          const map = new Map<string, Product>();
-          baseList.forEach((p) => {
-            if (p && p.id) {
-              map.set(p.id, {
-                ...p,
-                status: p.status || 'active',
-                isApproved: p.isApproved ?? true,
-                isActive: p.isActive ?? true,
-                moderationStatus: p.moderationStatus || 'approved',
-                postedAt: p.postedAt || '2026-09-01T12:00:00.000Z',
-                createdAt: p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
-                updatedAt: p.updatedAt || p.createdAt || p.postedAt || '2026-09-01T12:00:00.000Z',
-                expiresAt: p.expiresAt || oneYearLater
-              });
+      ensureCanonicalProducts().then(() => {
+        if (cancelled) return;
+        const compactSaved = storage.getItem('marketbd_custom_products_v5');
+        if (compactSaved) {
+          try {
+            const parsed = JSON.parse(compactSaved);
+            if (Array.isArray(parsed?.deleted)) {
+              recordDeletedIds(parsed.deleted);
             }
-          });
-          // Apply local deleted/custom cache
-          const compactSaved = storage.getItem('marketbd_custom_products_v5');
-          if (compactSaved) {
-            try {
-              const parsed = JSON.parse(compactSaved);
-              if (Array.isArray(parsed?.deleted)) {
-                parsed.deleted.forEach((id: string) => map.delete(id));
-              }
-              if (Array.isArray(parsed?.custom)) {
-                parsed.custom.forEach((p: Product) => {
-                  if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
-                    const existing = map.get(p.id);
-                    map.set(p.id, existing ? { ...existing, ...p } : p);
-                  }
-                });
-              }
-            } catch {}
-          }
-          // Preserve any Firestore/user items already in `prev`
-          prev.forEach((p) => {
-            if (p && p.id && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id)) {
-              const existing = map.get(p.id);
-              map.set(p.id, existing ? { ...existing, ...p } : p);
+            if (Array.isArray(parsed?.custom)) {
+              localCustomProductsRef.current = parsed.custom.filter(
+                (p: Product) =>
+                  p &&
+                  p.id &&
+                  p.title &&
+                  p.title.trim() !== '' &&
+                  !KNOWN_JUNK_PRODUCT_IDS.includes(p.id) &&
+                  !deletedProductIdsRef.current.has(p.id)
+              );
             }
-          });
-          const merged = normalizeProductsList(Array.from(map.values()));
-          if (areProductListsEquivalent(prev, merged)) return prev;
-          return merged;
-        });
+          } catch {}
+        }
+        recomputeMergedProducts();
       }).catch(() => {});
     }, 0);
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [ensureCanonicalProducts]);
+  }, [ensureCanonicalProducts, recomputeMergedProducts]);
 
   // Registered Customer Database State (Synced with Firestore & Server)
   const [registeredUsers, setRegisteredUsersState] = useState<UserProfile[]>(() => {
@@ -1003,6 +1049,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const fetchTimer = controller ? setTimeout(() => controller.abort(), 4000) : null;
     fetch('/api/sync/state?lite=1', {
+      cache: 'no-store',
       headers: getApiAuthHeaders(currentUserRef.current, false),
       ...(controller ? { signal: controller.signal } : {})
     })
@@ -1129,29 +1176,8 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             });
           }
           if (d.marketplace_products && Array.isArray(d.marketplace_products) && d.marketplace_products.length > 0) {
-            ensureCanonicalProducts().then((baseList) => {
-              setProducts(prev => {
-                const map = new Map<string, Product>();
-                baseList.forEach(p => {
-                  if (p && p.id && !deletedProductIdsRef.current.has(p.id)) {
-                    map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true });
-                  }
-                });
-                d.marketplace_products.forEach((p: Product) => {
-                  if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id) && !deletedProductIdsRef.current.has(p.id)) {
-                    const existing = map.get(p.id);
-                    map.set(p.id, existing ? { ...existing, ...p } : p);
-                  }
-                });
-                const rawMerged = Array.from(map.values()).sort((a, b) => 
-                  new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
-                );
-                const merged = normalizeProductsList(rawMerged);
-                if (areProductListsEquivalent(prev, merged)) return prev;
-                persistCompactProductsCache(merged);
-                return merged;
-              });
-            }).catch(() => {});
+            syncProductsRef.current = d.marketplace_products;
+            recomputeMergedProducts();
           }
           if (d.registered_users && Array.isArray(d.registered_users) && d.registered_users.length > 0) {
             setRegisteredUsersState(prev => {
@@ -1405,37 +1431,21 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           console.warn('Realtime live notification check note:', e);
         }
 
-        ensureCanonicalProducts().then((baseList) => {
-          setProducts(prev => {
-            const map = new Map<string, Product>();
-            baseList.forEach(p => {
-              if (p && p.id && !deletedProductIdsRef.current.has(p.id) && !removedInSnapshot.has(p.id)) {
-                map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true });
-              }
-            });
-            cloudAds.forEach(ca => {
-              if (ca && ca.id && ca.title && ca.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(ca.id) && !deletedProductIdsRef.current.has(ca.id)) {
-                const existing = map.get(ca.id);
-                map.set(ca.id, existing ? { ...existing, ...ca } : ca);
-              }
-            });
-            removedInSnapshot.forEach(id => map.delete(id));
-
-            const rawMerged = Array.from(map.values()).sort((a, b) => 
-              new Date(b.postedAt || 0).getTime() - new Date(a.postedAt || 0).getTime()
-            );
-            const merged = normalizeProductsList(rawMerged);
-            if (areProductListsEquivalent(prev, merged)) return prev;
-            persistCompactProductsCache(merged);
-            return merged;
-          });
-        }).catch(() => {});
+        firestoreProductsRef.current = cloudAds;
+        removedInSnapshot.forEach(id => removedSnapshotIdsRef.current.add(id));
+        cloudAds.forEach(ca => {
+          if (ca?.id) removedSnapshotIdsRef.current.delete(ca.id);
+        });
+        recomputeMergedProducts();
       }, (err) => {
         console.log('Products collection listener notice:', err);
         // Fallback to REST endpoint when Firestore listener hits quota or offline limits
         refreshProducts().catch(() => {});
       });
       unsubs.push(unsubProductsCol);
+
+      // Immediately reconcile server REST products catalog on mount so Web & Android counts match 100%
+      refreshProducts().catch(() => {});
 
       const unsubCategories = onSnapshot(doc(db, 'settings', 'categories_config'), (snapshot) => {
         if (snapshot.exists()) {
@@ -1721,6 +1731,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const refreshProducts = async (): Promise<void> => {
     try {
       const res = await fetch('/api/products', {
+        cache: 'no-store',
         headers: getApiAuthHeaders(currentUserRef.current, false)
       });
       if (res.ok) {
@@ -1730,22 +1741,8 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         const productArray = Array.isArray(data.data) ? data.data : (Array.isArray(data.products) ? data.products : (Array.isArray(data) ? data : null));
         if (productArray) {
-          const baseList = await ensureCanonicalProducts();
-          const map = new Map<string, Product>();
-          baseList.forEach(p => {
-            if (p && p.id && !deletedProductIdsRef.current.has(p.id)) {
-              map.set(p.id, { ...p, status: 'active', isApproved: true, isActive: true });
-            }
-          });
-          productArray.forEach((p: Product) => {
-            if (p && p.id && p.title && p.title.trim() !== '' && !KNOWN_JUNK_PRODUCT_IDS.includes(p.id) && !deletedProductIdsRef.current.has(p.id)) {
-              const existing = map.get(p.id);
-              map.set(p.id, existing ? { ...existing, ...p } : p);
-            }
-          });
-          const normalized = normalizeProductsList(Array.from(map.values()));
-          setProducts(normalized);
-          persistCompactProductsCache(normalized);
+          apiProductsRef.current = productArray;
+          await recomputeMergedProducts();
         }
       }
     } catch (e) {
@@ -1972,48 +1969,118 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [compareList, setCompareList] = useState<Product[]>([]);
+  const [listingSnapshot, setListingSnapshot] = useState<ListingViewSnapshot>(DEFAULT_LISTING_SNAPSHOT);
+  const updateListingSnapshot = React.useCallback((patch: Partial<ListingViewSnapshot>) => {
+    setListingSnapshot(prev => ({ ...prev, ...patch }));
+  }, []);
+
   const [activeTab, setActiveTabState] = useState<string>('home');
+  const activeTabRef = React.useRef<string>('home');
+  const navHistoryRef = React.useRef<NavHistoryEntry[]>([{ tab: 'home', scrollY: 0 }]);
   const [tabHistory, setTabHistory] = useState<string[]>(['home']);
   const [forwardHistory, setForwardHistory] = useState<string[]>([]);
   const [selectedProduct, setSelectedProductState] = useState<Product | null>(null);
+  const selectedProductRef = React.useRef<Product | null>(null);
+  const pendingRestoreScrollRef = React.useRef<number | null>(null);
+  const skipPopstateCountRef = React.useRef<number>(0);
+
+  const consumePendingRestoreScroll = React.useCallback((): number | null => {
+    const val = pendingRestoreScrollRef.current;
+    pendingRestoreScrollRef.current = null;
+    return val;
+  }, []);
 
   const setActiveTab = (tab: string) => {
     if (tab === 'home') {
+      navHistoryRef.current = [{ tab: 'home', scrollY: 0 }];
+      pendingRestoreScrollRef.current = null;
       setTabHistory(['home']);
       setForwardHistory([]);
+      activeTabRef.current = 'home';
+      selectedProductRef.current = null;
       setActiveTabState('home');
       setSelectedProductState(null);
       return;
     }
+
+    // Prevent double-pushing when setSelectedProduct(p) already navigated to product-details
+    if (tab === 'product-details' && activeTabRef.current === 'product-details' && selectedProductRef.current) {
+      return;
+    }
+
     if (tab !== 'product-details') {
+      selectedProductRef.current = null;
       setSelectedProductState(null);
     }
-    setTabHistory(prev => {
-      if (prev[prev.length - 1] === tab) return prev;
-      return [...prev, tab];
-    });
+
+    const currentScrollY = typeof window !== 'undefined' ? window.scrollY || 0 : 0;
+    const nextStack = pushNavHistoryEntry(
+      navHistoryRef.current,
+      { tab, productId: tab === 'product-details' ? (selectedProductRef.current?.id || null) : null },
+      currentScrollY
+    );
+    if (nextStack !== navHistoryRef.current) {
+      navHistoryRef.current = nextStack;
+      if (typeof window !== 'undefined' && window.history?.pushState) {
+        try {
+          window.history.pushState({ marketbdNav: true, tab }, '');
+        } catch {}
+      }
+    }
+
+    pendingRestoreScrollRef.current = null;
+    setTabHistory(nextStack.map(entry => entry.tab));
     setForwardHistory([]);
+    activeTabRef.current = tab;
     setActiveTabState(tab);
   };
 
-  const goBack = () => {
-    if (selectedProduct) {
-      setForwardHistory(prev => [...prev, `product:${selectedProduct.id}`]);
-      setSelectedProductState(null);
+  const goBack = (fromPopstate: boolean = false) => {
+    if (navHistoryRef.current.length > 1) {
+      const { nextStack, popped, target } = popNavHistoryEntry(navHistoryRef.current);
+      navHistoryRef.current = nextStack;
+
+      if (popped) {
+        const forwardToken = popped.productId ? `product:${popped.productId}` : popped.tab;
+        setForwardHistory(prev => [...prev, forwardToken]);
+      }
+
+      pendingRestoreScrollRef.current = Math.max(0, target.scrollY || 0);
+      setTabHistory(nextStack.map(entry => entry.tab));
+
+      if (target.productId) {
+        const targetProd = productsRefForNav.current.find(p => p.id === target.productId) || null;
+        selectedProductRef.current = targetProd;
+        setSelectedProductState(targetProd);
+      } else {
+        selectedProductRef.current = null;
+        setSelectedProductState(null);
+      }
+
+      activeTabRef.current = target.tab || 'home';
+      setActiveTabState(target.tab || 'home');
+
+      if (fromPopstate !== true && typeof window !== 'undefined' && window.history?.state?.marketbdNav) {
+        try {
+          skipPopstateCountRef.current += 1;
+          window.history.back();
+        } catch {
+          skipPopstateCountRef.current = Math.max(0, skipPopstateCountRef.current - 1);
+        }
+      }
       return;
     }
-    if (tabHistory.length > 1) {
-      const updated = [...tabHistory];
-      const currentTab = updated.pop();
-      if (currentTab) {
-        setForwardHistory(prev => [...prev, currentTab]);
-      }
-      const prevTab = updated[updated.length - 1] || 'home';
-      setTabHistory(updated);
-      setActiveTabState(prevTab);
-    } else {
+
+    if (selectedProductRef.current) {
+      setForwardHistory(prev => [...prev, `product:${selectedProductRef.current!.id}`]);
+      selectedProductRef.current = null;
+      setSelectedProductState(null);
+      activeTabRef.current = 'home';
       setActiveTabState('home');
+      return;
     }
+    activeTabRef.current = 'home';
+    setActiveTabState('home');
   };
 
   const goForward = () => {
@@ -2023,14 +2090,36 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setForwardHistory(updatedForward);
 
     if (nextItem) {
+      const currentScrollY = typeof window !== 'undefined' ? window.scrollY || 0 : 0;
       if (nextItem.startsWith('product:')) {
         const prodId = nextItem.replace('product:', '');
         const targetProd = products.find(p => p.id === prodId);
         if (targetProd) {
+          const nextStack = pushNavHistoryEntry(
+            navHistoryRef.current,
+            { tab: 'product-details', productId: targetProd.id },
+            currentScrollY
+          );
+          navHistoryRef.current = nextStack;
+          setTabHistory(nextStack.map(e => e.tab));
+          pendingRestoreScrollRef.current = null;
+          selectedProductRef.current = targetProd;
           setSelectedProductState(targetProd);
+          activeTabRef.current = 'product-details';
+          setActiveTabState('product-details');
         }
       } else {
-        setTabHistory(prev => [...prev, nextItem]);
+        const nextStack = pushNavHistoryEntry(
+          navHistoryRef.current,
+          { tab: nextItem, productId: null },
+          currentScrollY
+        );
+        navHistoryRef.current = nextStack;
+        setTabHistory(nextStack.map(e => e.tab));
+        pendingRestoreScrollRef.current = null;
+        selectedProductRef.current = null;
+        setSelectedProductState(null);
+        activeTabRef.current = nextItem;
         setActiveTabState(nextItem);
       }
     }
@@ -2038,6 +2127,26 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const canGoBack = activeTab !== 'home' || selectedProduct !== null || tabHistory.length > 1;
   const canGoForward = forwardHistory.length > 0;
+
+  const productsRefForNav = React.useRef<Product[]>(products);
+  useEffect(() => {
+    productsRefForNav.current = products;
+  }, [products]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleBrowserPopState = () => {
+      if (skipPopstateCountRef.current > 0) {
+        skipPopstateCountRef.current -= 1;
+        return;
+      }
+      if (navHistoryRef.current.length > 1 || selectedProductRef.current !== null || activeTabRef.current !== 'home') {
+        goBack(true);
+      }
+    };
+    window.addEventListener('popstate', handleBrowserPopState);
+    return () => window.removeEventListener('popstate', handleBrowserPopState);
+  }, []);
 
   // Product Reactions State (Zero dummy reacts; only real user reactions are stored & synced)
   const [reactions, setReactions] = useState<Record<string, ProductReaction>>(() =>
@@ -2505,12 +2614,42 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const setSelectedProduct = (product: Product | null) => {
     if (product) {
-      const updatedViews = (product.views || 0) + 1;
-      const updated = { ...product, views: updatedViews };
+      const isSameOpenProduct =
+        activeTabRef.current === 'product-details' &&
+        selectedProductRef.current?.id === product.id;
+
+      const updated = isSameOpenProduct
+        ? product
+        : { ...product, views: (product.views || 0) + 1 };
+
+      if (!isSameOpenProduct) {
+        const currentScrollY = typeof window !== 'undefined' ? window.scrollY || 0 : 0;
+        const nextStack = pushNavHistoryEntry(
+          navHistoryRef.current,
+          { tab: 'product-details', productId: product.id },
+          currentScrollY
+        );
+        if (nextStack !== navHistoryRef.current) {
+          navHistoryRef.current = nextStack;
+          if (typeof window !== 'undefined' && window.history?.pushState) {
+            try {
+              window.history.pushState({ marketbdNav: true, tab: 'product-details', productId: product.id }, '');
+            } catch {}
+          }
+        }
+        pendingRestoreScrollRef.current = null;
+        setTabHistory(nextStack.map(entry => entry.tab));
+        setForwardHistory([]);
+        activeTabRef.current = 'product-details';
+        setActiveTabState('product-details');
+        logUserActivity('Viewed Ad', product.title, product.id);
+      }
+
       setProducts(prev => prev.map(p => p.id === product.id ? updated : p));
+      selectedProductRef.current = updated;
       setSelectedProductState(updated);
-      logUserActivity('Viewed Ad', product.title, product.id);
     } else {
+      selectedProductRef.current = null;
       setSelectedProductState(null);
     }
   };
@@ -2678,6 +2817,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Record local & cloud tombstone immediately so canonical and cached ads never resurrect
     recordDeletedIds([productId]);
+    apiProductsRef.current = apiProductsRef.current.filter(p => p.id !== productId);
+    firestoreProductsRef.current = firestoreProductsRef.current.filter(p => p.id !== productId);
+    syncProductsRef.current = syncProductsRef.current.filter(p => p.id !== productId);
+    localCustomProductsRef.current = localCustomProductsRef.current.filter(p => p.id !== productId);
 
     setProducts(prev => {
       const filtered = prev.filter(p => p.id !== productId);
@@ -3999,6 +4142,10 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // New ads start in pending status until admin approval or auto-approval timer completes.
     const newProduct: Product = makePendingProduct(rawProduct as Product);
+    localCustomProductsRef.current = [
+      newProduct,
+      ...localCustomProductsRef.current.filter(p => p.id !== newProduct.id),
+    ];
 
     setProducts(prev => {
       const updated = [newProduct, ...prev];
@@ -4149,6 +4296,12 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         return p;
       });
+      if (updatedTargetProduct) {
+        localCustomProductsRef.current = [
+          updatedTargetProduct,
+          ...localCustomProductsRef.current.filter(p => p.id !== updatedTargetProduct!.id),
+        ];
+      }
       try {
         persistCompactProductsCache(updated);
       } catch (e) {
@@ -4327,6 +4480,12 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         return p;
       });
+      if (mergedTargetAd) {
+        localCustomProductsRef.current = [
+          mergedTargetAd,
+          ...localCustomProductsRef.current.filter(p => p.id !== mergedTargetAd!.id),
+        ];
+      }
       try {
         persistCompactProductsCache(updated);
       } catch (e) {}
@@ -4697,7 +4856,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       image: img1,
       secondaryImage: img2,
       images: Array.isArray(newCat.images) && newCat.images.length >= 2 ? newCat.images : [img1, img2],
-      catVersion: 3,
+      catVersion: 4,
       count: newCat.count ?? 0,
       subcategories: newCat.subcategories || [],
       popularBrands: newCat.popularBrands || []
@@ -4719,7 +4878,7 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const merged = {
             ...c,
             ...updatedFields,
-            catVersion: 3,
+            catVersion: 4,
             subcategories: updatedFields.subcategories ?? c.subcategories,
             popularBrands: updatedFields.popularBrands ?? c.popularBrands
           };
@@ -4837,6 +4996,9 @@ export const MarketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         canGoForward,
         selectedProduct,
         setSelectedProduct,
+        listingSnapshot,
+        updateListingSnapshot,
+        consumePendingRestoreScroll,
         isLocationModalOpen,
         setIsLocationModalOpen,
         isAISearchOpen,

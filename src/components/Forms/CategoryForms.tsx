@@ -1150,7 +1150,7 @@ export const CategoryForms: React.FC = () => {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <button
-            onClick={goBack}
+            onClick={() => goBack(false)}
             className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-pink-600 hover:text-white text-slate-700 dark:text-slate-200 transition cursor-pointer flex items-center gap-1.5 font-bold text-xs shadow-xs"
             title={language === 'bn' ? 'পেছনে যান' : 'Go back'}
           >

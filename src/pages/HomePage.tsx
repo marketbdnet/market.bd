@@ -46,6 +46,8 @@ export const HomePage: React.FC = () => {
     setIsLocationModalOpen,
     setSelectedProduct,
     handlePostAdClick,
+    listingSnapshot,
+    updateListingSnapshot,
   } = useMarket();
 
   const resolvedLocationLabel = (() => {
@@ -65,7 +67,8 @@ export const HomePage: React.FC = () => {
   })();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [adViewMode, setAdViewMode] = useState<'grid' | 'list'>('grid');
+  const adViewMode = listingSnapshot.homeAdViewMode;
+  const setAdViewMode = (mode: 'grid' | 'list') => updateListingSnapshot({ homeAdViewMode: mode });
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -77,10 +80,16 @@ export const HomePage: React.FC = () => {
     }
   };
 
-  // Smart Recent Posts interactive filter & pagination state
-  const [recentCategory, setRecentCategory] = useState<string>('all');
-  const [recentSort, setRecentSort] = useState<'newest' | 'price-asc' | 'price-desc'>('newest');
-  const [visibleRecentCount, setVisibleRecentCount] = useState<number>(16);
+  // Smart Recent Posts interactive filter & pagination state (preserved on Smart Back Navigation)
+  const recentCategory = listingSnapshot.homeRecentCategory;
+  const setRecentCategory = (cat: string) => updateListingSnapshot({ homeRecentCategory: cat });
+  const recentSort = listingSnapshot.homeRecentSort;
+  const setRecentSort = (sort: 'newest' | 'price-asc' | 'price-desc') => updateListingSnapshot({ homeRecentSort: sort });
+  const visibleRecentCount = listingSnapshot.homeVisibleRecentCount;
+  const setVisibleRecentCount = (next: number | ((prev: number) => number)) => {
+    const resolved = typeof next === 'function' ? next(listingSnapshot.homeVisibleRecentCount) : next;
+    updateListingSnapshot({ homeVisibleRecentCount: resolved });
+  };
 
   // Filter Featured & Urgent Ads
   let featuredAds = products.filter(
@@ -167,7 +176,7 @@ export const HomePage: React.FC = () => {
           <p className="text-xs sm:text-[13px] font-semibold text-amber-100 mt-0.5">
             {language === 'bn'
               ? 'যেকোনো ক্যাটাগরিতে আপনার পছন্দের পণ্য খুঁজুন অথবা ফ্রি বিজ্ঞাপন দিন'
-              : 'Browse 17 simple categories or post your free ad in seconds'}
+              : 'Browse 16 simple categories or post your free ad in seconds'}
           </p>
         </div>
 
@@ -428,8 +437,7 @@ export const HomePage: React.FC = () => {
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
               <button
                 onClick={() => {
-                  setRecentCategory('all');
-                  setVisibleRecentCount(16);
+                  updateListingSnapshot({ homeRecentCategory: 'all', homeVisibleRecentCount: 16 });
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 border tabular-nums ${
                   recentCategory === 'all'
@@ -449,8 +457,7 @@ export const HomePage: React.FC = () => {
                   <button
                     key={cat.id}
                     onClick={() => {
-                      setRecentCategory(cat.id);
-                      setVisibleRecentCount(16);
+                      updateListingSnapshot({ homeRecentCategory: cat.id, homeVisibleRecentCount: 16 });
                     }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer shrink-0 border flex items-center gap-1.5 ${
                       isSelected

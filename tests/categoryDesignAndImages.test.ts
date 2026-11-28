@@ -11,6 +11,7 @@ import {
 } from '../src/utils/categoryImages';
 import { normalizeIncomingCategories } from '../src/context/MarketContext';
 import { isProductPublicActive } from '../src/utils/productStatus';
+import { normalizeCategoryId } from '../src/utils/categoryMapping';
 
 const BIKROY_EXACT_EN_TITLES = new Set([
   'Vehicles',
@@ -32,9 +33,9 @@ const BIKROY_EXACT_EN_TITLES = new Set([
   'Business & Industry',
 ]);
 
-describe('MarketBD Original Category Names & Composite Dual-Object Image Architecture', () => {
-  it('uses original MarketBD names instead of exact Bikroy category titles for all 17 categories', () => {
-    expect(CATEGORIES.length).toBe(17);
+describe('MarketBD 16 Signature Categories & Composite Dual-Object Image Architecture', () => {
+  it('uses original MarketBD names instead of exact Bikroy category titles for all 16 categories', () => {
+    expect(CATEGORIES.length).toBe(16);
 
     const seenEn = new Set<string>();
     const seenBn = new Set<string>();
@@ -50,7 +51,7 @@ describe('MarketBD Original Category Names & Composite Dual-Object Image Archite
     }
   });
 
-  it('assigns a bespoke unified composite studio photo (2 items on 1 clean background) to every one of the 17 categories', () => {
+  it('assigns a bespoke unified composite studio photo (2 items on 1 clean background) to every one of the 16 categories', () => {
     const seenCompositeImages = new Set<string>();
 
     for (const cat of CATEGORIES) {
@@ -58,9 +59,8 @@ describe('MarketBD Original Category Names & Composite Dual-Object Image Archite
       expect(cat.secondaryImage).toBeTruthy();
       expect(Array.isArray(cat.images)).toBe(true);
       expect(cat.images!.length).toBeGreaterThanOrEqual(2);
-      expect(cat.catVersion).toBe(3);
+      expect(cat.catVersion).toBe(4);
 
-      // Must reference bespoke composite cat_combo_* asset (not old isolated icons or split raw Unsplash URLs)
       expect(String(cat.image)).toContain('cat_combo_');
       expect(String(MAIN_CATEGORY_IMAGES[cat.id])).toContain('cat_combo_');
       expect(String(cat.image)).not.toContain('_isolated_');
@@ -68,12 +68,10 @@ describe('MarketBD Original Category Names & Composite Dual-Object Image Archite
       expect(seenCompositeImages.has(String(cat.image))).toBe(false);
       seenCompositeImages.add(String(cat.image));
 
-      // Stale v2 Unsplash main URLs auto-upgrade via getCategoryImageUrl
       expect(
         getCategoryImageUrl(cat.id, 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=500&q=80')
       ).toContain('cat_combo_');
 
-      // Secondary fallback item photo stays distinct from primary composite image
       const [first, second] = getCategoryDualImages(cat.id, cat.image, cat.secondaryImage, cat.images);
       expect(first).toContain('cat_combo_');
       expect(second).toBeTruthy();
@@ -93,23 +91,23 @@ describe('MarketBD Original Category Names & Composite Dual-Object Image Archite
     expect(hierarchySource).not.toContain('getCategoryDualImages');
   });
 
-  it('ensures every product across all 17 categories has at least 2 distinct images and maintains 416 active ads', () => {
+  it('ensures every product across all 16 normalized categories has at least 2 distinct images and maintains 416 initial ads', () => {
     expect(INITIAL_PRODUCTS.length).toBe(416);
     expect(INITIAL_PRODUCTS.filter(isProductPublicActive).length).toBe(416);
 
     const categoriesRepresented = new Set<string>();
     for (const prod of INITIAL_PRODUCTS) {
-      categoriesRepresented.add(prod.category);
+      categoriesRepresented.add(normalizeCategoryId(prod.category));
       expect(Array.isArray(prod.images)).toBe(true);
       expect(prod.images.length).toBeGreaterThanOrEqual(2);
       const uniqueImgs = new Set(prod.images.map(u => u.trim()).filter(Boolean));
       expect(uniqueImgs.size).toBeGreaterThanOrEqual(2);
     }
 
-    expect(categoriesRepresented.size).toBe(17);
+    expect(categoriesRepresented.size).toBe(16);
   });
 
-  it('upgrades stale v2/unversioned Firestore category payloads automatically to v3 composite images', () => {
+  it('upgrades stale v2/v3 Firestore category payloads automatically to v4 16-category structure', () => {
     const staleCloudCategories = CATEGORIES.map(c => ({
       ...c,
       nameEn: 'Vehicles',
@@ -117,15 +115,14 @@ describe('MarketBD Original Category Names & Composite Dual-Object Image Archite
       image: '/assets/cat_scooter_isolated_1785510882941.jpg',
       secondaryImage: undefined,
       images: undefined,
-      catVersion: 2,
+      catVersion: 3,
     }));
 
     const migrated = normalizeIncomingCategories(staleCloudCategories);
-    expect(migrated.length).toBe(17);
+    expect(migrated.length).toBe(16);
     const vehicles = migrated.find(c => c.id === 'vehicles');
-    expect(vehicles?.nameEn).toBe('Motors & Mobility');
-    expect(vehicles?.nameBn).toBe('মোটর ও যানবাহন জগৎ');
-    expect(vehicles?.catVersion).toBe(3);
+    expect(vehicles?.nameEn).toBe('Vehicles & Auto');
+    expect(vehicles?.catVersion).toBe(4);
     expect(vehicles?.images?.length).toBeGreaterThanOrEqual(2);
     expect(String(vehicles?.image)).toContain('cat_combo_vehicles');
     expect(String(vehicles?.image)).not.toContain('_isolated_');

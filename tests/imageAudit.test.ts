@@ -11,8 +11,8 @@ import {
 import { INITIAL_PRODUCTS } from '../src/data/mockProducts';
 
 describe('Image Catalog & Category Hierarchy Audit', () => {
-  it('should have 17 main categories with valid non-empty images', () => {
-    expect(CATEGORIES.length).toBe(17);
+  it('should have 16 main categories with valid non-empty images', () => {
+    expect(CATEGORIES.length).toBe(16);
     CATEGORIES.forEach((cat) => {
       const img = getCategoryImageUrl(cat.id, cat.image);
       console.log(`Category: ${cat.id} -> ${img}`);

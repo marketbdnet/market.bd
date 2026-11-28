@@ -139,7 +139,7 @@ export const CategoryHierarchyView: React.FC<CategoryHierarchyViewProps> = ({
     return renderBreadcrumb();
   }
 
-  // 2. Render Clean All-17 Categories Grid when showAllIfNoCategory is true & no category selected
+  // 2. Render Clean All-16 Categories Grid when showAllIfNoCategory is true & no category selected
   const renderAllCategories = () => {
     return (
       <div className="space-y-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">

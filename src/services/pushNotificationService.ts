@@ -12,17 +12,27 @@ export interface PushNotificationPayload {
   url?: string;
 }
 
-// Auto-register ServiceWorker immediately on client boot for instant app-shell caching & Android push notifications
+// Auto-register ServiceWorker in production for app-shell caching & Android push notifications;
+// in Vite dev mode, unregister any stale SW so pre-bundled React chunks never go out of sync.
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  const registerSw = () => {
+  const isDevRuntime = Boolean((import.meta as any).env?.DEV);
+  const setupSw = () => {
+    if (isDevRuntime) {
+      navigator.serviceWorker.getRegistrations?.().then((regs) => {
+        regs.forEach((reg) => {
+          reg.unregister().catch(() => {});
+        });
+      }).catch(() => {});
+      return;
+    }
     navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch((err) => {
       console.log('SW registration note:', err);
     });
   };
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', registerSw, { once: true });
+    document.addEventListener('DOMContentLoaded', setupSw, { once: true });
   } else {
-    registerSw();
+    setupSw();
   }
 }
 

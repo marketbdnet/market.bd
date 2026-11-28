@@ -2,10 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { CATEGORIES } from '../src/data/categoriesData';
 import { INITIAL_PRODUCTS } from '../src/data/mockProducts';
 import { isProductPublicActive } from '../src/utils/productStatus';
+import { normalizeCategoryId } from '../src/utils/categoryMapping';
 
 describe('MarketBD Production Listing & Category Coverage Audit', () => {
-  it('should verify 17 main categories defined', () => {
-    expect(CATEGORIES.length).toBe(17);
+  it('should verify 16 main categories defined', () => {
+    expect(CATEGORIES.length).toBe(16);
   });
 
   it('guarantees 100% coverage across Main, Sub, and Second-Level categories', () => {
@@ -53,19 +54,20 @@ describe('MarketBD Production Listing & Category Coverage Audit', () => {
 
     INITIAL_PRODUCTS.forEach(p => {
       if (isProductPublicActive(p)) {
-        if (p.category && mainCatMap.has(p.category)) {
-          mainCatMap.set(p.category, (mainCatMap.get(p.category) || 0) + 1);
+        const normalizedCat = p.category ? normalizeCategoryId(p.category) : '';
+        if (normalizedCat && mainCatMap.has(normalizedCat)) {
+          mainCatMap.set(normalizedCat, (mainCatMap.get(normalizedCat) || 0) + 1);
         }
-        if (p.category && p.subCategory) {
-          const subKey = `${p.category}:::${p.subCategory}`;
+        if (normalizedCat && p.subCategory) {
+          const subKey = `${normalizedCat}:::${p.subCategory}`;
           if (subCatMap.has(subKey)) {
             subCatMap.set(subKey, (subCatMap.get(subKey) || 0) + 1);
           }
         }
-        if (p.category && p.subCategory && p.secondLevelCategory) {
-          const slKey = `${p.category}:::${p.subCategory}:::${p.secondLevelCategory}`;
+        if (normalizedCat && p.subCategory && p.secondLevelCategory) {
+          const slKey = `${normalizedCat}:::${p.subCategory}:::${p.secondLevelCategory}`;
           if (slCatMap.has(slKey)) {
-            slCatMap.set(slKey, (slCatMap.get(slKey) || 0) + 1);
+            slCatMap.set(slKey, (slCatMap.get(slCatMap.get(slKey) !== undefined ? slKey : '') || 0) + 1);
           }
         }
       }

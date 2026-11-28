@@ -1,5 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyAdminRequest } from './admin-auth';
+import { INITIAL_PRODUCTS } from '../src/data/mockProducts';
+import { LIVE_SYNCED_ADS } from '../src/data/liveSyncedAds';
+import { mergeAndDeduplicateProducts, filterPublicActiveProducts } from '../src/utils/productSyncCatalog';
 
 const FIRESTORE_BASE_URL =
   'https://firestore.googleapis.com/v1/projects/quantum-heading-1mbw7/databases/ai-studio-marketbd-58cc526e-10d5-498a-b77b-be2f1e9c76d1/documents';
@@ -100,15 +103,20 @@ export function upsertProductInCache(product: any) {
 
 export async function fetchFirestoreProducts(): Promise<any[]> {
   const now = Date.now();
+  const buildMerged = (firestoreDocs: any[]) =>
+    mergeAndDeduplicateProducts({
+      canonicalProducts: INITIAL_PRODUCTS,
+      supplementalProducts: LIVE_SYNCED_ADS,
+      firestoreProducts: firestoreDocs,
+      apiProducts: cachedProductsList,
+      deletedIds: cachedDeletedIds,
+    });
+
   if (lastFetchAtMs > 0 && now - lastFetchAtMs < CACHE_TTL_MS && cachedProductsList.length > 0) {
-    return cachedProductsList.filter(p => !cachedDeletedIds.has(p.id) && p.isDeleted !== true && p.status !== 'deleted');
+    return buildMerged([]);
   }
   try {
-    const [prodRes, delRes] = await Promise.all([
-      fetch(FIRESTORE_PRODUCTS_URL),
-      fetch(FIRESTORE_DELETED_PRODUCTS_URL).catch(() => null),
-    ]);
-
+    const delRes = await fetch(FIRESTORE_DELETED_PRODUCTS_URL).catch(() => null);
     if (delRes && delRes.ok) {
       const delJson: any = await delRes.json();
       const ids = decodeFirestoreValue(delJson?.fields?.ids || delJson?.fields?.value?.mapValue?.fields?.ids);
@@ -119,11 +127,22 @@ export async function fetchFirestoreProducts(): Promise<any[]> {
       }
     }
 
-    if (!prodRes.ok) {
-      return cachedProductsList.filter(p => !cachedDeletedIds.has(p.id));
+    const docs: any[] = [];
+    let nextPageToken: string | undefined;
+    for (let page = 0; page < 10; page++) {
+      const pageUrl = nextPageToken
+        ? `${FIRESTORE_PRODUCTS_URL}&pageToken=${encodeURIComponent(nextPageToken)}`
+        : FIRESTORE_PRODUCTS_URL;
+      const prodRes = await fetch(pageUrl).catch(() => null);
+      if (!prodRes || !prodRes.ok) break;
+      const json: any = await prodRes.json();
+      if (Array.isArray(json?.documents)) {
+        docs.push(...json.documents);
+      }
+      if (!json?.nextPageToken) break;
+      nextPageToken = String(json.nextPageToken);
     }
-    const json: any = await prodRes.json();
-    const docs = Array.isArray(json?.documents) ? json.documents : [];
+
     const parsed = docs
       .map((d: any) => {
         const id = String(d?.name || '').split('/').pop() || '';
@@ -140,11 +159,13 @@ export async function fetchFirestoreProducts(): Promise<any[]> {
         isApproved: p.isApproved !== false,
         isActive: p.isActive !== false,
       }));
-    cachedProductsList = parsed;
+
+    const merged = buildMerged(parsed);
+    cachedProductsList = merged;
     lastFetchAtMs = now;
-    return parsed;
+    return merged;
   } catch {
-    return cachedProductsList.filter(p => !cachedDeletedIds.has(p.id));
+    return buildMerged([]);
   }
 }
 
@@ -176,6 +197,9 @@ export function sanitizeProductForPublic(product: any, caller: { userId: string;
 
 export default async function handler(req: VercelRequest | any, res: VercelResponse | any) {
   applySafeCors(req, res, 'GET, POST, OPTIONS');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -231,12 +255,14 @@ export default async function handler(req: VercelRequest | any, res: VercelRespo
 
       if (status && typeof status === 'string') {
         if (status === 'active' || status === 'approved') {
-          productList = productList.filter(p => p.status === 'active' || p.status === 'approved' || !p.status);
+          productList = filterPublicActiveProducts(productList);
         } else if (status === 'pending') {
           productList = productList.filter(p => p.status === 'pending' || p.status === 'under_review' || p.status === 'in_review');
         } else if (status !== 'all') {
           productList = productList.filter(p => p.status === status);
         }
+      } else if (!isAdmin && !sellerId) {
+        productList = filterPublicActiveProducts(productList);
       }
       if (query && typeof query === 'string') {
         const q = query.toLowerCase();
